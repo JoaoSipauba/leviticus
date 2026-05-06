@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.local
+*.mp3
+*.mp4
+supabase/.branches
+supabase/.temp

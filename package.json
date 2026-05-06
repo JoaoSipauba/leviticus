@@ -1,0 +1,10 @@
+{
+  "name": "leviticus",
+  "private": true,
+  "scripts": {
+    "dev:worker": "pnpm --filter worker dev",
+    "build:worker": "pnpm --filter worker build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
