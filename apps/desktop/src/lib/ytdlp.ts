@@ -23,23 +23,19 @@ export async function downloadSong(
 
   const outputPath = await getSongFilename(songId)
 
-  // Tauri não herda o PATH do shell — detecta o ffmpeg em caminhos comuns do Homebrew
-  const ffmpegSearchPaths = ['/opt/homebrew/bin/ffmpeg', '/usr/local/bin/ffmpeg', '/usr/bin/ffmpeg']
-  let ffmpegDir: string | undefined
-  for (const p of ffmpegSearchPaths) {
-    if (await exists(p)) { ffmpegDir = p.replace('/ffmpeg', ''); break }
-  }
+  // Tauri não herda o PATH do shell — passa os caminhos comuns do Homebrew via PATH
+  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
 
   const command = Command.create('yt-dlp', [
     '--no-playlist',
     '-x',
     '--audio-format', 'mp3',
     '--audio-quality', '0',
-    ...(ffmpegDir ? ['--ffmpeg-location', ffmpegDir] : []),
+    '--ffmpeg-location', '/opt/homebrew/bin',
     '--newline',
     '-o', outputPath,
     youtubeUrl,
-  ])
+  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
   command.stdout.on('data', (line: string) => {
     const match = line.match(/(\d+\.?\d*)%/)
