@@ -18,10 +18,14 @@ export function OrgSelect() {
 
   useEffect(() => {
     if (!user) return
+    let active = true
     supabase
       .from('organizations')
       .select('id, name')
-      .then(({ data }) => setOrgs(data ?? []))
+      .then(({ data, error }) => {
+        if (active && !error) setOrgs(data ?? [])
+      })
+    return () => { active = false }
   }, [user])
 
   async function selectOrg(org: Org) {
@@ -31,6 +35,7 @@ export function OrgSelect() {
   }
 
   async function handleJoin() {
+    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
     setLoading(true)
     setError(null)
     const { data, error } = await supabase
@@ -51,17 +56,24 @@ export function OrgSelect() {
       return
     }
 
-    await supabase.from('organization_members').insert({
+    const { error: insertError } = await supabase.from('organization_members').insert({
       user_id: user!.id,
       org_id: data.org_id,
     })
+    if (insertError) {
+      setError('Erro ao entrar na organização.')
+      setLoading(false)
+      return
+    }
 
     localStorage.setItem('leviticus_org_id', data.org_id)
     await syncOrg(data.org_id)
+    setLoading(false)
     navigate('/library')
   }
 
   async function handleCreate() {
+    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
     if (!newOrgName.trim()) return
     setLoading(true)
     const { data, error } = await supabase
@@ -76,12 +88,18 @@ export function OrgSelect() {
       return
     }
 
-    await supabase.from('organization_members').insert({
+    const { error: memberError } = await supabase.from('organization_members').insert({
       user_id: user!.id,
       org_id: data.id,
     })
+    if (memberError) {
+      setError('Erro ao criar organização.')
+      setLoading(false)
+      return
+    }
 
     localStorage.setItem('leviticus_org_id', data.id)
+    setLoading(false)
     navigate('/library')
   }
 
