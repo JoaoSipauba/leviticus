@@ -1,5 +1,5 @@
 import { usePlayerStore } from '../store/player.js'
-import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
+import { pauseAudio, resumeAudio, playSong, setVolume as setAudioVolume } from '../lib/audio.js'
 import { getSongFilename } from '../lib/ytdlp.js'
 
 type Props = {
@@ -25,19 +25,25 @@ export function PlayerExpanded({ pos, duration, onSeek, onClose }: Props) {
 
   async function handleNext() {
     const next = nextInPlaylist()
-    if (next) {
+    if (!next) return
+    try {
       const path = await getSongFilename(next.id)
       playSong(path, { onEnd: () => usePlayerStore.getState().pause() })
       usePlayerStore.getState().resume()
+    } catch {
+      usePlayerStore.getState().pause()
     }
   }
 
   async function handlePrev() {
     const prev = previousInPlaylist()
-    if (prev) {
+    if (!prev) return
+    try {
       const path = await getSongFilename(prev.id)
       playSong(path, { onEnd: () => usePlayerStore.getState().pause() })
       usePlayerStore.getState().resume()
+    } catch {
+      usePlayerStore.getState().pause()
     }
   }
 
@@ -129,7 +135,11 @@ export function PlayerExpanded({ pos, duration, onSeek, onClose }: Props) {
           type="range"
           min="0" max="1" step="0.05"
           value={volume}
-          onChange={(e) => setVolume(parseFloat(e.target.value))}
+          onChange={(e) => {
+            const vol = parseFloat(e.target.value)
+            setAudioVolume(vol)
+            setVolume(vol)
+          }}
           className="w-32 accent-blue-500"
         />
       </div>

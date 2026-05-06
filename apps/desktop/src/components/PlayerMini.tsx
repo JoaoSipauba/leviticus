@@ -29,7 +29,7 @@ export function PlayerMini() {
       setPosition(p)
     }, 1000)
     return () => clearInterval(interval)
-  }, [isPlaying, setPosition])
+  }, [isPlaying, setPosition, currentSong?.id])
 
   function handlePlayPause() {
     if (isPlaying) { pauseAudio(); pause() }
