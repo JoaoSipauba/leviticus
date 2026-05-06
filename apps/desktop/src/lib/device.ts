@@ -1,3 +1,4 @@
+// Renderer-only module: relies on localStorage. Do not import in the main process or Node test runners.
 const DEVICE_ID_KEY = 'leviticus_device_id'
 const DEVICE_NAME_KEY = 'leviticus_device_name'
 
@@ -10,6 +11,7 @@ export function getDeviceId(): string {
   return id
 }
 
+// Persists the generated name on first call so it stays stable across reloads.
 export function getDeviceName(): string {
   let name = localStorage.getItem(DEVICE_NAME_KEY)
   if (!name) {
