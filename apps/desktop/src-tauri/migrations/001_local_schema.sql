@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS groups (
 );
 
 CREATE TABLE IF NOT EXISTS song_groups (
-  song_id TEXT NOT NULL,
-  group_id TEXT NOT NULL,
+  song_id  TEXT NOT NULL REFERENCES songs(id)  ON DELETE CASCADE,
+  group_id TEXT NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   PRIMARY KEY (song_id, group_id)
 );
 
@@ -40,9 +40,9 @@ CREATE TABLE IF NOT EXISTS playlists (
 );
 
 CREATE TABLE IF NOT EXISTS playlist_songs (
-  playlist_id TEXT NOT NULL,
-  song_id TEXT NOT NULL,
-  position INTEGER NOT NULL,
+  playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  song_id     TEXT NOT NULL REFERENCES songs(id)     ON DELETE CASCADE,
+  position    INTEGER NOT NULL,
   PRIMARY KEY (playlist_id, song_id)
 );
 
@@ -50,3 +50,7 @@ CREATE TABLE IF NOT EXISTS sync_metadata (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_songs_org_id     ON songs(org_id);
+CREATE INDEX IF NOT EXISTS idx_groups_org_id    ON groups(org_id);
+CREATE INDEX IF NOT EXISTS idx_playlists_org_id ON playlists(org_id);

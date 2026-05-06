@@ -1,12 +1,15 @@
 import Database from '@tauri-apps/plugin-sql'
 
-let _db: Database | null = null
+let _dbPromise: Promise<Database> | null = null
 
-export async function getDb(): Promise<Database> {
-  if (!_db) {
-    _db = await Database.load('sqlite:leviticus.db')
+export function getDb(): Promise<Database> {
+  if (!_dbPromise) {
+    _dbPromise = Database.load('sqlite:leviticus.db').then(async db => {
+      await db.execute('PRAGMA foreign_keys = ON')
+      return db
+    })
   }
-  return _db
+  return _dbPromise
 }
 
 export async function getLastSync(orgId: string): Promise<string | null> {
@@ -18,6 +21,9 @@ export async function getLastSync(orgId: string): Promise<string | null> {
   return rows[0]?.value ?? null
 }
 
+/**
+ * @param iso ISO 8601 UTC timestamp string, e.g. "2026-05-06T12:00:00.000Z"
+ */
 export async function setLastSync(orgId: string, iso: string): Promise<void> {
   const db = await getDb()
   await db.execute(
