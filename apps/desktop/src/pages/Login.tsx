@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase.js'
+import { useAuthStore } from '../store/auth.js'
 
 type Props = {
   onSuccess: () => void
 }
 
 export function Login({ onSuccess }: Props) {
+  const { setSession } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isSignUp, setIsSignUp] = useState(false)
@@ -34,6 +36,7 @@ export function Login({ onSuccess }: Props) {
       return
     }
 
+    setSession(result.data.session)
     onSuccess()
   }
 
