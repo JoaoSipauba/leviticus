@@ -4,14 +4,17 @@ import { supabase } from './supabase.js'
 import { getDeviceId, getDeviceName } from './device.js'
 
 let _channel: RealtimeChannel | null = null
+let _channelUserId: string | null = null
 
 export function getChannel(userId: string): RealtimeChannel {
-  if (_channel) return _channel
-
+  if (_channel && _channelUserId === userId) return _channel
+  if (_channel) {
+    supabase.removeChannel(_channel)
+  }
+  _channelUserId = userId
   _channel = supabase.channel(`remote-control:${userId}`, {
     config: { presence: { key: getDeviceId() } },
   })
-
   return _channel
 }
 

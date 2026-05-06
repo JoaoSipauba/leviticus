@@ -11,10 +11,11 @@ import {
   getOnlineDevices,
   getChannel,
 } from '../lib/realtime.js'
+import { supabase } from '../lib/supabase.js'
 import { getDeviceId } from '../lib/device.js'
-import { pauseAudio, resumeAudio, seekTo, setVolume } from '../lib/audio.js'
-import { downloadSong, getSongFilename } from '../lib/ytdlp.js'
-import { playSong } from '../lib/audio.js'
+import { pauseAudio, resumeAudio, seekTo, setVolume, playSong } from '../lib/audio.js'
+import { isDownloaded, downloadSong, getSongFilename } from '../lib/ytdlp.js'
+import { getDb } from '../lib/db.js'
 import type { RemoteCommand } from '@leviticus/core'
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
@@ -46,9 +47,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       else if (cmd.type === 'seek') seekTo(cmd.position_seconds)
       else if (cmd.type === 'set_volume') setVolume(cmd.volume)
       else if (cmd.type === 'play_song') {
-        const downloaded = await isDownloadedLocally(cmd.song_id)
+        const downloaded = await isDownloaded(cmd.song_id)
         if (!downloaded) {
-          const db = await getDbLocal()
+          const db = await getDb()
           const rows = await db.select<{ youtube_url: string }[]>(
             'SELECT youtube_url FROM songs WHERE id = ?', [cmd.song_id]
           )
@@ -81,21 +82,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       })
     }, 1000)
 
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
   }, [user])
 
   return <>{children}</>
-}
-
-// Lazy imports inside handler to avoid circular dep issues
-async function isDownloadedLocally(songId: string): Promise<boolean> {
-  const { isDownloaded } = await import('../lib/ytdlp.js')
-  return isDownloaded(songId)
-}
-
-async function getDbLocal() {
-  const { getDb } = await import('../lib/db.js')
-  return getDb()
 }
 
 export function RemoteControl() {

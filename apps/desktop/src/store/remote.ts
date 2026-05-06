@@ -7,7 +7,7 @@ type RemoteStore = {
   remotePlayerState: PlayerState | null
   setOnlineDevices: (devices: DevicePresence[]) => void
   setTargetDevice: (deviceId: string | null) => void
-  setRemotePlayerState: (state: PlayerState) => void
+  setRemotePlayerState: (state: PlayerState | null) => void
 }
 
 export const useRemoteStore = create<RemoteStore>((set) => ({
