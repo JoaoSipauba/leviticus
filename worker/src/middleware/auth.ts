@@ -11,12 +11,12 @@ export async function requireAuth(
   res: Response,
   next: NextFunction
 ): Promise<void> {
-  const token = req.headers.authorization?.replace('Bearer ', '')
-
-  if (!token) {
+  const authHeader = req.headers.authorization
+  if (!authHeader?.startsWith('Bearer ')) {
     res.status(401).json({ error: 'Missing token' })
     return
   }
+  const token = authHeader.slice(7)
 
   const { data, error } = await supabase.auth.getUser(token)
 
