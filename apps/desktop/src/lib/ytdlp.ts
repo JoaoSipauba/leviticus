@@ -61,12 +61,24 @@ export async function fetchYoutubeMetadata(url: string): Promise<{
     throw new Error('URL inválida')
   }
 
-  // oEmbed fetch removed — blocked by Tauri CSP.
-  // Title and duration are fetched by yt-dlp during download.
+  const command = Command.create('yt-dlp', [
+    '--no-playlist',
+    '--no-download',
+    '--print', '%(title)s|||%(uploader)s|||%(duration)s',
+    url,
+  ])
+
+  const result = await command.execute()
+  if (result.code !== 0) {
+    throw new Error(`yt-dlp metadata failed: ${result.stderr}`)
+  }
+
+  const [title = videoId, artist = '', durationRaw = '0'] = result.stdout.trim().split('|||')
+
   return {
-    title: videoId,
-    artist: '',
+    title: title || videoId,
+    artist,
     thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-    duration_seconds: 0,
+    duration_seconds: parseInt(durationRaw, 10) || 0,
   }
 }
