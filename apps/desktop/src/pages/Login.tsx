@@ -21,13 +21,19 @@ export function Login({ onSuccess }: Props) {
       ? supabase.auth.signUp({ email, password })
       : supabase.auth.signInWithPassword({ email, password })
 
-    const { error } = await fn
+    const result = await fn
     setLoading(false)
 
-    if (error) {
-      setError(error.message)
+    if (result.error) {
+      setError(result.error.message)
       return
     }
+
+    if (isSignUp && !result.data?.session) {
+      setError('Verifique seu e-mail para confirmar a conta.')
+      return
+    }
+
     onSuccess()
   }
 
@@ -71,7 +77,7 @@ export function Login({ onSuccess }: Props) {
             />
           </div>
 
-          {error && <p className="text-red-400 text-sm">{error}</p>}
+          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
 
           <button
             type="submit"
