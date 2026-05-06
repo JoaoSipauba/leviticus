@@ -1,4 +1,4 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
 import { App } from './App.js'
 import { Login } from './pages/Login.js'
 import { OrgSelect } from './pages/OrgSelect.js'
@@ -8,6 +8,11 @@ import { Groups } from './pages/Groups.js'
 import { Playlists } from './pages/Playlists.js'
 import { PlaylistDetail } from './pages/PlaylistDetail.js'
 import { OrgManage } from './pages/OrgManage.js'
+
+function LoginRoute() {
+  const navigate = useNavigate()
+  return <Login onSuccess={() => navigate('/org', { replace: true })} />
+}
 
 export const router = createBrowserRouter([
   {
@@ -23,6 +28,6 @@ export const router = createBrowserRouter([
       { path: 'manage', element: <OrgManage /> },
     ],
   },
-  { path: '/login', element: <Login onSuccess={() => window.location.replace('/org')} /> },
+  { path: '/login', element: <LoginRoute /> },
   { path: '/org', element: <OrgSelect /> },
 ])
