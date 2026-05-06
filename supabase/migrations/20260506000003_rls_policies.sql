@@ -22,7 +22,8 @@ CREATE POLICY "authenticated users can create orgs"
 
 CREATE POLICY "owner can update org"
   ON organizations FOR UPDATE
-  USING (owner_id = auth.uid());
+  USING (owner_id = auth.uid())
+  WITH CHECK (owner_id = auth.uid());
 
 CREATE POLICY "owner can delete org"
   ON organizations FOR DELETE
@@ -52,7 +53,8 @@ CREATE POLICY "admins can create invite codes"
 
 CREATE POLICY "admins can update invite codes"
   ON org_invite_codes FOR UPDATE
-  USING (has_permission(org_id, 'manage_members'));
+  USING (has_permission(org_id, 'manage_members'))
+  WITH CHECK (has_permission(org_id, 'manage_members'));
 
 -- roles
 CREATE POLICY "members can view roles"
@@ -65,7 +67,8 @@ CREATE POLICY "role managers can create roles"
 
 CREATE POLICY "role managers can update roles"
   ON roles FOR UPDATE
-  USING (has_permission(org_id, 'manage_roles'));
+  USING (has_permission(org_id, 'manage_roles'))
+  WITH CHECK (has_permission(org_id, 'manage_roles'));
 
 CREATE POLICY "role managers can delete roles"
   ON roles FOR DELETE
@@ -83,6 +86,10 @@ CREATE POLICY "role managers can manage role permissions"
   USING (EXISTS (
     SELECT 1 FROM roles r WHERE r.id = role_id
       AND has_permission(r.org_id, 'manage_roles')
+  ))
+  WITH CHECK (EXISTS (
+    SELECT 1 FROM roles r WHERE r.id = role_id
+      AND has_permission(r.org_id, 'manage_roles')
   ));
 
 -- user_role_assignments
@@ -92,7 +99,8 @@ CREATE POLICY "members can view role assignments"
 
 CREATE POLICY "role managers can assign roles"
   ON user_role_assignments FOR ALL
-  USING (has_permission(org_id, 'manage_roles'));
+  USING (has_permission(org_id, 'manage_roles'))
+  WITH CHECK (has_permission(org_id, 'manage_roles'));
 
 -- groups
 CREATE POLICY "members can view groups"
@@ -105,7 +113,8 @@ CREATE POLICY "group managers can create groups"
 
 CREATE POLICY "group managers can update groups"
   ON groups FOR UPDATE
-  USING (has_permission(org_id, 'manage_groups'));
+  USING (has_permission(org_id, 'manage_groups'))
+  WITH CHECK (has_permission(org_id, 'manage_groups'));
 
 CREATE POLICY "group managers can delete groups"
   ON groups FOR DELETE
@@ -122,7 +131,8 @@ CREATE POLICY "users with add_songs can insert"
 
 CREATE POLICY "users with manage_songs can update"
   ON songs FOR UPDATE
-  USING (has_permission(org_id, 'manage_songs'));
+  USING (has_permission(org_id, 'manage_songs'))
+  WITH CHECK (has_permission(org_id, 'manage_songs'));
 
 CREATE POLICY "users with manage_songs can delete"
   ON songs FOR DELETE
@@ -153,7 +163,8 @@ CREATE POLICY "playlist managers can create playlists"
 
 CREATE POLICY "playlist managers can update playlists"
   ON playlists FOR UPDATE
-  USING (has_permission(org_id, 'manage_playlists'));
+  USING (has_permission(org_id, 'manage_playlists'))
+  WITH CHECK (has_permission(org_id, 'manage_playlists'));
 
 CREATE POLICY "playlist managers can delete playlists"
   ON playlists FOR DELETE
