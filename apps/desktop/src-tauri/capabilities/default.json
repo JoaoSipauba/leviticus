@@ -1,10 +1,18 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Leviticus default capabilities",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "fs:default",
+    "fs:allow-app-read-recursive",
+    "fs:allow-app-write-recursive",
+    "shell:allow-execute",
+    "shell:allow-spawn",
+    "sql:default",
+    "sql:allow-execute",
+    "sql:allow-select",
+    "sql:allow-load"
   ]
 }
