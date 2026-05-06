@@ -6,7 +6,9 @@ import { SongCard } from '../components/SongCard.js'
 
 export function Library() {
   const [songs, setSongs] = useState<Song[]>([])
+  const [songGroupMap, setSongGroupMap] = useState<Map<string, string[]>>(new Map())
   const [search, setSearch] = useState('')
+  const [groupFilter, setGroupFilter] = useState<string>('')
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
 
@@ -21,17 +23,34 @@ export function Library() {
         'SELECT id, name FROM groups WHERE org_id = ?',
         [orgId]
       )
+      const sgRows = await db.select<{ song_id: string; group_id: string }[]>(
+        `SELECT sg.song_id, sg.group_id FROM song_groups sg
+         JOIN songs s ON sg.song_id = s.id WHERE s.org_id = ?`,
+        [orgId]
+      )
+      const map = new Map<string, string[]>()
+      for (const row of sgRows) {
+        const arr = map.get(row.song_id) ?? []
+        arr.push(row.group_id)
+        map.set(row.song_id, arr)
+      }
       setSongs(rows)
       setGroups(grps)
+      setSongGroupMap(map)
     }
     load()
   }, [orgId])
 
-  const filtered = songs.filter((s) =>
-    !search ||
-    s.title.toLowerCase().includes(search.toLowerCase()) ||
-    s.artist.toLowerCase().includes(search.toLowerCase())
-  )
+  const filtered = songs.filter((s) => {
+    const matchesSearch =
+      !search ||
+      s.title.toLowerCase().includes(search.toLowerCase()) ||
+      s.artist.toLowerCase().includes(search.toLowerCase())
+    const matchesGroup =
+      !groupFilter ||
+      (songGroupMap.get(s.id) ?? []).includes(groupFilter)
+    return matchesSearch && matchesGroup
+  })
 
   return (
     <div className="p-6">
@@ -54,6 +73,8 @@ export function Library() {
           className="flex-1 bg-gray-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
         <select
+          value={groupFilter}
+          onChange={(e) => setGroupFilter(e.target.value)}
           className="bg-gray-800 rounded-lg px-3 py-2 text-sm outline-none"
         >
           <option value="">Todos os grupos</option>

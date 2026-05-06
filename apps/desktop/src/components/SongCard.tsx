@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Song } from '@leviticus/core'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
-import { playSong } from '../lib/audio.js'
+import { playSong, pauseAudio } from '../lib/audio.js'
 import { usePlayerStore } from '../store/player.js'
 import { DownloadButton } from './DownloadButton.js'
 
@@ -21,6 +21,11 @@ export function SongCard({ song, playlistContext: _playlistContext }: Props) {
 
   async function handlePlay() {
     if (!downloaded) return
+    if (isCurrentlyPlaying) {
+      pauseAudio()
+      usePlayerStore.getState().pause()
+      return
+    }
     const filePath = await getSongFilename(song.id)
     playSong(filePath, {
       onEnd: () => usePlayerStore.getState().pause(),

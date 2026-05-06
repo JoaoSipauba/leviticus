@@ -11,10 +11,12 @@ type Props = {
 export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string | null>(null)
   const { setDownloading: setGlobalDownloading } = usePlayerStore()
 
   async function handleDownload() {
     setDownloading(true)
+    setError(null)
     setGlobalDownloading(true, 0)
     try {
       await downloadSong(songId, youtubeUrl, (p) => {
@@ -22,6 +24,8 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
         setGlobalDownloading(true, p)
       })
       onDownloaded?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao baixar')
     } finally {
       setDownloading(false)
       setGlobalDownloading(false)
@@ -38,6 +42,21 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
           />
         </div>
         {Math.round(progress * 100)}%
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center gap-1">
+        <span className="text-red-400 text-xs" title={error}>Falha</span>
+        <button
+          onClick={handleDownload}
+          className="text-gray-400 hover:text-white text-xs px-1"
+          title="Tentar novamente"
+        >
+          ↺
+        </button>
       </div>
     )
   }
