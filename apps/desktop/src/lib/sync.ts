@@ -22,6 +22,7 @@ export async function syncOrg(orgId: string): Promise<void> {
         .select('*')
         .eq('org_id', orgId)
         .gte('updated_at', since),
+      // Junction tables lack updated_at — full fetch scoped to org on every sync
       supabase
         .from('song_groups')
         .select('song_id, group_id, songs!inner(org_id)')
@@ -32,7 +33,13 @@ export async function syncOrg(orgId: string): Promise<void> {
         .eq('playlists.org_id', orgId),
     ])
 
-  for (const s of songs.data ?? []) {
+  if (songs.error) throw new Error(`sync songs failed: ${songs.error.message}`)
+  if (groups.error) throw new Error(`sync groups failed: ${groups.error.message}`)
+  if (playlists.error) throw new Error(`sync playlists failed: ${playlists.error.message}`)
+  if (songGroups.error) throw new Error(`sync song_groups failed: ${songGroups.error.message}`)
+  if (playlistSongs.error) throw new Error(`sync playlist_songs failed: ${playlistSongs.error.message}`)
+
+  for (const s of songs.data) {
     await db.execute(
       `INSERT OR REPLACE INTO songs
        (id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, created_at, updated_at)
@@ -42,14 +49,14 @@ export async function syncOrg(orgId: string): Promise<void> {
     )
   }
 
-  for (const g of groups.data ?? []) {
+  for (const g of groups.data) {
     await db.execute(
       `INSERT OR REPLACE INTO groups (id, org_id, name, updated_at) VALUES (?, ?, ?, ?)`,
       [g.id, g.org_id, g.name, g.updated_at]
     )
   }
 
-  for (const p of playlists.data ?? []) {
+  for (const p of playlists.data) {
     await db.execute(
       `INSERT OR REPLACE INTO playlists
        (id, org_id, name, scheduled_date, created_at, updated_at)
@@ -58,14 +65,14 @@ export async function syncOrg(orgId: string): Promise<void> {
     )
   }
 
-  for (const sg of songGroups.data ?? []) {
+  for (const sg of songGroups.data) {
     await db.execute(
-      `INSERT OR IGNORE INTO song_groups (song_id, group_id) VALUES (?, ?)`,
+      `INSERT OR REPLACE INTO song_groups (song_id, group_id) VALUES (?, ?)`,
       [sg.song_id, sg.group_id]
     )
   }
 
-  for (const ps of playlistSongs.data ?? []) {
+  for (const ps of playlistSongs.data) {
     await db.execute(
       `INSERT OR REPLACE INTO playlist_songs (playlist_id, song_id, position) VALUES (?, ?, ?)`,
       [ps.playlist_id, ps.song_id, ps.position]
