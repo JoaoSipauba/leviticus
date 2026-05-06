@@ -8,8 +8,14 @@
     "fs:default",
     "fs:allow-app-read-recursive",
     "fs:allow-app-write-recursive",
-    "shell:allow-execute",
-    "shell:allow-spawn",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [{ "name": "yt-dlp", "cmd": "yt-dlp", "args": true }]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "yt-dlp", "cmd": "yt-dlp", "args": true }]
+    },
     "sql:default",
     "sql:allow-execute",
     "sql:allow-select",
