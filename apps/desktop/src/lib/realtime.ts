@@ -26,14 +26,27 @@ export async function announcePresence(userId: string): Promise<void> {
     platform: 'desktop',
   }
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Realtime subscription timed out')), 10_000)
     channel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
+        clearTimeout(timer)
         await channel.track(presence)
         resolve()
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        clearTimeout(timer)
+        reject(new Error(`Realtime channel status: ${status}`))
       }
     })
   })
+}
+
+export function destroyChannel(): void {
+  if (_channel) {
+    supabase.removeChannel(_channel)
+    _channel = null
+    _channelUserId = null
+  }
 }
 
 export function onCommand(

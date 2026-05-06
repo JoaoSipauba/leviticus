@@ -61,18 +61,12 @@ export async function fetchYoutubeMetadata(url: string): Promise<{
     throw new Error('URL inválida')
   }
 
-  const oembedUrl =
-    `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
-
-  const res = await fetch(oembedUrl)
-  if (!res.ok) throw new Error('Vídeo não encontrado')
-
-  const data = await res.json()
-
+  // oEmbed fetch removed — blocked by Tauri CSP.
+  // Title and duration are fetched by yt-dlp during download.
   return {
-    title: data.title,
-    artist: data.author_name,
-    thumbnail_url: data.thumbnail_url,
+    title: videoId,
+    artist: '',
+    thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
     duration_seconds: 0,
   }
 }

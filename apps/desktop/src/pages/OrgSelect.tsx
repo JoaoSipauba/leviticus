@@ -9,6 +9,11 @@ type Org = { id: string; name: string }
 export function OrgSelect() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!user) navigate('/login', { replace: true })
+  }, [user, navigate])
+
   const [orgs, setOrgs] = useState<Org[]>([])
   const [code, setCode] = useState('')
   const [newOrgName, setNewOrgName] = useState('')
@@ -99,6 +104,7 @@ export function OrgSelect() {
     }
 
     localStorage.setItem('leviticus_org_id', data.id)
+    await syncOrg(data.id)
     setLoading(false)
     navigate('/library')
   }

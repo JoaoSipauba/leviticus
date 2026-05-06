@@ -1,6 +1,6 @@
 import { usePlayerStore } from '../store/player.js'
 import { pauseAudio, resumeAudio, playSong, setVolume as setAudioVolume } from '../lib/audio.js'
-import { getSongFilename } from '../lib/ytdlp.js'
+import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 
 type Props = {
   pos: number
@@ -26,6 +26,7 @@ export function PlayerExpanded({ pos, duration, onSeek, onClose }: Props) {
   async function handleNext() {
     const next = nextInPlaylist()
     if (!next) return
+    if (!(await isDownloaded(next.id))) return
     try {
       const path = await getSongFilename(next.id)
       playSong(path, { onEnd: () => usePlayerStore.getState().pause() })
@@ -38,6 +39,7 @@ export function PlayerExpanded({ pos, duration, onSeek, onClose }: Props) {
   async function handlePrev() {
     const prev = previousInPlaylist()
     if (!prev) return
+    if (!(await isDownloaded(prev.id))) return
     try {
       const path = await getSongFilename(prev.id)
       playSong(path, { onEnd: () => usePlayerStore.getState().pause() })

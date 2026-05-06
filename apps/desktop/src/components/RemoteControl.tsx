@@ -10,8 +10,8 @@ import {
   sendCommand,
   getOnlineDevices,
   getChannel,
+  destroyChannel,
 } from '../lib/realtime.js'
-import { supabase } from '../lib/supabase.js'
 import { getDeviceId } from '../lib/device.js'
 import { pauseAudio, resumeAudio, seekTo, setVolume, playSong } from '../lib/audio.js'
 import { isDownloaded, downloadSong, getSongFilename } from '../lib/ytdlp.js'
@@ -26,7 +26,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) return
 
-    announcePresence(user.id)
+    announcePresence(user.id).catch(() => {
+      // realtime unavailable — remote control will not work
+    })
 
     const channel = getChannel(user.id)
 
@@ -47,22 +49,27 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       else if (cmd.type === 'seek') seekTo(cmd.position_seconds)
       else if (cmd.type === 'set_volume') setVolume(cmd.volume)
       else if (cmd.type === 'play_song') {
-        const downloaded = await isDownloaded(cmd.song_id)
-        if (!downloaded) {
-          const db = await getDb()
-          const rows = await db.select<{ youtube_url: string }[]>(
-            'SELECT youtube_url FROM songs WHERE id = ?', [cmd.song_id]
-          )
-          if (rows[0]) {
-            playerStore.setDownloading(true, 0)
-            await downloadSong(cmd.song_id, rows[0].youtube_url, (p) => {
-              playerStore.setDownloading(true, p)
-            })
-            playerStore.setDownloading(false)
+        playerStore.setDownloading(true, 0)
+        try {
+          const downloaded = await isDownloaded(cmd.song_id)
+          if (!downloaded) {
+            const db = await getDb()
+            const rows = await db.select<{ youtube_url: string }[]>(
+              'SELECT youtube_url FROM songs WHERE id = ?', [cmd.song_id]
+            )
+            if (rows[0]) {
+              await downloadSong(cmd.song_id, rows[0].youtube_url, (p) => {
+                playerStore.setDownloading(true, p)
+              })
+            }
           }
+          const path = await getSongFilename(cmd.song_id)
+          playSong(path)
+        } catch {
+          // error is swallowed — UI will clear loading state via finally
+        } finally {
+          playerStore.setDownloading(false)
         }
-        const path = await getSongFilename(cmd.song_id)
-        playSong(path)
       }
     })
 
@@ -84,7 +91,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearInterval(interval)
-      supabase.removeChannel(channel)
+      destroyChannel()
     }
   }, [user])
 
