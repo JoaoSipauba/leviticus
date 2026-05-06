@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { getSongFilename, isDownloaded } from './ytdlp.js'
+import { getSongFilename, isDownloaded, fetchYoutubeMetadata } from './ytdlp.js'
 
 vi.mock('@tauri-apps/api/path', () => ({
   appLocalDataDir: vi.fn().mockResolvedValue('/mock/data'),
@@ -19,5 +19,16 @@ describe('ytdlp utils', () => {
   it('isDownloaded returns true when file exists', async () => {
     const result = await isDownloaded('song-123')
     expect(result).toBe(true)
+  })
+
+  it('isDownloaded returns false when file does not exist', async () => {
+    const { exists } = await import('@tauri-apps/plugin-fs')
+    vi.mocked(exists).mockResolvedValueOnce(false)
+    const result = await isDownloaded('song-456')
+    expect(result).toBe(false)
+  })
+
+  it('fetchYoutubeMetadata throws for non-YouTube URLs', async () => {
+    await expect(fetchYoutubeMetadata('https://example.com/watch?v=abc1234567a')).rejects.toThrow('URL inválida')
   })
 })

@@ -33,12 +33,15 @@ export async function downloadSong(
     youtubeUrl,
   ])
 
-  command.stderr.on('data', (line: string) => {
+  command.stdout.on('data', (line: string) => {
     const match = line.match(/(\d+\.?\d*)%/)
     if (match) onProgress(parseFloat(match[1]) / 100)
   })
 
-  await command.execute()
+  const result = await command.execute()
+  if (result.code !== 0) {
+    throw new Error(`yt-dlp exited with code ${result.code}: ${result.stderr}`)
+  }
   onProgress(1)
   return outputPath
 }
@@ -49,8 +52,14 @@ export async function fetchYoutubeMetadata(url: string): Promise<{
   thumbnail_url: string
   duration_seconds: number
 }> {
-  const videoId = new URL(url).searchParams.get('v')
-  if (!videoId) throw new Error('URL inválida')
+  const parsed = new URL(url)
+  if (!['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com', 'music.youtube.com'].includes(parsed.hostname)) {
+    throw new Error('URL inválida: apenas YouTube é aceito')
+  }
+  const videoId = parsed.searchParams.get('v') ?? (parsed.hostname === 'youtu.be' ? parsed.pathname.slice(1) : null)
+  if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
+    throw new Error('URL inválida')
+  }
 
   const oembedUrl =
     `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`

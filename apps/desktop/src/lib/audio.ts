@@ -31,7 +31,8 @@ export function getCurrentHowl(): Howl | null {
 }
 
 export function getPosition(): number {
-  return (_howl?.seek() as number) ?? 0
+  const pos = _howl?.seek()
+  return typeof pos === 'number' ? pos : 0
 }
 
 export function getDuration(): number {

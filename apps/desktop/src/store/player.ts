@@ -51,14 +51,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (playlistPosition === null) return null
     const next = playlistPosition + 1
     if (next >= playlistSongs.length) return null
-    set({ playlistPosition: next })
+    set({ playlistPosition: next, currentSong: playlistSongs[next] })
     return playlistSongs[next]
   },
   previousInPlaylist: () => {
     const { playlistSongs, playlistPosition } = get()
     if (playlistPosition === null || playlistPosition === 0) return null
     const prev = playlistPosition - 1
-    set({ playlistPosition: prev })
+    set({ playlistPosition: prev, currentSong: playlistSongs[prev] })
     return playlistSongs[prev]
   },
 }))
