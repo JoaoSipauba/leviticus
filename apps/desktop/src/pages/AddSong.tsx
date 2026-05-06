@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Info } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { fetchYoutubeMetadata, downloadSong } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
@@ -19,14 +20,24 @@ export function AddSong() {
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [fetching, setFetching] = useState(false)
   const { setDownloading } = usePlayerStore()
+
+  const inputStyle = {
+    background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 10, padding: '11px 14px',
+    color: '#f3f4f6', outline: 'none',
+    width: '100%', fontSize: 14, minHeight: 44,
+    boxSizing: 'border-box' as const,
+  }
 
   async function handleFetchMetadata() {
     setError(null)
+    setFetching(true)
     try {
       const data = await fetchYoutubeMetadata(url)
 
-      // Use maybeSingle() to avoid PGRST116 error on no-match
       const { data: existing } = await supabase
         .from('songs')
         .select('id')
@@ -38,7 +49,6 @@ export function AddSong() {
         return
       }
 
-      // Capture org_id once so both steps use the same value
       const currentOrgId = localStorage.getItem('leviticus_org_id') ?? ''
       const db = await getDb()
       const rows = await db.select<GroupRow[]>(
@@ -54,12 +64,14 @@ export function AddSong() {
       setStep('confirm')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao buscar metadados')
+    } finally {
+      setFetching(false)
     }
   }
 
   async function handleConfirm() {
     if (selectedGroups.length === 0) {
-      setError('Selecione pelo menos um grupo.')
+      setError('Selecione pelo menos um ministério.')
       return
     }
     if (!metadata) {
@@ -110,13 +122,11 @@ export function AddSong() {
         setProgress(p)
         setDownloading(true, p)
       })
-      // Reset only on success
       setUrl('')
       setMetadata(null)
       setSelectedGroups([])
       setStep('url')
     } catch (e) {
-      // Roll back Supabase records so user can retry
       await supabase.from('song_groups').delete().eq('song_id', song.id)
       await supabase.from('songs').delete().eq('id', song.id)
       setError(e instanceof Error ? e.message : 'Erro ao baixar')
@@ -134,52 +144,93 @@ export function AddSong() {
   }
 
   return (
-    <div className="p-6 max-w-lg">
-      <h2 className="text-xl font-semibold mb-6">Adicionar Música</h2>
+    <div className="p-6" style={{ maxWidth: 480 }}>
+      <h2 className="font-semibold mb-6" style={{ color: '#f3f4f6', fontSize: 18 }}>
+        Adicionar Música
+      </h2>
 
       {step === 'url' && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           <input
             type="url"
             placeholder="Cole o link do YouTube aqui"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            className="w-full bg-gray-800 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+            style={inputStyle}
           />
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm" style={{ color: '#ef4444' }}>{error}</p>
+          )}
           <button
             onClick={handleFetchMetadata}
-            disabled={!url}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg disabled:opacity-40"
+            disabled={!url || fetching}
+            className="flex items-center gap-2 font-semibold text-white transition-colors"
+            style={{
+              background: (!url || fetching) ? 'rgba(37,99,235,0.5)' : '#2563eb',
+              borderRadius: 10, padding: '10px 18px',
+              fontSize: 14, border: 'none', cursor: (!url || fetching) ? 'default' : 'pointer',
+              minHeight: 44,
+            }}
           >
-            Buscar informações
+            {fetching ? (
+              <>
+                <svg
+                  className="animate-spin-smooth"
+                  width="16" height="16" viewBox="0 0 24 24"
+                  fill="none" stroke="#fff" strokeWidth="2.5"
+                  strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Buscando metadados…
+              </>
+            ) : (
+              'Buscar informações'
+            )}
           </button>
+          {fetching && (
+            <div
+              className="flex items-center gap-2 text-sm"
+              style={{
+                background: 'rgba(30,58,138,0.15)',
+                border: '1px solid rgba(59,130,246,0.2)',
+                borderRadius: 10, padding: '10px 14px',
+                color: '#93c5fd',
+              }}
+            >
+              <Info size={14} color="#3b82f6" strokeWidth={2} />
+              Isso pode levar alguns segundos
+            </div>
+          )}
         </div>
       )}
 
       {step === 'confirm' && (
         <div className="space-y-4">
           {metadata?.thumbnail_url && (
-            <img src={metadata.thumbnail_url} className="rounded-lg w-full" alt="" />
+            <img
+              src={metadata.thumbnail_url}
+              className="rounded-xl w-full"
+              style={{ boxShadow: '0 12px 40px rgba(37,99,235,0.19)' }}
+              alt=""
+            />
           )}
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Título</label>
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm mb-1.5 font-medium" style={{ color: '#9ca3af' }}>
+              Título
+            </label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-1">Artista</label>
-            <input
-              value={artist}
-              onChange={(e) => setArtist(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm mb-1.5 font-medium" style={{ color: '#9ca3af' }}>
+              Artista
+            </label>
+            <input value={artist} onChange={(e) => setArtist(e.target.value)} style={inputStyle} />
           </div>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Grupos</label>
+            <label className="block text-sm mb-2 font-medium" style={{ color: '#9ca3af' }}>
+              Ministérios
+            </label>
             <div className="space-y-2">
               {groups.map((g) => (
                 <label key={g.id} className="flex items-center gap-2 cursor-pointer">
@@ -189,26 +240,41 @@ export function AddSong() {
                     onChange={() => toggleGroup(g.id)}
                     className="rounded"
                   />
-                  <span>{g.name}</span>
+                  <span style={{ color: '#f3f4f6', fontSize: 14 }}>{g.name}</span>
                 </label>
               ))}
             </div>
           </div>
-          {error && <p role="alert" className="text-red-400 text-sm">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm" style={{ color: '#ef4444' }}>{error}</p>
+          )}
           <div className="flex gap-3">
             <button
               onClick={() => setStep('url')}
               disabled={submitting}
-              className="px-4 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 disabled:opacity-40"
+              className="font-semibold transition-colors"
+              style={{
+                padding: '10px 18px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                color: '#9ca3af', cursor: submitting ? 'default' : 'pointer',
+                opacity: submitting ? 0.4 : 1, fontSize: 14, minHeight: 44,
+              }}
             >
-              Voltar
+              Cancelar
             </button>
             <button
               onClick={handleConfirm}
               disabled={submitting}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg disabled:opacity-40"
+              className="font-semibold text-white transition-colors"
+              style={{
+                padding: '10px 24px', borderRadius: 10,
+                background: submitting ? 'rgba(37,99,235,0.5)' : '#2563eb',
+                border: 'none', cursor: submitting ? 'default' : 'pointer',
+                fontSize: 14, minHeight: 44,
+              }}
             >
-              {submitting ? 'Processando...' : 'Confirmar e baixar'}
+              {submitting ? 'Processando…' : 'Confirmar e baixar'}
             </button>
           </div>
         </div>
@@ -216,14 +282,26 @@ export function AddSong() {
 
       {step === 'downloading' && (
         <div className="space-y-4">
-          <p className="text-gray-400">Baixando áudio...</p>
-          <div className="w-full bg-gray-800 rounded-full h-2">
+          <div className="flex items-center gap-2">
+            <svg
+              className="animate-spin-smooth"
+              width="13" height="13" viewBox="0 0 24 24"
+              fill="none" stroke="#3b82f6" strokeWidth="2.5"
+              strokeLinecap="round" strokeLinejoin="round"
+            >
+              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+            </svg>
+            <span style={{ color: '#9ca3af', fontSize: 14 }}>Baixando…</span>
+            <span className="ml-auto font-bold" style={{ color: '#3b82f6', fontSize: 14 }}>
+              {Math.round(progress * 100)}%
+            </span>
+          </div>
+          <div className="w-full rounded-full h-1.5" style={{ background: 'rgba(255,255,255,0.09)' }}>
             <div
-              className="bg-blue-500 h-2 rounded-full transition-all"
-              style={{ width: `${progress * 100}%` }}
+              className="h-1.5 rounded-full transition-all"
+              style={{ width: `${progress * 100}%`, background: '#3b82f6' }}
             />
           </div>
-          <p className="text-sm text-gray-500">{Math.round(progress * 100)}%</p>
         </div>
       )}
     </div>

@@ -1,3 +1,17 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@keyframes spin-smooth {
+  to { transform: rotate(360deg); }
+}
+.animate-spin-smooth {
+  animation: spin-smooth 0.9s linear infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Download, AlertCircle, CheckCircle } from 'lucide-react'
 import { downloadSong } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 
@@ -12,6 +13,7 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
   const { setDownloading: setGlobalDownloading } = usePlayerStore()
 
   async function handleDownload() {
@@ -23,6 +25,7 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
         setProgress(p)
         setGlobalDownloading(true, p)
       })
+      setDone(true)
       onDownloaded?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao baixar')
@@ -32,42 +35,45 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
     }
   }
 
+  if (done) {
+    return <CheckCircle size={16} color="#22c55e" strokeWidth={2} />
+  }
+
   if (downloading) {
     return (
-      <div className="flex items-center gap-2 text-sm text-blue-400">
-        <div className="w-16 bg-gray-700 rounded-full h-1">
-          <div
-            className="bg-blue-500 h-1 rounded-full"
-            style={{ width: `${progress * 100}%` }}
-          />
-        </div>
-        {Math.round(progress * 100)}%
+      <div className="flex items-center gap-1.5" style={{ color: '#3b82f6', fontSize: 13 }}>
+        <svg
+          className="animate-spin-smooth"
+          width="13" height="13" viewBox="0 0 24 24"
+          fill="none" stroke="#3b82f6" strokeWidth="2.5"
+          strokeLinecap="round" strokeLinejoin="round"
+        >
+          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+        </svg>
+        <span style={{ fontWeight: 700 }}>{Math.round(progress * 100)}%</span>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex items-center gap-1">
-        <span className="text-red-400 text-xs" title={error}>Falha</span>
-        <button
-          onClick={handleDownload}
-          className="text-gray-400 hover:text-white text-xs px-1"
-          title="Tentar novamente"
-        >
-          ↺
-        </button>
-      </div>
+      <button
+        onClick={handleDownload}
+        title={error}
+        style={{ cursor: 'pointer', background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      >
+        <AlertCircle size={15} color="#ef4444" strokeWidth={2} />
+      </button>
     )
   }
 
   return (
     <button
       onClick={handleDownload}
-      className="text-gray-400 hover:text-white text-sm px-2 py-1 rounded hover:bg-gray-700"
+      style={{ cursor: 'pointer', background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       title="Baixar"
     >
-      ↓ Baixar
+      <Download size={16} color="#3b82f6" strokeWidth={2} />
     </button>
   )
 }

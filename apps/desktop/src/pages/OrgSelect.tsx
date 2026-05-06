@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Building2, Hash, Plus, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useAuthStore } from '../store/auth.js'
@@ -81,6 +82,7 @@ export function OrgSelect() {
     if (!user) { setError('Sessão expirada. Faça login novamente.'); return }
     if (!newOrgName.trim()) return
     setLoading(true)
+    setError(null)
     const { data, error } = await supabase
       .from('organizations')
       .insert({ name: newOrgName.trim(), owner_id: user!.id })
@@ -109,10 +111,29 @@ export function OrgSelect() {
     navigate('/library')
   }
 
+  const inputStyle = {
+    width: '100%', background: 'rgba(255,255,255,0.04)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 10, padding: '11px 14px',
+    color: '#f3f4f6', outline: 'none',
+    fontSize: 14, minHeight: 44,
+    boxSizing: 'border-box' as const,
+  }
+
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-      <div className="bg-gray-900 p-8 rounded-xl w-full max-w-sm">
-        <h1 className="text-xl font-bold text-white mb-6">Selecionar Organização</h1>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#09090f' }}>
+      <div
+        className="w-full"
+        style={{
+          maxWidth: 360,
+          background: 'linear-gradient(135deg,#13131f,#161625)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 16, padding: '32px 28px',
+        }}
+      >
+        <h1 className="font-bold mb-6" style={{ color: '#f3f4f6', fontSize: 20 }}>
+          Selecionar Organização
+        </h1>
 
         {mode === 'list' && (
           <>
@@ -122,9 +143,17 @@ export function OrgSelect() {
                   <button
                     key={org.id}
                     onClick={() => selectOrg(org)}
-                    className="w-full text-left px-4 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg"
+                    className="w-full flex items-center gap-3 text-left transition-colors"
+                    style={{
+                      padding: '12px 14px', borderRadius: 10,
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      cursor: 'pointer', color: '#f3f4f6', fontSize: 14,
+                    }}
                   >
-                    {org.name}
+                    <Building2 size={16} color="#3b82f6" strokeWidth={2} />
+                    <span className="flex-1 font-medium">{org.name}</span>
+                    <ChevronRight size={15} color="#4b5563" strokeWidth={2} />
                   </button>
                 ))}
               </div>
@@ -132,14 +161,27 @@ export function OrgSelect() {
             <div className="space-y-2">
               <button
                 onClick={() => setMode('join')}
-                className="w-full border border-gray-700 hover:bg-gray-800 rounded-lg py-2 text-sm"
+                className="w-full flex items-center gap-2 justify-center font-medium transition-colors"
+                style={{
+                  borderRadius: 10, padding: '10px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  color: '#9ca3af', cursor: 'pointer', fontSize: 14, minHeight: 44,
+                }}
               >
+                <Hash size={15} color="#6b7280" strokeWidth={2} />
                 Entrar com código
               </button>
               <button
                 onClick={() => setMode('create')}
-                className="w-full bg-blue-600 hover:bg-blue-700 rounded-lg py-2 text-sm text-white"
+                className="w-full flex items-center gap-2 justify-center font-semibold text-white transition-colors"
+                style={{
+                  borderRadius: 10, padding: '10px',
+                  background: '#2563eb', border: 'none',
+                  cursor: 'pointer', fontSize: 14, minHeight: 44,
+                }}
               >
+                <Plus size={15} strokeWidth={2.5} />
                 Criar organização
               </button>
             </div>
@@ -152,18 +194,28 @@ export function OrgSelect() {
               placeholder="Código de convite"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
-              className="w-full bg-gray-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500 tracking-widest text-center font-mono text-lg"
+              style={{ ...inputStyle, letterSpacing: '0.15em', textAlign: 'center', fontFamily: 'monospace', fontSize: 18 }}
               maxLength={12}
             />
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
             <button
               onClick={handleJoin}
               disabled={loading || !code}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 disabled:opacity-40"
+              className="w-full font-semibold text-white"
+              style={{
+                borderRadius: 10, padding: '10px',
+                background: (loading || !code) ? 'rgba(37,99,235,0.4)' : '#2563eb',
+                border: 'none', cursor: (loading || !code) ? 'default' : 'pointer',
+                fontSize: 14, minHeight: 44,
+              }}
             >
               Entrar
             </button>
-            <button onClick={() => setMode('list')} className="w-full text-sm text-gray-500">
+            <button
+              onClick={() => setMode('list')}
+              className="w-full text-sm"
+              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
+            >
               Voltar
             </button>
           </div>
@@ -175,17 +227,27 @@ export function OrgSelect() {
               placeholder="Nome da organização"
               value={newOrgName}
               onChange={(e) => setNewOrgName(e.target.value)}
-              className="w-full bg-gray-800 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-500"
+              style={inputStyle}
             />
-            {error && <p className="text-red-400 text-sm">{error}</p>}
+            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
             <button
               onClick={handleCreate}
               disabled={loading || !newOrgName.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg py-2 disabled:opacity-40"
+              className="w-full font-semibold text-white"
+              style={{
+                borderRadius: 10, padding: '10px',
+                background: (loading || !newOrgName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
+                border: 'none', cursor: (loading || !newOrgName.trim()) ? 'default' : 'pointer',
+                fontSize: 14, minHeight: 44,
+              }}
             >
               Criar
             </button>
-            <button onClick={() => setMode('list')} className="w-full text-sm text-gray-500">
+            <button
+              onClick={() => setMode('list')}
+              className="w-full text-sm"
+              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
+            >
               Voltar
             </button>
           </div>

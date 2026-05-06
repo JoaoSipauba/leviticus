@@ -1,12 +1,9 @@
 import { useEffect, useState } from 'react'
+import { SkipBack, SkipForward, Volume2, Music } from 'lucide-react'
 import { usePlayerStore } from '../store/player.js'
 import {
-  pauseAudio,
-  resumeAudio,
-  getPosition,
-  getDuration,
-  seekTo,
-  setVolume,
+  pauseAudio, resumeAudio, getPosition, getDuration,
+  seekTo, setVolume,
 } from '../lib/audio.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 
@@ -49,39 +46,99 @@ export function PlayerMini() {
   }
 
   if (!currentSong) {
-    return <div className="h-16 bg-gray-900 border-t border-gray-800" />
+    return (
+      <div
+        className="h-16"
+        style={{
+          background: 'linear-gradient(to right, #0f172a, #0d1322)',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}
+      />
+    )
   }
 
   return (
     <>
       <div
-        className="h-16 bg-gray-900 border-t border-gray-800 flex items-center px-4 gap-4 cursor-pointer"
+        className="h-16 flex items-center px-4 gap-4 cursor-pointer"
+        style={{
+          background: 'linear-gradient(to right, #0f172a, #0d1322)',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}
         onClick={() => setExpanded(true)}
       >
-        {currentSong.thumbnail_url && (
-          <img src={currentSong.thumbnail_url} className="w-10 h-10 rounded" alt="" />
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate">{currentSong.title}</p>
-          <p className="text-xs text-gray-400 truncate">{currentSong.artist}</p>
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); handlePlayPause() }}
-          className="text-white w-8 h-8 flex items-center justify-center hover:text-blue-400"
+        <div
+          className="flex-shrink-0 flex items-center justify-center"
+          style={{
+            width: 38, height: 38, borderRadius: 8,
+            background: currentSong.thumbnail_url ? 'transparent' : 'rgba(255,255,255,0.05)',
+            overflow: 'hidden',
+          }}
         >
-          {isPlaying ? '⏸' : '▶'}
-        </button>
+          {currentSong.thumbnail_url ? (
+            <img src={currentSong.thumbnail_url} className="w-full h-full object-cover" alt="" />
+          ) : (
+            <Music size={16} color="#4b5563" />
+          )}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate" style={{ color: '#f3f4f6' }}>
+            {currentSong.title}
+          </p>
+          <p className="truncate" style={{ color: '#9ca3af', fontSize: 12 }}>
+            {currentSong.artist}
+          </p>
+        </div>
+
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <span className="text-xs text-gray-500">🔊</span>
+          <button
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34 }}
+          >
+            <SkipBack size={18} color="#9ca3af" strokeWidth={2} />
+          </button>
+
+          <button
+            onClick={handlePlayPause}
+            style={{
+              width: 34, height: 34, borderRadius: '50%',
+              background: '#2563eb',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            {isPlaying ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff">
+                <rect x="5" y="3" width="4" height="18" rx="1.5" />
+                <rect x="15" y="3" width="4" height="18" rx="1.5" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff">
+                <polygon points="5,3 19,12 5,21" />
+              </svg>
+            )}
+          </button>
+
+          <button
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34 }}
+          >
+            <SkipForward size={18} color="#9ca3af" strokeWidth={2} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <Volume2 size={15} color="#6b7280" strokeWidth={2} />
           <input
             type="range"
             min="0" max="1" step="0.05"
             value={volume}
             onChange={handleVolume}
-            className="w-20"
+            className="w-20 accent-blue-500"
           />
         </div>
       </div>
+
       {expanded && (
         <PlayerExpanded
           pos={pos}

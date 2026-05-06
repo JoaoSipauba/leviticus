@@ -24,7 +24,7 @@ describe('Login', () => {
 
   it('renders email and password fields', () => {
     render(<Login onSuccess={() => {}} />)
-    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('E-mail')).toBeInTheDocument()
     expect(screen.getByLabelText('Senha')).toBeInTheDocument()
   })
 
@@ -32,7 +32,7 @@ describe('Login', () => {
     const { supabase } = await import('../lib/supabase')
     render(<Login onSuccess={() => {}} />)
 
-    fireEvent.change(screen.getByLabelText('Email'), {
+    fireEvent.change(screen.getByLabelText('E-mail'), {
       target: { value: 'test@test.com' },
     })
     fireEvent.change(screen.getByLabelText('Senha'), {
@@ -52,7 +52,7 @@ describe('Login', () => {
     const onSuccess = vi.fn()
     render(<Login onSuccess={onSuccess} />)
 
-    fireEvent.change(screen.getByLabelText('Email'), {
+    fireEvent.change(screen.getByLabelText('E-mail'), {
       target: { value: 'test@test.com' },
     })
     fireEvent.change(screen.getByLabelText('Senha'), {
@@ -74,7 +74,7 @@ describe('Login', () => {
 
     render(<Login onSuccess={() => {}} />)
 
-    fireEvent.change(screen.getByLabelText('Email'), {
+    fireEvent.change(screen.getByLabelText('E-mail'), {
       target: { value: 'test@test.com' },
     })
     fireEvent.change(screen.getByLabelText('Senha'), {

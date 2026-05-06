@@ -72,6 +72,11 @@ Evoluir o visual do Leviticus de um protótipo funcional para uma interface poli
 - Item inativo: `color: #9ca3af`, sem fundo
 - Ícone Lucide à esquerda de cada item (16px)
 - Ícone `LogOut` no item Sair
+- **Badge de organização ativa** no rodapé, acima do botão Sair:
+  - Container: `background: rgba(255,255,255,0.03)`, `border: 1px solid rgba(255,255,255,0.06)`, `border-radius: 9px`, `padding: 9px 12px`, `margin: 0 8px 6px`
+  - Ícone da org: quadrado 24×24, gradiente azul (`#1e3a8a → #2563eb`), `border-radius: 6px`, ícone `Home` (11px, `#93c5fd`)
+  - Nome da org: `font-size: 12px`, `font-weight: 600`, `color: #e5e7eb`, truncado com ellipsis
+  - Dados: lidos do `localStorage.getItem('leviticus_org_id')` e nome buscado do store ou localStorage
 
 ### SongCard (`components/SongCard.tsx`)
 - Card com gradiente sutil + borda translúcida
@@ -128,6 +133,36 @@ Evoluir o visual do Leviticus de um protótipo funcional para uma interface poli
 ### OrgSelect (`pages/OrgSelect.tsx`)
 - Mesma estrutura, substituir emojis por ícones Lucide: `Building2` (org), `Hash` (código), `Plus` (criar)
 
+### Ministérios (`pages/Ministries.tsx`) — tela nova
+- Nomenclatura: **Ministérios** (não "Grupos") — cobre departamentos, vocais, ministérios de louvor, infantil, jovens etc.
+- Sidebar item: ícone `LayoutGrid` (16px), label "Ministérios"
+- Cabeçalho: título "Ministérios" + subtítulo "Organize por departamento ou ministério" + botão "+ Novo" (`#2563eb`, border-radius 10px)
+- Grid 2 colunas de cards; cada card: gradiente sutil, ícone colorido 40×40 (`border-radius: 10px`), nome do ministério (14px 600), contagem de músicas (12px `#6b7280`), chevron direito
+- Estado vazio: ícone `LayoutGrid` centralizado + "Nenhum ministério ainda" + botão "Criar primeiro ministério"
+- **Modal "Novo ministério"**: overlay escuro `rgba(0,0,0,0.6)`, card `#13131f` 280px, border-radius 16px
+  - Campo Nome (obrigatório, input padrão)
+  - Seletor de cor: 6 swatches predefinidos (azul, verde, roxo, laranja, rosa, ciano), borda de seleção visível
+  - Botões Cancelar (ghost) + Criar (primary)
+
+### Cultos (`pages/Services.tsx`) — tela nova
+- Nomenclatura: **Cultos** (não "Playlists") — setlists organizados por data de culto
+- Sidebar item: ícone `CalendarDays` (16px), label "Cultos"
+- Cabeçalho: título "Cultos" + subtítulo "Setlists por data de culto" + botão "Novo culto" (`#2563eb`)
+- Lista vertical de cards; cada card: ícone colorido 42×42, nome do culto (14px 600), data + status de downloads
+  - Culto completo: ícone verde com `Check`, badge verde "X/X baixadas"
+  - Culto incompleto: ícone laranja com `Download`, badge laranja "X/X baixadas" + barra de progresso (3px, `#f59e0b`)
+  - Sem data: ícone cinza, texto "Sem data · X/X baixadas"
+- Estado vazio: ícone `CalendarDays` centralizado + "Nenhum culto ainda" + botão "Criar primeiro culto"
+- **Modal "Novo culto"**: mesmo estilo do modal de ministério
+  - Campo Nome (obrigatório)
+  - Campo Data (opcional, formato DD/MM/AAAA)
+  - Select Ministério (opcional) — lista os ministérios cadastrados
+  - Botões Cancelar (ghost) + Criar (primary)
+
+### CultoDetail (`pages/ServiceDetail.tsx`) — stub
+- Placeholder elegante: ícone `CalendarDays` centralizado, "Em breve", subtítulo explicativo
+- Mantém sidebar ativo em "Cultos"
+
 ---
 
 ## Instalação
@@ -183,3 +218,8 @@ E adicionar utilitário de spinner:
 | `apps/desktop/src/pages/AddSong.tsx` | Loading no buscar, banner info, botão cancelar |
 | `apps/desktop/src/pages/Login.tsx` | Subtítulo, labels, link em linha |
 | `apps/desktop/src/pages/OrgSelect.tsx` | Ícones Lucide nos modos |
+| `apps/desktop/src/pages/Ministries.tsx` | Criar tela nova — grid de ministérios + modal de criação |
+| `apps/desktop/src/pages/Services.tsx` | Criar tela nova — lista de cultos + modal de criação |
+| `apps/desktop/src/pages/ServiceDetail.tsx` | Criar stub elegante "em breve" |
+| `apps/desktop/src/components/Sidebar.tsx` | Adicionar itens Ministérios e Cultos na navegação |
+| `apps/desktop/src/App.tsx` | Adicionar rotas `/ministries`, `/services`, `/services/:id` |
