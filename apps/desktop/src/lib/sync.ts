@@ -51,8 +51,8 @@ export async function syncOrg(orgId: string): Promise<void> {
 
   for (const g of groups.data) {
     await db.execute(
-      `INSERT OR REPLACE INTO groups (id, org_id, name, updated_at) VALUES (?, ?, ?, ?)`,
-      [g.id, g.org_id, g.name, g.updated_at]
+      `INSERT OR REPLACE INTO groups (id, org_id, name, color_index, updated_at) VALUES (?, ?, ?, ?, ?)`,
+      [g.id, g.org_id, g.name, g.color_index ?? 0, g.updated_at]
     )
   }
 

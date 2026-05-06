@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 
-type GroupRow = { id: string; name: string; org_id: string }
+type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
 const COLORS = [
   { bg: 'linear-gradient(135deg,#1e3a8a,#2563eb)', icon: '#93c5fd' },
@@ -19,10 +19,6 @@ const SELECTED_COLORS = [
   '#2563eb', '#16a34a', '#7c3aed', '#ea580c', '#db2777', '#0891b2',
 ]
 
-function getColor(id: string) {
-  const sum = id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
-  return COLORS[sum % COLORS.length]
-}
 
 export function Groups() {
   const [groups, setGroups] = useState<GroupRow[]>([])
@@ -59,7 +55,7 @@ export function Groups() {
     setError(null)
     const { data, error: insertError } = await supabase
       .from('groups')
-      .insert({ name: newName.trim(), org_id: orgId })
+      .insert({ name: newName.trim(), org_id: orgId, color_index: selectedColorIdx })
       .select()
       .single()
 
@@ -137,7 +133,7 @@ export function Groups() {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {groups.map((g) => {
-            const color = getColor(g.id)
+            const color = COLORS[g.color_index % COLORS.length] ?? COLORS[0]
             const count = songCount.get(g.id) ?? 0
             return (
               <div

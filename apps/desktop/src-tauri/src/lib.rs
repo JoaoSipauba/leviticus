@@ -5,12 +5,20 @@ pub fn run() {
             tauri_plugin_sql::Builder::default()
                 .add_migrations(
                     "sqlite:leviticus.db",
-                    vec![tauri_plugin_sql::Migration {
-                        version: 1,
-                        description: "initial_schema",
-                        sql: include_str!("../migrations/001_local_schema.sql"),
-                        kind: tauri_plugin_sql::MigrationKind::Up,
-                    }],
+                    vec![
+                        tauri_plugin_sql::Migration {
+                            version: 1,
+                            description: "initial_schema",
+                            sql: include_str!("../migrations/001_local_schema.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 2,
+                            description: "groups_color_index",
+                            sql: include_str!("../migrations/002_groups_color_index.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                    ],
                 )
                 .build(),
         )
