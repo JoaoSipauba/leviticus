@@ -27,6 +27,12 @@ describe('POST /download', () => {
     expect(res.body.error).toBe('Missing url')
   })
 
+  it('returns 400 when url is not http/https', async () => {
+    const res = await request(app).post('/download').send({ url: 'file:///etc/passwd' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Missing url')
+  })
+
   it('returns 500 when yt-dlp fails', async () => {
     vi.mocked(downloadAudio).mockRejectedValueOnce(new Error('yt-dlp error'))
     const res = await request(app)

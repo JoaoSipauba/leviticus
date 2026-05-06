@@ -7,7 +7,7 @@ const router = Router()
 router.post('/', requireAuth, async (req, res) => {
   const { url } = req.body
 
-  if (!url || typeof url !== 'string') {
+  if (!url || typeof url !== 'string' || !/^https?:\/\//i.test(url)) {
     res.status(400).json({ error: 'Missing url' })
     return
   }
@@ -16,6 +16,7 @@ router.post('/', requireAuth, async (req, res) => {
     const stream = await downloadAudio(url)
     res.setHeader('Content-Type', 'audio/mpeg')
     res.setHeader('Transfer-Encoding', 'chunked')
+    stream.on('error', () => res.destroy())
     stream.pipe(res)
   } catch {
     res.status(500).json({ error: 'Download failed' })
