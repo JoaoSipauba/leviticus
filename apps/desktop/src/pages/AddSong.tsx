@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { fetchYoutubeMetadata, downloadSong } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 import { getDb } from '../lib/db.js'
+import { syncOrg } from '../lib/sync.js'
 
 type GroupRow = { id: string; name: string }
 type Metadata = { title: string; artist: string; thumbnail_url: string; duration_seconds: number }
@@ -38,18 +39,21 @@ export function AddSong() {
     try {
       const data = await fetchYoutubeMetadata(url)
 
+      const currentOrgId = localStorage.getItem('leviticus_org_id') ?? ''
+
       const { data: existing } = await supabase
         .from('songs')
         .select('id')
         .eq('youtube_url', url)
+        .eq('org_id', currentOrgId)
         .maybeSingle()
 
       if (existing) {
-        setError('Essa música já existe na biblioteca da organização.')
+        // Música existe no Supabase mas pode estar fora de sincronia com o SQLite local
+        await syncOrg(currentOrgId)
+        setError('Essa música já existe na biblioteca. A biblioteca foi sincronizada.')
         return
       }
-
-      const currentOrgId = localStorage.getItem('leviticus_org_id') ?? ''
       const db = await getDb()
       const rows = await db.select<GroupRow[]>(
         'SELECT id, name FROM groups WHERE org_id = ?',
