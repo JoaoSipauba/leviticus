@@ -27,10 +27,22 @@ describe('POST /download', () => {
     expect(res.body.error).toBe('Missing url')
   })
 
-  it('returns 400 when url is not http/https', async () => {
+  it('returns 400 when url is not a valid URL', async () => {
+    const res = await request(app).post('/download').send({ url: 'not-a-url' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('Invalid url')
+  })
+
+  it('returns 400 when url host is not allowed', async () => {
+    const res = await request(app).post('/download').send({ url: 'https://example.com/video' })
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('URL not allowed')
+  })
+
+  it('returns 400 when url uses file:// scheme', async () => {
     const res = await request(app).post('/download').send({ url: 'file:///etc/passwd' })
     expect(res.status).toBe(400)
-    expect(res.body.error).toBe('Missing url')
+    expect(res.body.error).toBe('URL not allowed')
   })
 
   it('returns 500 when yt-dlp fails', async () => {
