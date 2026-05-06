@@ -9,6 +9,14 @@
     "fs:allow-app-read-recursive",
     "fs:allow-app-write-recursive",
     {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "/opt/homebrew/bin/**" },
+        { "path": "/usr/local/bin/**" },
+        { "path": "/usr/bin/**" }
+      ]
+    },
+    {
       "identifier": "shell:allow-execute",
       "allow": [{ "name": "yt-dlp", "cmd": "yt-dlp", "args": true }]
     },
