@@ -35,7 +35,7 @@ export function OrgSelect() {
   }
 
   async function handleJoin() {
-    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
+    if (!user) { setError('Sessão expirada. Faça login novamente.'); return }
     setLoading(true)
     setError(null)
     const { data, error } = await supabase
@@ -73,7 +73,7 @@ export function OrgSelect() {
   }
 
   async function handleCreate() {
-    if (!user) { setError('Sessão expirada. Faça login novamente.'); setLoading(false); return }
+    if (!user) { setError('Sessão expirada. Faça login novamente.'); return }
     if (!newOrgName.trim()) return
     setLoading(true)
     const { data, error } = await supabase
