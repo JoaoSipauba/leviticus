@@ -5,19 +5,20 @@ import { usePlayerStore } from '../store/player.js'
 import { getDb } from '../lib/db.js'
 
 type GroupRow = { id: string; name: string }
+type Metadata = { title: string; artist: string; thumbnail_url: string; duration_seconds: number }
 
 export function AddSong() {
   const [url, setUrl] = useState('')
-  const [metadata, setMetadata] = useState<{
-    title: string; artist: string; thumbnail_url: string; duration_seconds: number
-  } | null>(null)
+  const [metadata, setMetadata] = useState<Metadata | null>(null)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [groups, setGroups] = useState<GroupRow[]>([])
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+  const [orgId, setOrgId] = useState('')
   const [step, setStep] = useState<'url' | 'confirm' | 'downloading'>('url')
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const { setDownloading } = usePlayerStore()
 
   async function handleFetchMetadata() {
@@ -25,28 +26,31 @@ export function AddSong() {
     try {
       const data = await fetchYoutubeMetadata(url)
 
+      // Use maybeSingle() to avoid PGRST116 error on no-match
       const { data: existing } = await supabase
         .from('songs')
         .select('id')
         .eq('youtube_url', url)
-        .single()
+        .maybeSingle()
 
       if (existing) {
         setError('Essa música já existe na biblioteca da organização.')
         return
       }
 
+      // Capture org_id once so both steps use the same value
+      const currentOrgId = localStorage.getItem('leviticus_org_id') ?? ''
       const db = await getDb()
-      const orgId = localStorage.getItem('leviticus_org_id') ?? ''
       const rows = await db.select<GroupRow[]>(
         'SELECT id, name FROM groups WHERE org_id = ?',
-        [orgId]
+        [currentOrgId]
       )
 
       setMetadata(data)
       setTitle(data.title)
       setArtist(data.artist)
       setGroups(rows)
+      setOrgId(currentOrgId)
       setStep('confirm')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao buscar metadados')
@@ -58,10 +62,15 @@ export function AddSong() {
       setError('Selecione pelo menos um grupo.')
       return
     }
+    if (!metadata) {
+      setError('Dados de metadados ausentes.')
+      setStep('url')
+      return
+    }
+
+    setSubmitting(true)
     setStep('downloading')
     setError(null)
-
-    const orgId = localStorage.getItem('leviticus_org_id') ?? ''
 
     const { data: song, error: insertError } = await supabase
       .from('songs')
@@ -70,8 +79,8 @@ export function AddSong() {
         youtube_url: url,
         title,
         artist,
-        thumbnail_url: metadata!.thumbnail_url,
-        duration_seconds: metadata!.duration_seconds || null,
+        thumbnail_url: metadata.thumbnail_url,
+        duration_seconds: metadata.duration_seconds || null,
       })
       .select()
       .single()
@@ -79,12 +88,21 @@ export function AddSong() {
     if (insertError || !song) {
       setError(insertError?.message ?? 'Erro ao salvar')
       setStep('confirm')
+      setSubmitting(false)
       return
     }
 
-    await supabase.from('song_groups').insert(
+    const { error: sgError } = await supabase.from('song_groups').insert(
       selectedGroups.map((gid) => ({ song_id: song.id, group_id: gid }))
     )
+
+    if (sgError) {
+      await supabase.from('songs').delete().eq('id', song.id)
+      setError(sgError.message)
+      setStep('confirm')
+      setSubmitting(false)
+      return
+    }
 
     setDownloading(true, 0)
     try {
@@ -92,14 +110,21 @@ export function AddSong() {
         setProgress(p)
         setDownloading(true, p)
       })
+      // Reset only on success
+      setUrl('')
+      setMetadata(null)
+      setSelectedGroups([])
+      setStep('url')
+    } catch (e) {
+      // Roll back Supabase records so user can retry
+      await supabase.from('song_groups').delete().eq('song_id', song.id)
+      await supabase.from('songs').delete().eq('id', song.id)
+      setError(e instanceof Error ? e.message : 'Erro ao baixar')
+      setStep('confirm')
     } finally {
       setDownloading(false)
+      setSubmitting(false)
     }
-
-    setUrl('')
-    setMetadata(null)
-    setSelectedGroups([])
-    setStep('url')
   }
 
   function toggleGroup(id: string) {
@@ -173,15 +198,17 @@ export function AddSong() {
           <div className="flex gap-3">
             <button
               onClick={() => setStep('url')}
-              className="px-4 py-2 rounded-lg border border-gray-700 hover:bg-gray-800"
+              disabled={submitting}
+              className="px-4 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 disabled:opacity-40"
             >
               Voltar
             </button>
             <button
               onClick={handleConfirm}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+              disabled={submitting}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg disabled:opacity-40"
             >
-              Confirmar e baixar
+              {submitting ? 'Processando...' : 'Confirmar e baixar'}
             </button>
           </div>
         </div>
