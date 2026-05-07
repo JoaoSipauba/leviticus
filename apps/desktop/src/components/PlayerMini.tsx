@@ -108,11 +108,32 @@ export function PlayerMini() {
     return () => clearInterval(interval)
   }, [isPlaying, setPosition, currentSong?.id])
 
-  // Atalhos globais de teclado
+  // Atalhos de teclado — só funcionam quando o player full está aberto
+  // (exceção: F sempre, pra abrir/fechar a tela cheia). Evita toques acidentais
+  // durante o culto quando o app está em segundo plano.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      // F é sempre disponível (toggle fullscreen)
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        setExpanded((v) => !v)
+        return
+      }
+
+      // ESC só funciona se o player full estiver aberto
+      if (e.key === 'Escape') {
+        if (expanded) {
+          e.preventDefault()
+          setExpanded(false)
+        }
+        return
+      }
+
+      // Todos os outros atalhos exigem o player full aberto
+      if (!expanded) return
 
       switch (e.key) {
         case ' ':
@@ -146,16 +167,6 @@ export function PlayerMini() {
           break
         case 's': case 'S':
           setAutoplay(v => !v)
-          break
-        case 'f': case 'F':
-          e.preventDefault()
-          setExpanded((v) => !v)
-          break
-        case 'Escape':
-          if (expanded) {
-            e.preventDefault()
-            setExpanded(false)
-          }
           break
       }
     }

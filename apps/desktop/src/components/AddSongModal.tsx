@@ -486,6 +486,8 @@ export function AddSongModal() {
   })
   const [previewMuted, setPreviewMuted] = useState(false)
   const [previewVolDragging, setPreviewVolDragging] = useState(false)
+  // Resultado pendente de confirmação quando o player principal está tocando
+  const [confirmStop, setConfirmStop] = useState<YTSearchResult | null>(null)
 
   // sync volume com o audio element atual + persist
   useEffect(() => {
@@ -574,6 +576,7 @@ export function AddSongModal() {
       audioRef.current.pause()
       audioRef.current.src = ''
     }
+    setConfirmStop(null)
     setPreviewId(null)
     setPreviewLoading(false)
     setPreviewTime(0)
@@ -583,26 +586,49 @@ export function AddSongModal() {
     setPreviewBuffered(0)
   }
 
-  async function handlePreview(result: YTSearchResult) {
-    // Player principal sempre pausa ao iniciar/retomar preview — só uma fonte de áudio por vez
-    const player = usePlayerStore.getState()
-    if (player.isPlaying) {
-      pauseAudio()
-      player.pause()
-    }
+  // Toggle local: se já é a música em preview, alterna play/pause sem mexer no player principal
+  function toggleCurrentPreview() {
+    if (!audioRef.current) return
+    if (previewPlaying) audioRef.current.pause()
+    else audioRef.current.play().catch((e) => console.warn('[preview] play() resume rejected', e))
+  }
 
-    if (previewId === result.id) {
-      if (audioRef.current) {
-        if (previewPlaying) audioRef.current.pause()
-        else audioRef.current.play().catch((e) => console.warn('[preview] play() resume rejected', e))
-      }
-      return
-    }
+  function startPreview(result: YTSearchResult) {
     stopPreview()
     setPreviewId(result.id)
     setPreviewLoading(true)
     const token = ++previewAbortRef.current
     void attemptPreview(result, token, 1)
+  }
+
+  async function handlePreview(result: YTSearchResult) {
+    // Toggle local quando é a mesma música — não envolve o player principal
+    if (previewId === result.id && audioRef.current) {
+      toggleCurrentPreview()
+      return
+    }
+
+    // Player principal tocando? Pede confirmação antes de parar pra ouvir prévia.
+    // Se o user clicar em outra música com um confirm pendente, troca o alvo.
+    const player = usePlayerStore.getState()
+    if (player.isPlaying) {
+      setConfirmStop(result)
+      return
+    }
+
+    // Se havia confirmação pendente mas o player parou no meio tempo, limpa
+    if (confirmStop) setConfirmStop(null)
+    startPreview(result)
+  }
+
+  // Usuário confirmou parar o player principal pra ouvir a prévia
+  function confirmAndStartPreview() {
+    if (!confirmStop) return
+    pauseAudio()
+    usePlayerStore.getState().pause()
+    const result = confirmStop
+    setConfirmStop(null)
+    startPreview(result)
   }
 
   // Tenta carregar e tocar a pré-escuta. Em caso de falha (yt-dlp ou audio.onerror antes
@@ -1137,6 +1163,57 @@ export function AddSongModal() {
                             isPreviewLoading={previewLoading && previewId === r.id}
                             isPreviewPlaying={previewPlaying && previewId === r.id}
                           />
+                          {/* Inline confirm — hierarquia INVERTIDA: ação segura é o
+                              primário, ação que interrompe é secundária. Previne clique
+                              automático "no mesmo lugar de sempre" durante o culto. */}
+                          {confirmStop?.id === r.id && (
+                            <div style={{
+                              display: 'flex', alignItems: 'flex-start', gap: 10,
+                              padding: '12px',
+                              background: 'rgba(245,158,11,0.06)',
+                              border: '1px solid rgba(245,158,11,0.28)',
+                              borderRadius: 10,
+                              marginTop: -2,
+                            }}>
+                              <AlertTriangle size={14} color="#fbbf24" strokeWidth={2.2} style={{ flexShrink: 0, marginTop: 2 }} />
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontSize: 12, color: '#f3f4f6', margin: 0, lineHeight: 1.4, fontWeight: 600 }}>
+                                  Há música tocando no player principal
+                                </p>
+                                <p style={{ fontSize: 11, color: '#9ca3af', margin: '2px 0 10px', lineHeight: 1.4 }}>
+                                  Ouvir esta prévia vai pausar o que está tocando agora.
+                                </p>
+                                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); confirmAndStartPreview() }}
+                                    style={{
+                                      padding: '6px 12px', borderRadius: 7,
+                                      background: 'transparent',
+                                      border: '1px solid rgba(255,255,255,0.12)',
+                                      color: '#9ca3af',
+                                      fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                                    }}
+                                  >
+                                    Pausar player principal
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setConfirmStop(null) }}
+                                    autoFocus
+                                    style={{
+                                      padding: '6px 14px', borderRadius: 7,
+                                      background: '#2563eb',
+                                      border: 'none',
+                                      color: '#f3f4f6',
+                                      fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                      boxShadow: '0 4px 12px -3px rgba(37,99,235,0.5)',
+                                    }}
+                                  >
+                                    Continuar tocando
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           {previewId === r.id && (
                             <div style={{
                               display: 'flex', alignItems: 'center', gap: 10,
@@ -1586,6 +1663,7 @@ export function AddSongModal() {
 
         </div>
       </div>
+
     </div>
   )
 }
