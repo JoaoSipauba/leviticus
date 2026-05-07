@@ -44,7 +44,8 @@ export async function downloadSong(
 
   const result = await command.execute()
   if (result.code !== 0) {
-    throw new Error(`yt-dlp exited with code ${result.code}: ${result.stderr}`)
+    console.error(`[downloadSong] yt-dlp exited with code ${result.code}:`, result.stderr)
+    throw new Error('Falha ao baixar o áudio. Tente novamente.')
   }
   onProgress(1)
   return outputPath
@@ -89,7 +90,8 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
 
   const result = await command.execute()
   if (result.code !== 0) {
-    throw new Error(`yt-dlp metadata failed: ${result.stderr}`)
+    console.error('[fetchYoutubeMetadata] yt-dlp failed:', result.stderr)
+    throw new Error('Não foi possível buscar as informações do vídeo. Tente novamente.')
   }
 
   const [title = videoId, artist = '', durationRaw = '0'] = result.stdout.trim().split('|||')

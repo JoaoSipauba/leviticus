@@ -373,7 +373,7 @@ export function AddSongModal() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, showAddSong])
+  }, [step])
 
   // debounce search query
   useEffect(() => {
@@ -480,7 +480,8 @@ export function AddSongModal() {
       setOrgId(currentOrgId)
       setStep(2)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
+      console.error('[handleSelectResult]', e)
+      setError('Algo deu errado. Tente novamente.')
     } finally {
       setFetching(false)
     }
@@ -569,7 +570,8 @@ export function AddSongModal() {
 
     if (sgError) {
       await supabase.from('songs').delete().eq('id', song.id)
-      setError(sgError.message)
+      console.error('[handleConfirm] song_groups insert error:', sgError)
+      setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
