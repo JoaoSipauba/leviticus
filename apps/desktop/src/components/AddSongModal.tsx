@@ -563,9 +563,15 @@ export function AddSongModal() {
       if (token !== previewAbortRef.current) return  // superseded by newer click
       const audio = new Audio(url)
       audioRef.current = audio
+      // Usa a duração do resultado de busca como fonte de verdade —
+      // o audio.duration do M4A do YouTube frequentemente reporta valor errado.
+      if (result.duration > 0) setPreviewDuration(result.duration)
       audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
-      audio.onloadedmetadata = () => setPreviewDuration(audio.duration)
-      audio.onended = () => setPreviewPlaying(false)
+      audio.onloadedmetadata = () => {
+        // Só usa audio.duration se não temos duração da busca
+        if (result.duration <= 0 && isFinite(audio.duration)) setPreviewDuration(audio.duration)
+      }
+      audio.onended = () => { setPreviewPlaying(false); setPreviewTime(0) }
       audio.onerror = (e) => {
         console.error('[preview] audio playback error', e)
         setPreviewError(true)
