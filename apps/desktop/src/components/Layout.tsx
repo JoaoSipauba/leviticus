@@ -42,11 +42,15 @@ export function Layout({ children }: { children: ReactNode }) {
         thumb.style.display = 'block'
         const thumbHeight = Math.max(24, container.clientHeight * ratio)
         const maxScroll = container.scrollHeight - container.clientHeight
-        const thumbTop = maxScroll > 0
+        const relativeTop = maxScroll > 0
           ? (container.scrollTop / maxScroll) * (container.clientHeight - thumbHeight)
           : 0
         thumb.style.height = `${thumbHeight}px`
-        thumb.style.transform = `translateY(${thumbTop}px)`
+        // O thumb está position:absolute DENTRO do container que scrolla, então
+        // ele "viaja" junto com o conteúdo. Para que apareça grudado na viewport,
+        // somamos scrollTop ao translateY — assim o thumb se reposiciona para a
+        // mesma posição visual da viewport, mostrando a porção correta da lista.
+        thumb.style.transform = `translateY(${container.scrollTop + relativeTop}px)`
         // ARIA: posição atual em %
         const percent = maxScroll > 0 ? Math.round((container.scrollTop / maxScroll) * 100) : 0
         thumb.setAttribute('aria-valuenow', String(percent))
