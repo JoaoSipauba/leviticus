@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, Loader2, Music, Plus, Save, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, Headphones, Loader2, Mic, Music, Plus, Save, Trash2, X } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useUIStore } from '../store/ui.js'
+import type { SongType } from '@leviticus/core'
 
 type GroupRow = { id: string; name: string }
 
@@ -115,6 +116,57 @@ function GroupChip({
   )
 }
 
+// ─── song type options ────────────────────────────────────────────────────
+
+const SONG_TYPE_OPTIONS: { value: SongType; label: string; color: string; activeColor: string; activeBg: string; activeBorder: string; icon: React.ReactNode }[] = [
+  {
+    value: 'normal',
+    label: 'Normal',
+    color: '#6b7280',
+    activeColor: '#9ca3af',
+    activeBg: 'rgba(75,85,99,0.25)',
+    activeBorder: 'rgba(75,85,99,0.5)',
+    icon: <Music size={11} strokeWidth={2.5} />,
+  },
+  {
+    value: 'playback',
+    label: 'Playback',
+    color: '#6b7280',
+    activeColor: '#60a5fa',
+    activeBg: 'rgba(37,99,235,0.22)',
+    activeBorder: 'rgba(37,99,235,0.5)',
+    icon: <Headphones size={11} strokeWidth={2.5} />,
+  },
+  {
+    value: 'instrumental',
+    label: 'Instrumental',
+    color: '#6b7280',
+    activeColor: '#a78bfa',
+    activeBg: 'rgba(124,58,237,0.22)',
+    activeBorder: 'rgba(124,58,237,0.5)',
+    icon: (
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="6" width="20" height="12" rx="1"/>
+        <line x1="7" y1="6" x2="7" y2="18"/>
+        <line x1="12" y1="6" x2="12" y2="18"/>
+        <line x1="17" y1="6" x2="17" y2="18"/>
+        <rect x="4.5" y="6" width="3" height="7" rx="0.5" fill="currentColor" stroke="none"/>
+        <rect x="9.5" y="6" width="3" height="7" rx="0.5" fill="currentColor" stroke="none"/>
+        <rect x="14.5" y="6" width="3" height="7" rx="0.5" fill="currentColor" stroke="none"/>
+      </svg>
+    ),
+  },
+  {
+    value: 'vs',
+    label: 'VS',
+    color: '#6b7280',
+    activeColor: '#fb923c',
+    activeBg: 'rgba(234,88,12,0.22)',
+    activeBorder: 'rgba(234,88,12,0.5)',
+    icon: <Mic size={11} strokeWidth={2.5} />,
+  },
+]
+
 // ─── main component ────────────────────────────────────────────────────────
 
 export function EditSongModal() {
@@ -125,6 +177,7 @@ export function EditSongModal() {
   const [artist, setArtist] = useState('')
   const [groups, setGroups] = useState<GroupRow[]>([])
   const [selectedGroups, setSelectedGroups] = useState<string[]>([])
+  const [songType, setSongType] = useState<SongType>('normal')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -139,6 +192,7 @@ export function EditSongModal() {
     setTitle(songToEdit.title)
     setArtist(songToEdit.artist)
     setSelectedGroups(songToEditGroups)
+    setSongType((songToEdit.song_type as SongType) ?? 'normal')
     setError(null)
     setConfirmDelete(false)
 
@@ -188,7 +242,7 @@ export function EditSongModal() {
 
     const { error: updateError } = await supabase
       .from('songs')
-      .update({ title: title.trim(), artist: artist.trim(), updated_at: new Date().toISOString() })
+      .update({ title: title.trim(), artist: artist.trim(), song_type: songType, updated_at: new Date().toISOString() })
       .eq('id', songToEdit.id)
 
     if (updateError) {
@@ -403,6 +457,42 @@ export function EditSongModal() {
               </div>
             </div>
           )}
+
+              {/* song type */}
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
+                  Tipo
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-3px -2px' }}>
+                  {SONG_TYPE_OPTIONS.map((opt) => {
+                    const active = songType === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setSongType(opt.value)}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: active ? opt.activeBg : 'rgba(255,255,255,0.04)',
+                          border: `1px solid ${active ? opt.activeBorder : 'rgba(255,255,255,0.1)'}`,
+                          borderRadius: 99,
+                          padding: '5px 12px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          color: active ? opt.activeColor : opt.color,
+                          cursor: 'pointer',
+                          transition: 'all 0.15s',
+                          margin: '3px 2px',
+                        }}
+                      >
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
 
           {error && (
             <p role="alert" style={{ color: '#f87171', fontSize: 12, margin: 0 }}>{error}</p>
