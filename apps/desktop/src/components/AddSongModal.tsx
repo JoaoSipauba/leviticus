@@ -474,6 +474,8 @@ export function AddSongModal() {
   const [previewDuration, setPreviewDuration] = useState(0)
   const [previewPlaying, setPreviewPlaying] = useState(false)
   const [previewError, setPreviewError] = useState(false)
+  const [previewHoverTime, setPreviewHoverTime] = useState<number | null>(null)
+  const [previewHoverX, setPreviewHoverX] = useState(0)
 
   // reset when modal opens
   useEffect(() => {
@@ -1048,20 +1050,51 @@ export function AddSongModal() {
                                       onClick={(e) => {
                                         if (!audioRef.current || previewDuration <= 0) return
                                         const rect = e.currentTarget.getBoundingClientRect()
-                                        const fraction = (e.clientX - rect.left) / rect.width
+                                        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
                                         const newTime = fraction * previewDuration
                                         audioRef.current.currentTime = newTime
                                         setPreviewTime(newTime)
                                       }}
-                                      style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
+                                      onMouseMove={(e) => {
+                                        if (previewDuration <= 0) return
+                                        const rect = e.currentTarget.getBoundingClientRect()
+                                        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                                        setPreviewHoverTime(fraction * previewDuration)
+                                        setPreviewHoverX(fraction * 100)
+                                      }}
+                                      onMouseLeave={() => setPreviewHoverTime(null)}
+                                      style={{ position: 'relative', height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'visible', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
                                     >
-                                      <div style={{
-                                        height: '100%',
-                                        width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
-                                        background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
-                                        borderRadius: 99,
-                                        transition: 'width 0.3s linear',
-                                      }} />
+                                      {/* clip inner fill */}
+                                      <div style={{ position: 'absolute', inset: 0, borderRadius: 99, overflow: 'hidden' }}>
+                                        <div style={{
+                                          height: '100%',
+                                          width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
+                                          background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
+                                          borderRadius: 99,
+                                          transition: 'width 0.3s linear',
+                                        }} />
+                                      </div>
+                                      {/* tooltip */}
+                                      {previewHoverTime !== null && (
+                                        <div style={{
+                                          position: 'absolute',
+                                          bottom: 14,
+                                          left: `${previewHoverX}%`,
+                                          transform: 'translateX(-50%)',
+                                          background: 'rgba(15,15,25,0.92)',
+                                          border: '1px solid rgba(255,255,255,0.12)',
+                                          borderRadius: 5,
+                                          padding: '2px 6px',
+                                          fontSize: 10,
+                                          color: '#e5e7eb',
+                                          whiteSpace: 'nowrap',
+                                          pointerEvents: 'none',
+                                          zIndex: 10,
+                                        }}>
+                                          {fmtDuration(Math.floor(previewHoverTime))}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                   <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0 }}>Pré-escuta</span>
