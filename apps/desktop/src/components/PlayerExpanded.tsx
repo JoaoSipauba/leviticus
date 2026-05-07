@@ -161,6 +161,7 @@ export function PlayerExpanded({
         <Slider
           min={0} max={duration || 1} step={1}
           value={pos} onChange={onSeek}
+          formatTooltip={fmt}
           style={{ width: '100%', minWidth: 0 }}
         />
         <div className="flex justify-between mt-1" style={{ fontSize: 12, color: '#4b5563' }}>
