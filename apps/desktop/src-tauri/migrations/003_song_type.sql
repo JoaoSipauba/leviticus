@@ -1,0 +1,1 @@
+ALTER TABLE songs ADD COLUMN song_type TEXT NOT NULL DEFAULT 'normal';
