@@ -149,3 +149,20 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
       }
     })
 }
+
+export async function getPreviewUrl(videoId: string): Promise<string> {
+  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
+  const command = Command.create('yt-dlp', [
+    '-f', 'bestaudio',
+    '--get-url',
+    `https://youtube.com/watch?v=${videoId}`,
+  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+  const result = await command.execute()
+  if (result.code !== 0) {
+    console.error('[getPreviewUrl] yt-dlp failed:', result.stderr)
+    throw new Error('Não foi possível carregar a pré-escuta.')
+  }
+  const url = result.stdout.trim().split('\n')[0]
+  if (!url) throw new Error('Não foi possível carregar a pré-escuta.')
+  return url
+}
