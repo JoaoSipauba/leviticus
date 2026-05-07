@@ -6,6 +6,7 @@ let _howl: Howl | null = null
 type AudioCallbacks = {
   onEnd?: () => void
   onLoad?: () => void
+  volume?: number
 }
 
 export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
@@ -18,9 +19,13 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   _howl = new Howl({
     src: [src],
     format: ['mp3'],
+    html5: true,
     autoplay: true,
+    volume: callbacks?.volume ?? 1,
     onend: callbacks?.onEnd,
     onload: callbacks?.onLoad,
+    onloaderror: (_id, err) => console.error('[audio] load error:', err),
+    onplayerror: (_id, err) => console.error('[audio] play error:', err),
   })
 
   return _howl

@@ -50,20 +50,35 @@ export async function downloadSong(
   return outputPath
 }
 
-export async function fetchYoutubeMetadata(url: string): Promise<{
+export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
   title: string
   artist: string
   thumbnail_url: string
   duration_seconds: number
+  normalizedUrl: string
 }> {
-  const parsed = new URL(url)
+  const normalized = /^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : `https://${rawUrl.trim()}`
+  let parsed: URL
+  try {
+    parsed = new URL(normalized)
+  } catch {
+    throw new Error('URL inválida. Cole o link completo do YouTube.')
+  }
   if (!['www.youtube.com', 'youtube.com', 'youtu.be', 'm.youtube.com', 'music.youtube.com'].includes(parsed.hostname)) {
-    throw new Error('URL inválida: apenas YouTube é aceito')
+    throw new Error('URL inválida: apenas links do YouTube são aceitos')
   }
-  const videoId = parsed.searchParams.get('v') ?? (parsed.hostname === 'youtu.be' ? parsed.pathname.slice(1) : null)
+  // Extrai o ID do vídeo de todos os formatos comuns do YouTube:
+  // ?v=ID, youtu.be/ID, /shorts/ID, /embed/ID, /v/ID
+  const pathMatch = parsed.pathname.match(/\/(?:shorts|embed|v)\/([A-Za-z0-9_-]{11})/)
+  const videoId =
+    parsed.searchParams.get('v') ??
+    (parsed.hostname === 'youtu.be' ? parsed.pathname.slice(1).split('?')[0] : null) ??
+    pathMatch?.[1] ??
+    null
   if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
-    throw new Error('URL inválida')
+    throw new Error('Não foi possível identificar o vídeo. Verifique se o link é válido e tente novamente.')
   }
+  const url = normalized
 
   const command = Command.create('yt-dlp', [
     '--no-playlist',
@@ -82,7 +97,8 @@ export async function fetchYoutubeMetadata(url: string): Promise<{
   return {
     title: title || videoId,
     artist,
-    thumbnail_url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    thumbnail_url: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
     duration_seconds: parseInt(durationRaw, 10) || 0,
+    normalizedUrl: url,
   }
 }

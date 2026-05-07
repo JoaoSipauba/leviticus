@@ -64,18 +64,28 @@ export function Playlists() {
     if (!newName.trim()) return
     setSaving(true)
     setError(null)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setError('Usuário não autenticado.')
+      setSaving(false)
+      return
+    }
+
     const { data, error: insertError } = await supabase
       .from('playlists')
       .insert({
         org_id: orgId,
         name: newName.trim(),
         scheduled_date: newDate || null,
+        created_by: user.id,
       })
       .select()
       .single()
 
     if (insertError || !data) {
-      setError('Erro ao criar culto.')
+      console.error('[handleCreate] insertError:', insertError)
+      setError(insertError?.message ?? 'Erro ao criar culto.')
       setSaving(false)
       return
     }

@@ -53,6 +53,7 @@ export function Groups() {
     if (!newName.trim()) return
     setSaving(true)
     setError(null)
+
     const { data, error: insertError } = await supabase
       .from('groups')
       .insert({ name: newName.trim(), org_id: orgId, color_index: selectedColorIdx })
@@ -60,7 +61,8 @@ export function Groups() {
       .single()
 
     if (insertError || !data) {
-      setError('Erro ao criar ministério.')
+      console.error('[handleCreate] insertError:', insertError)
+      setError(insertError?.message ?? 'Erro ao criar ministério.')
       setSaving(false)
       return
     }

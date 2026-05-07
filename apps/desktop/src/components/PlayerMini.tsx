@@ -1,141 +1,370 @@
-import { useEffect, useState } from 'react'
-import { SkipBack, SkipForward, Volume2, Music } from 'lucide-react'
+import { useEffect, useState, useCallback, useRef } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { Music, Volume2, VolumeX, Maximize2, Repeat, Repeat1, ListEnd } from 'lucide-react'
+import { Slider } from './Slider.js'
 import { usePlayerStore } from '../store/player.js'
 import {
-  pauseAudio, resumeAudio, getPosition, getDuration,
+  pauseAudio, resumeAudio, playSong, getPosition, getDuration,
   seekTo, setVolume,
 } from '../lib/audio.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
+import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
+
+function fmt(s: number): string {
+  const m = Math.floor(s / 60)
+  const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+type RepeatMode = 'none' | 'all' | 'one'
 
 export function PlayerMini() {
   const {
     currentSong, isPlaying, volume,
     pause, resume, setPosition, setVolume: storeSetVolume,
+    nextInPlaylist,
   } = usePlayerStore()
+
   const [expanded, setExpanded] = useState(false)
   const [duration, setDuration] = useState(0)
   const [pos, setPos] = useState(0)
+  const [muted, setMuted] = useState(false)
+  const [lastVolume, setLastVolume] = useState(1)
+  const [repeat, setRepeat] = useState<RepeatMode>('none')
+  const [autoplay, setAutoplay] = useState(false)
 
+  // Avança para a próxima faixa (autoplay)
+  const playNext = useCallback(async () => {
+    const next = nextInPlaylist()
+    if (!next) return
+    if (!(await isDownloaded(next.id))) return
+    const path = await getSongFilename(next.id)
+    playSong(path, { onEnd: () => handleEnd(), volume: usePlayerStore.getState().volume })
+    usePlayerStore.getState().resume()
+  }, [nextInPlaylist])
+
+  const handleEnd = useCallback(() => {
+    if (repeat === 'one') {
+      resumeAudio()
+      return
+    }
+    if (autoplay || repeat === 'all') {
+      playNext()
+      return
+    }
+    usePlayerStore.getState().pause()
+  }, [repeat, autoplay, playNext])
+
+  // Referências estáveis para uso nos listeners de mídia
+  const isPlayingRef = useRef(isPlaying)
+  const playNextRef = useRef(playNext)
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  useEffect(() => { playNextRef.current = playNext }, [playNext])
+
+  // Botões de mídia do macOS (F7 / F8 / F9)
+  useEffect(() => {
+    const unlisten = Promise.all([
+      listen('media-play-pause', () => {
+        if (isPlayingRef.current) { pauseAudio(); usePlayerStore.getState().pause() }
+        else { resumeAudio(); usePlayerStore.getState().resume() }
+      }),
+      listen('media-next', () => playNextRef.current()),
+      listen('media-prev', () => {
+        const prev = usePlayerStore.getState().previousInPlaylist()
+        if (!prev) return
+        isDownloaded(prev.id).then(ok => {
+          if (!ok) return
+          getSongFilename(prev.id).then(path => {
+            playSong(path, { onEnd: () => handleEnd(), volume: usePlayerStore.getState().volume })
+            usePlayerStore.getState().resume()
+          })
+        })
+      }),
+    ])
+    return () => { unlisten.then(fns => fns.forEach(fn => fn())) }
+  }, [])
+
+  // Polling de posição
   useEffect(() => {
     if (!isPlaying) return
     const interval = setInterval(() => {
-      const p = getPosition()
-      const d = getDuration()
-      setPos(p)
-      setDuration(d)
-      setPosition(p)
-    }, 1000)
+      setPos(getPosition())
+      setDuration(getDuration())
+      setPosition(getPosition())
+    }, 500)
     return () => clearInterval(interval)
   }, [isPlaying, setPosition, currentSong?.id])
+
+  // Atalhos globais de teclado
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault()
+          if (isPlaying) { pauseAudio(); pause() }
+          else { resumeAudio(); resume() }
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          seekTo(Math.min(getPosition() + 5, getDuration()))
+          setPos(Math.min(getPosition() + 5, getDuration()))
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          seekTo(Math.max(getPosition() - 5, 0))
+          setPos(Math.max(getPosition() - 5, 0))
+          break
+        case 'ArrowUp':
+          e.preventDefault()
+          handleVolumeChange(Math.min(1, volume + 0.1))
+          break
+        case 'ArrowDown':
+          e.preventDefault()
+          handleVolumeChange(Math.max(0, volume - 0.1))
+          break
+        case 'm': case 'M':
+          handleMute()
+          break
+        case 'r': case 'R':
+          setRepeat(r => r === 'none' ? 'all' : r === 'all' ? 'one' : 'none')
+          break
+        case 's': case 'S':
+          setAutoplay(v => !v)
+          break
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isPlaying, volume, muted, lastVolume])
 
   function handlePlayPause() {
     if (isPlaying) { pauseAudio(); pause() }
     else { resumeAudio(); resume() }
   }
 
-  function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = parseFloat(e.target.value)
+  function handleSeek(val: number) {
     seekTo(val)
     setPos(val)
   }
 
-  function handleVolume(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = parseFloat(e.target.value)
-    setVolume(val)
-    storeSetVolume(val)
+  function handleMute() {
+    if (muted) {
+      setMuted(false)
+      setVolume(lastVolume)
+      storeSetVolume(lastVolume)
+    } else {
+      setLastVolume(volume || lastVolume)
+      setMuted(true)
+      setVolume(0)
+      storeSetVolume(0)
+    }
   }
+
+  function handleVolumeChange(val: number) {
+    storeSetVolume(val)
+    setVolume(val)
+    if (val > 0 && muted) { setMuted(false); setLastVolume(val) }
+    if (val === 0) setMuted(true)
+  }
+
+  function cycleRepeat() {
+    setRepeat(r => r === 'none' ? 'all' : r === 'all' ? 'one' : 'none')
+  }
+
+  const iconBtn = (active = false) => ({
+    background: 'none', border: 'none', cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 32, height: 32, padding: 0, flexShrink: 0,
+    borderRadius: 6,
+    transition: 'opacity 0.15s',
+    opacity: active ? 1 : 0.55,
+  } as const)
 
   if (!currentSong) {
     return (
-      <div
-        className="h-16"
-        style={{
-          background: 'linear-gradient(to right, #0f172a, #0d1322)',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-        }}
-      />
+      <div style={{ height: 72, background: '#0a0a14', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
     )
   }
+
 
   return (
     <>
       <div
-        className="h-16 flex items-center px-4 gap-4 cursor-pointer"
         style={{
-          background: 'linear-gradient(to right, #0f172a, #0d1322)',
+          height: 72,
+          background: '#0b0b18',
           borderTop: '1px solid rgba(255,255,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0,
+          position: 'relative',
         }}
-        onClick={() => setExpanded(true)}
       >
-        <div
-          className="flex-shrink-0 flex items-center justify-center"
-          style={{
-            width: 38, height: 38, borderRadius: 8,
-            background: currentSong.thumbnail_url ? 'transparent' : 'rgba(255,255,255,0.05)',
-            overflow: 'hidden',
-          }}
-        >
-          {currentSong.thumbnail_url ? (
-            <img src={currentSong.thumbnail_url} className="w-full h-full object-cover" alt="" />
-          ) : (
-            <Music size={16} color="#4b5563" />
-          )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold truncate" style={{ color: '#f3f4f6' }}>
-            {currentSong.title}
-          </p>
-          <p className="truncate" style={{ color: '#9ca3af', fontSize: 12 }}>
-            {currentSong.artist}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <button
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34 }}
-          >
-            <SkipBack size={18} color="#9ca3af" strokeWidth={2} />
-          </button>
-
-          <button
-            onClick={handlePlayPause}
+        {/* ── Coluna esquerda: capa + info ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, width: 280, flexShrink: 0, paddingLeft: 16 }}>
+          <div
+            className="group/thumb"
+            onClick={() => setExpanded(true)}
             style={{
-              width: 34, height: 34, borderRadius: '50%',
-              background: '#2563eb',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              flexShrink: 0,
+              width: 44, height: 44, borderRadius: 6, flexShrink: 0,
+              background: currentSong.thumbnail_url ? 'transparent' : 'rgba(255,255,255,0.05)',
+              overflow: 'hidden', cursor: 'pointer', position: 'relative',
             }}
           >
-            {isPlaying ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff">
-                <rect x="5" y="3" width="4" height="18" rx="1.5" />
-                <rect x="15" y="3" width="4" height="18" rx="1.5" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff">
-                <polygon points="5,3 19,12 5,21" />
-              </svg>
-            )}
-          </button>
+            {currentSong.thumbnail_url
+              ? <img src={currentSong.thumbnail_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Music size={18} color="#4b5563" /></div>
+            }
+            <div
+              className="opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+              style={{
+                position: 'absolute', inset: 0,
+                background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Maximize2 size={14} color="#fff" />
+            </div>
+          </div>
 
-          <button
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34 }}
-          >
-            <SkipForward size={18} color="#9ca3af" strokeWidth={2} />
-          </button>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <p style={{ color: '#f3f4f6', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentSong.title}
+            </p>
+            <p style={{ color: '#6b7280', fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+              {currentSong.artist}
+            </p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Volume2 size={15} color="#6b7280" strokeWidth={2} />
-          <input
-            type="range"
-            min="0" max="1" step="0.05"
-            value={volume}
-            onChange={handleVolume}
-            className="w-20 accent-blue-500"
+        {/* ── Coluna central: controles + barra ── */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingBottom: 2 }}>
+          {/* Botões */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {/* Autoplay */}
+            <button
+              onClick={() => setAutoplay(v => !v)}
+              title="Reprodução automática (S)"
+              style={iconBtn(autoplay)}
+              className="hover:opacity-100"
+            >
+              <ListEnd size={16} color={autoplay ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
+            </button>
+
+            {/* Previous */}
+            <button
+              onClick={() => {
+                usePlayerStore.getState().previousInPlaylist()
+              }}
+              title="Anterior (←)"
+              style={iconBtn()}
+              className="hover:opacity-100"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="19,20 9,12 19,4" /><line x1="5" y1="19" x2="5" y2="5" />
+              </svg>
+            </button>
+
+            {/* Play / Pause */}
+            <button
+              onClick={handlePlayPause}
+              title="Play/Pause (Espaço)"
+              style={{
+                width: 36, height: 36, borderRadius: '50%',
+                background: '#fff', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'transform 0.1s ease',
+              }}
+              className="hover:scale-105"
+            >
+              {isPlaying ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#0b0b18">
+                  <rect x="5" y="3" width="4" height="18" rx="1.5" />
+                  <rect x="15" y="3" width="4" height="18" rx="1.5" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="#0b0b18">
+                  <polygon points="6,3 20,12 6,21" />
+                </svg>
+              )}
+            </button>
+
+            {/* Next */}
+            <button
+              onClick={() => playNext()}
+              title="Próxima (→)"
+              style={iconBtn()}
+              className="hover:opacity-100"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5,4 15,12 5,20" /><line x1="19" y1="5" x2="19" y2="19" />
+              </svg>
+            </button>
+
+            {/* Repeat */}
+            <button
+              onClick={cycleRepeat}
+              title="Repetir (R)"
+              style={iconBtn(repeat !== 'none')}
+              className="hover:opacity-100"
+            >
+              {repeat === 'one'
+                ? <Repeat1 size={16} color="#3b82f6" strokeWidth={2} />
+                : <Repeat size={16} color={repeat === 'all' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
+              }
+            </button>
+
+          </div>
+
+          {/* Barra de progresso + tempos */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', maxWidth: 480, paddingRight: 4 }}>
+            <span style={{ color: '#6b7280', fontSize: 10, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+              {fmt(pos)}
+            </span>
+            <Slider
+              thin
+              min={0}
+              max={duration || 1}
+              step={1}
+              value={pos}
+              onChange={handleSeek}
+              style={{ flex: 1 }}
+            />
+            <span style={{ color: '#6b7280', fontSize: 10, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+              {fmt(duration)}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Coluna direita: volume + expand ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 200, flexShrink: 0, justifyContent: 'flex-end', paddingRight: 16 }}>
+          <button
+            onClick={handleMute}
+            title="Mudo (M)"
+            style={iconBtn()}
+            className="hover:opacity-100"
+          >
+            {muted
+              ? <VolumeX size={16} color="#9ca3af" strokeWidth={2} />
+              : <Volume2 size={16} color="#9ca3af" strokeWidth={2} />
+            }
+          </button>
+          <Slider
+            value={muted ? 0 : volume}
+            onChange={handleVolumeChange}
+            style={{ width: 88 }}
           />
+          <button
+            onClick={() => setExpanded(true)}
+            title="Expandir"
+            style={iconBtn()}
+            className="hover:opacity-100"
+          >
+            <Maximize2 size={14} color="#9ca3af" strokeWidth={2} />
+          </button>
         </div>
       </div>
 
@@ -145,6 +374,13 @@ export function PlayerMini() {
           duration={duration}
           onSeek={handleSeek}
           onClose={() => setExpanded(false)}
+          repeat={repeat}
+          autoplay={autoplay}
+          muted={muted}
+          onCycleRepeat={cycleRepeat}
+          onToggleAutoplay={() => setAutoplay(v => !v)}
+          onMute={handleMute}
+          onVolumeChange={handleVolumeChange}
         />
       )}
     </>

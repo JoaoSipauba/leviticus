@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import { useAuthStore } from './store/auth.js'
 import { Layout } from './components/Layout.js'
+import { syncOrg } from './lib/sync.js'
 
 export function App() {
   const { setSession, user, loading } = useAuthStore()
@@ -11,7 +12,12 @@ export function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
-      if (!data.session) navigate('/login')
+      if (!data.session) {
+        navigate('/login')
+      } else {
+        const orgId = localStorage.getItem('leviticus_org_id')
+        if (orgId) syncOrg(orgId).catch(console.error)
+      }
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange(

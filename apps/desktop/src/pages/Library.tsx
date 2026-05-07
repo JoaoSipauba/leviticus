@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Music, Loader2 } from 'lucide-react'
+import { Music, Loader2, Plus } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
+import { useUIStore } from '../store/ui.js'
+
 
 export function Library() {
   const [songs, setSongs] = useState<Song[]>([])
@@ -13,6 +14,7 @@ export function Library() {
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+  const { openAddSong, librarySeed, openEditSong } = useUIStore()
 
   useEffect(() => {
     async function load() {
@@ -43,7 +45,7 @@ export function Library() {
       setLoading(false)
     }
     load()
-  }, [orgId])
+  }, [orgId, librarySeed])
 
   const filtered = songs.filter((s) => {
     const matchesSearch =
@@ -87,16 +89,18 @@ export function Library() {
         <h2 className="font-semibold" style={{ color: '#f3f4f6', fontSize: 18 }}>
           Biblioteca
         </h2>
-        <Link
-          to="/add"
-          className="font-semibold text-white transition-colors hover:bg-blue-700"
+        <button
+          onClick={openAddSong}
+          className="flex items-center gap-1.5 font-semibold text-white transition-colors hover:bg-blue-700"
           style={{
             background: '#2563eb', borderRadius: 10,
             padding: '8px 14px', fontSize: 13,
+            border: 'none', cursor: 'pointer',
           }}
         >
-          + Adicionar
-        </Link>
+          <Plus size={13} strokeWidth={2.5} />
+          Adicionar
+        </button>
       </div>
 
       <div className="flex gap-3 mb-4">
@@ -133,7 +137,11 @@ export function Library() {
 
       <div className="space-y-2 flex-1 overflow-y-auto">
         {filtered.map((song) => (
-          <SongCard key={song.id} song={song} />
+          <SongCard
+            key={song.id}
+            song={song}
+            onEdit={() => openEditSong(song, songGroupMap.get(song.id) ?? [])}
+          />
         ))}
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
@@ -142,13 +150,13 @@ export function Library() {
               <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
                 Nenhuma música encontrada
               </p>
-              <Link
-                to="/add"
-                className="text-sm mt-1 block"
-                style={{ color: '#3b82f6' }}
+              <button
+                onClick={openAddSong}
+                className="text-sm mt-1"
+                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
               >
                 Adicionar primeira música
-              </Link>
+              </button>
             </div>
           </div>
         )}

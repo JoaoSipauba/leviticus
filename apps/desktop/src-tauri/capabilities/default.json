@@ -19,6 +19,15 @@
     "sql:default",
     "sql:allow-execute",
     "sql:allow-select",
-    "sql:allow-load"
+    "sql:allow-load",
+    "http:default",
+    {
+      "identifier": "http:allow-fetch",
+      "allow": [
+        { "url": "http://127.0.0.1:54321/**" },
+        { "url": "https://*.supabase.co/**" },
+        { "url": "https://*.supabase.io/**" }
+      ]
+    }
   ]
 }

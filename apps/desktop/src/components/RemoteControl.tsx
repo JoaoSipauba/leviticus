@@ -64,7 +64,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             }
           }
           const path = await getSongFilename(cmd.song_id)
-          playSong(path)
+          playSong(path, { volume: usePlayerStore.getState().volume })
         } catch {
           // error is swallowed — UI will clear loading state via finally
         } finally {

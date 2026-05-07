@@ -3,7 +3,6 @@ import { App } from './App.js'
 import { Login } from './pages/Login.js'
 import { OrgSelect } from './pages/OrgSelect.js'
 import { Library } from './pages/Library.js'
-import { AddSong } from './pages/AddSong.js'
 import { Groups } from './pages/Groups.js'
 import { Playlists } from './pages/Playlists.js'
 import { PlaylistDetail } from './pages/PlaylistDetail.js'
@@ -21,7 +20,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/library" replace /> },
       { path: 'library', element: <Library /> },
-      { path: 'add', element: <AddSong /> },
+      { path: 'add', element: <Navigate to="/library" replace /> },
       { path: 'ministries', element: <Groups /> },
       { path: 'services', element: <Playlists /> },
       { path: 'services/:id', element: <PlaylistDetail /> },

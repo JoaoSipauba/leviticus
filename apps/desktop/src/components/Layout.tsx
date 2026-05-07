@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { Sidebar } from './Sidebar.js'
 import { PlayerMini } from './PlayerMini.js'
+import { AddSongModal } from './AddSongModal.js'
+import { EditSongModal } from './EditSongModal.js'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -10,6 +12,8 @@ export function Layout({ children }: { children: ReactNode }) {
         <main className="flex-1 overflow-y-auto">{children}</main>
         <PlayerMini />
       </div>
+      <AddSongModal />
+      <EditSongModal />
     </div>
   )
 }

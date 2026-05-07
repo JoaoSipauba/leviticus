@@ -1,17 +1,40 @@
 import { useEffect, useState } from 'react'
 import type { Song } from '@leviticus/core'
-import { Music } from 'lucide-react'
+import { Music, Pencil } from 'lucide-react'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { usePlayerStore } from '../store/player.js'
 import { DownloadButton } from './DownloadButton.js'
 
+function EditIconBtn({ onClick }: { onClick: () => void }) {
+  const [hov, setHov] = useState(false)
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onClick() }}
+      style={{
+        width: 34, height: 34, borderRadius: '50%',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: hov ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.05)',
+        border: '1px solid rgba(255,255,255,0.1)',
+        cursor: 'pointer',
+        flexShrink: 0,
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+    >
+      <Pencil size={13} color={hov ? '#f3f4f6' : '#9ca3af'} strokeWidth={2} />
+    </button>
+  )
+}
+
 type Props = {
   song: Song
   playlistContext?: { playlistId: string; songs: Song[]; position: number }
+  onEdit?: () => void
 }
 
-export function SongCard({ song, playlistContext: _playlistContext }: Props) {
+export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Props) {
   const [downloaded, setDownloaded] = useState(false)
   const { play, currentSong, isPlaying } = usePlayerStore()
   const isCurrentlyPlaying = currentSong?.id === song.id && isPlaying
@@ -28,7 +51,7 @@ export function SongCard({ song, playlistContext: _playlistContext }: Props) {
       return
     }
     const filePath = await getSongFilename(song.id)
-    playSong(filePath, { onEnd: () => usePlayerStore.getState().pause() })
+    playSong(filePath, { onEnd: () => usePlayerStore.getState().pause(), volume: usePlayerStore.getState().volume })
     play(song)
   }
 
@@ -76,7 +99,7 @@ export function SongCard({ song, playlistContext: _playlistContext }: Props) {
         </p>
       </div>
 
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {downloaded ? (
           <button
             onClick={handlePlay}
@@ -115,6 +138,10 @@ export function SongCard({ song, playlistContext: _playlistContext }: Props) {
               onDownloaded={() => setDownloaded(true)}
             />
           </div>
+        )}
+
+        {onEdit && (
+          <EditIconBtn onClick={onEdit} />
         )}
       </div>
     </div>
