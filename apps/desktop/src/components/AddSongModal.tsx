@@ -523,6 +523,7 @@ export function AddSongModal() {
       setOrgId(currentOrgId)
       setStep(2)
     } catch (e) {
+      console.error('[handleFetchMetadata]', e)
       setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
     } finally {
       setFetching(false)
@@ -559,7 +560,8 @@ export function AddSongModal() {
       .single()
 
     if (insertError || !song) {
-      setError(insertError?.message ?? 'Erro ao salvar. Tente novamente.')
+      console.error('[handleConfirm] songs insert error:', insertError)
+      setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
@@ -593,6 +595,7 @@ export function AddSongModal() {
     } catch (e) {
       await supabase.from('song_groups').delete().eq('song_id', song.id)
       await supabase.from('songs').delete().eq('id', song.id)
+      console.error('[handleConfirm] download error:', e)
       setError(e instanceof Error ? e.message : 'Erro ao baixar. Tente novamente.')
       setStep(2)
     } finally {
