@@ -1,3 +1,5 @@
+export type SongType = 'normal' | 'playback' | 'instrumental' | 'vs'
+
 export type Song = {
   id: string
   org_id: string
@@ -7,6 +9,7 @@ export type Song = {
   artist: string
   thumbnail_url: string | null
   duration_seconds: number | null
+  song_type: SongType
   created_at: string
   updated_at: string
 }

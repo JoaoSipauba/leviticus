@@ -42,10 +42,10 @@ export async function syncOrg(orgId: string): Promise<void> {
   for (const s of songs.data) {
     await db.execute(
       `INSERT OR REPLACE INTO songs
-       (id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [s.id, s.org_id, s.youtube_url, s.title, s.artist,
-       s.thumbnail_url, s.duration_seconds, s.created_at, s.updated_at]
+       s.thumbnail_url, s.duration_seconds, s.song_type ?? 'normal', s.created_at, s.updated_at]
     )
   }
 
