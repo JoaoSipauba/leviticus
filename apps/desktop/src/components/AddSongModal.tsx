@@ -575,9 +575,10 @@ export function AddSongModal() {
       if (result.duration > 0) setPreviewDuration(result.duration)
       audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
       audio.onprogress = () => {
-        if (audio.buffered.length > 0 && previewDuration > 0) {
+        const dur = result.duration > 0 ? result.duration : audio.duration
+        if (audio.buffered.length > 0 && dur > 0 && isFinite(dur)) {
           const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
-          setPreviewBuffered((bufferedEnd / previewDuration) * 100)
+          setPreviewBuffered((bufferedEnd / dur) * 100)
         }
       }
       audio.onloadedmetadata = () => {
@@ -990,11 +991,23 @@ export function AddSongModal() {
                         }
                       }}
                     />
-                    {/* Progress bar */}
-                    <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 99, marginTop: 4, overflow: 'hidden', opacity: searching ? 1 : 0, transition: 'opacity 0.2s' }}>
-                      <div className="animate-search-progress" style={{ position: 'relative', height: '100%', background: 'linear-gradient(90deg,#2563eb,#60a5fa)', borderRadius: 99 }} />
-                    </div>
                   </div>
+
+                  {/* Skeleton shimmer */}
+                  {searching && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {[72, 55, 80].map((titleW, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div className="skeleton" style={{ width: 56, height: 36, borderRadius: 6, flexShrink: 0 }} />
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            <div className="skeleton" style={{ height: 10, width: `${titleW}%` }} />
+                            <div className="skeleton" style={{ height: 8, width: '40%' }} />
+                          </div>
+                          <div className="skeleton" style={{ width: 28, height: 16, borderRadius: 4, flexShrink: 0 }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Hint */}
                   {!searching && query.trim().length < 2 && query.length > 0 && (
