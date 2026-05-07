@@ -119,3 +119,13 @@ Always show clear, friendly error messages in Portuguese. Rules:
 - Audio files are stored at `$APPLOCALDATADIR/audio/{songId}.mp3`. The `assetProtocol` scope in `tauri.conf.json` must cover `$APPLOCALDATA/**` to serve them.
 - yt-dlp and ffmpeg are expected at `/opt/homebrew/bin` (Homebrew on Apple Silicon). The PATH is set explicitly in `downloadSong()` since Tauri does not inherit the shell PATH.
 - `tauri-plugin-global-shortcut` registration is wrapped in `let _ =` (not `?`) to prevent the app from crashing if macOS Accessibility permission is denied.
+
+## Perceived performance
+
+The app must always feel fast and snappy to the user. Every interaction should feel instantaneous. Rules:
+
+- **Seek / click interactions**: apply `transition: none` at the moment of click; re-enable a short transition (≤ 0.15s) afterwards for smooth passive updates. Never let a CSS animation delay a user-triggered action.
+- **CSS transitions**: keep them short (≤ 0.2s for UI state changes, ≤ 0.15s for data-driven fills like progress bars). Reserve longer transitions only for entrance/exit animations on modals or overlays.
+- **State updates on user input**: update state synchronously and immediately — never make visual feedback wait for a promise to resolve when the result is already known.
+- **Audio/media**: seek and volume changes must be applied to the media element before any visual state update, so the audio never lags behind the UI.
+- When in doubt: remove the animation before shipping, rather than ship something that feels slow.

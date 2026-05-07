@@ -488,6 +488,8 @@ export function AddSongModal() {
   const [previewVolDragging, setPreviewVolDragging] = useState(false)
   // Resultado pendente de confirmação quando o player principal está tocando
   const [confirmStop, setConfirmStop] = useState<YTSearchResult | null>(null)
+  const [previewSeeking, setPreviewSeeking] = useState(false)
+  const seekResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // sync volume com o audio element atual + persist
   useEffect(() => {
@@ -589,6 +591,7 @@ export function AddSongModal() {
       audio.src = ''
       audio.load()  // force reset no WebKit — sem load() o stream pode continuar
     }
+    if (seekResetRef.current) { clearTimeout(seekResetRef.current); seekResetRef.current = null }
     setConfirmStop(null)
     setPreviewId(null)
     setPreviewLoading(false)
@@ -597,6 +600,7 @@ export function AddSongModal() {
     setPreviewPlaying(false)
     setPreviewError(false)
     setPreviewBuffered(0)
+    setPreviewSeeking(false)
   }
 
   // Toggle local: se já é a música em preview, alterna play/pause sem mexer no player principal
@@ -1273,6 +1277,9 @@ export function AddSongModal() {
                                         if (!audioRef.current || previewDuration <= 0) return
                                         audioRef.current.currentTime = v
                                         setPreviewTime(v)
+                                        setPreviewSeeking(true)
+                                        if (seekResetRef.current) clearTimeout(seekResetRef.current)
+                                        seekResetRef.current = setTimeout(() => setPreviewSeeking(false), 150)
                                       }}
                                       formatTooltip={(v) => fmtDuration(Math.floor(v))}
                                     />
