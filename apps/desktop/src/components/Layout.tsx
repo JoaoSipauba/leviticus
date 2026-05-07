@@ -18,9 +18,20 @@ export function Layout({ children }: { children: ReactNode }) {
 
       const thumb = document.createElement('div')
       thumb.className = 'custom-scroll-thumb fading'
+      // Acessibilidade
+      thumb.setAttribute('role', 'scrollbar')
+      thumb.setAttribute('aria-orientation', 'vertical')
+      thumb.setAttribute('aria-valuemin', '0')
+      thumb.setAttribute('aria-valuemax', '100')
+      thumb.setAttribute('aria-valuenow', '0')
+      thumb.setAttribute('aria-label', 'Barra de rolagem vertical')
+      thumb.setAttribute('tabindex', '0')
       container.appendChild(thumb)
 
       let hideTimer: number | null = null
+      let isDragging = false
+      let dragStartY = 0
+      let dragStartScroll = 0
 
       const updateThumb = () => {
         const ratio = container.clientHeight / container.scrollHeight
@@ -36,18 +47,84 @@ export function Layout({ children }: { children: ReactNode }) {
           : 0
         thumb.style.height = `${thumbHeight}px`
         thumb.style.transform = `translateY(${thumbTop}px)`
+        // ARIA: posição atual em %
+        const percent = maxScroll > 0 ? Math.round((container.scrollTop / maxScroll) * 100) : 0
+        thumb.setAttribute('aria-valuenow', String(percent))
+      }
+
+      const startHideTimer = () => {
+        if (hideTimer !== null) window.clearTimeout(hideTimer)
+        hideTimer = window.setTimeout(() => {
+          if (isDragging) return
+          thumb.classList.remove('visible')
+          thumb.classList.add('fading')
+        }, HIDE_DELAY)
       }
 
       const showThumb = () => {
         updateThumb()
         thumb.classList.remove('fading')
         thumb.classList.add('visible')
-        if (hideTimer !== null) window.clearTimeout(hideTimer)
-        hideTimer = window.setTimeout(() => {
-          thumb.classList.remove('visible')
-          thumb.classList.add('fading')
-        }, HIDE_DELAY)
+        startHideTimer()
       }
+
+      // ── Drag ──
+      const onThumbMouseDown = (e: MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        isDragging = true
+        dragStartY = e.clientY
+        dragStartScroll = container.scrollTop
+        thumb.classList.add('dragging')
+        thumb.classList.remove('fading')
+        thumb.classList.add('visible')
+        if (hideTimer !== null) window.clearTimeout(hideTimer)
+        document.addEventListener('mousemove', onMouseMove)
+        document.addEventListener('mouseup', onMouseUp)
+        // Bloqueia seleção de texto enquanto arrasta
+        document.body.style.userSelect = 'none'
+      }
+      const onMouseMove = (e: MouseEvent) => {
+        if (!isDragging) return
+        const deltaY = e.clientY - dragStartY
+        const trackHeight = container.clientHeight - thumb.offsetHeight
+        const maxScroll = container.scrollHeight - container.clientHeight
+        if (trackHeight <= 0 || maxScroll <= 0) return
+        const newScrollTop = dragStartScroll + (deltaY * maxScroll / trackHeight)
+        container.scrollTop = Math.max(0, Math.min(maxScroll, newScrollTop))
+      }
+      const onMouseUp = () => {
+        if (!isDragging) return
+        isDragging = false
+        thumb.classList.remove('dragging')
+        document.removeEventListener('mousemove', onMouseMove)
+        document.removeEventListener('mouseup', onMouseUp)
+        document.body.style.userSelect = ''
+        startHideTimer()
+      }
+      thumb.addEventListener('mousedown', onThumbMouseDown)
+
+      // ── Keyboard ──
+      const onKeyDown = (e: KeyboardEvent) => {
+        const line = 40
+        const page = container.clientHeight * 0.9
+        let handled = true
+        switch (e.key) {
+          case 'ArrowDown':  container.scrollBy({ top:  line }); break
+          case 'ArrowUp':    container.scrollBy({ top: -line }); break
+          case 'PageDown':   container.scrollBy({ top:  page }); break
+          case 'PageUp':     container.scrollBy({ top: -page }); break
+          case 'Home':       container.scrollTo({ top: 0 }); break
+          case 'End':        container.scrollTo({ top: container.scrollHeight }); break
+          default:           handled = false
+        }
+        if (handled) {
+          e.preventDefault()
+          showThumb()
+        }
+      }
+      thumb.addEventListener('keydown', onKeyDown)
+      thumb.addEventListener('focus', showThumb)
 
       container.addEventListener('scroll', showThumb, { passive: true })
 
@@ -62,6 +139,11 @@ export function Layout({ children }: { children: ReactNode }) {
       const cleanupObserver = new MutationObserver(() => {
         if (!document.body.contains(container)) {
           container.removeEventListener('scroll', showThumb)
+          thumb.removeEventListener('mousedown', onThumbMouseDown)
+          thumb.removeEventListener('keydown', onKeyDown)
+          thumb.removeEventListener('focus', showThumb)
+          document.removeEventListener('mousemove', onMouseMove)
+          document.removeEventListener('mouseup', onMouseUp)
           ro.disconnect()
           mo.disconnect()
           cleanupObserver.disconnect()

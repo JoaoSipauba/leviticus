@@ -76,13 +76,33 @@
   opacity: 0;
   pointer-events: none;
   z-index: 10;
+  cursor: grab;
   will-change: opacity, transform, height;
 }
 .custom-scroll-thumb.visible {
   opacity: 1;
-  transition: opacity 0.15s ease; /* fade in rápido */
+  pointer-events: auto;
+  transition: opacity 0.15s ease, background 0.15s ease, width 0.15s ease;
 }
 .custom-scroll-thumb.fading {
   opacity: 0;
-  transition: opacity 0.9s ease 0.6s; /* fade out: delay 0.6s, demora 0.9s */
+  pointer-events: none;
+  transition: opacity 0.9s ease 0.6s;
+}
+.custom-scroll-thumb.visible:hover {
+  background: rgba(255,255,255,0.42);
+  width: 6px;
+  right: 1px;
+}
+.custom-scroll-thumb.dragging {
+  background: rgba(255,255,255,0.55) !important;
+  width: 6px !important;
+  right: 1px !important;
+  cursor: grabbing;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.custom-scroll-thumb:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
 }
