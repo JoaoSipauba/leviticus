@@ -331,6 +331,7 @@ export function PlayerMini() {
               step={1}
               value={pos}
               onChange={handleSeek}
+              formatTooltip={fmt}
               style={{ flex: 1 }}
             />
             <span style={{ color: '#6b7280', fontSize: 10, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
