@@ -467,6 +467,7 @@ export function AddSongModal() {
   // preview
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const previewAbortRef = useRef(0)
+  const previewUrlCacheRef = useRef<Map<string, string>>(new Map())
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewTime, setPreviewTime] = useState(0)
@@ -559,8 +560,10 @@ export function AddSongModal() {
     setPreviewLoading(true)
     const token = ++previewAbortRef.current
     try {
-      const url = await getPreviewUrl(result.id)
+      const cached = previewUrlCacheRef.current.get(result.id)
+      const url = cached ?? await getPreviewUrl(result.id)
       if (token !== previewAbortRef.current) return  // superseded by newer click
+      if (!cached) previewUrlCacheRef.current.set(result.id, url)
       const audio = new Audio(url)
       audioRef.current = audio
       // Usa a duração do resultado de busca como fonte de verdade —
@@ -613,6 +616,7 @@ export function AddSongModal() {
     setSearching(false)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTokenRef.current++
+    previewUrlCacheRef.current.clear()
   }
 
   // ── search tab logic ──────────────────────────────────────────────────────
