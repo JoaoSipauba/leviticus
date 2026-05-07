@@ -497,12 +497,19 @@ export function AddSongModal() {
     localStorage.setItem('leviticus_preview_volume', String(previewVolume))
   }, [previewVolume, previewMuted])
 
-  // reset when modal opens
+  // reset when modal opens; para o preview quando fecha por qualquer caminho
   useEffect(() => {
     if (showAddSong) {
       setClosing(false)
       resetToStep1()
+    } else {
+      // Garante parada do áudio mesmo que triggerClose() não tenha sido chamado
+      previewAbortRef.current++
+      const audio = audioRef.current
+      audioRef.current = null
+      if (audio) { audio.pause(); audio.src = ''; audio.load() }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAddSong])
 
   // escape key
@@ -573,9 +580,14 @@ export function AddSongModal() {
 
   function stopPreview() {
     previewAbortRef.current++
-    if (audioRef.current) {
-      audioRef.current.pause()
-      audioRef.current.src = ''
+    // Nulificar antes de pausar evita que callbacks pendentes de play()
+    // acessem o elemento via ref após o stop
+    const audio = audioRef.current
+    audioRef.current = null
+    if (audio) {
+      audio.pause()
+      audio.src = ''
+      audio.load()  // force reset no WebKit — sem load() o stream pode continuar
     }
     setConfirmStop(null)
     setPreviewId(null)
