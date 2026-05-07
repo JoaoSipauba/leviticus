@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Music, Loader2, Plus } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
@@ -15,6 +15,7 @@ export function Library() {
   const [loading, setLoading] = useState(true)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const { openAddSong, librarySeed, openEditSong } = useUIStore()
+  const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     async function load() {
@@ -46,6 +47,19 @@ export function Library() {
     }
     load()
   }, [orgId, librarySeed])
+
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+    let timer: ReturnType<typeof setTimeout>
+    const onScroll = () => {
+      el.style.pointerEvents = 'none'
+      clearTimeout(timer)
+      timer = setTimeout(() => { el.style.pointerEvents = '' }, 100)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => { el.removeEventListener('scroll', onScroll); clearTimeout(timer) }
+  }, [])
 
   const filtered = songs.filter((s) => {
     const matchesSearch =
@@ -135,7 +149,7 @@ export function Library() {
         </select>
       </div>
 
-      <div className="space-y-2 flex-1 overflow-y-auto">
+      <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">
         {filtered.map((song) => (
           <SongCard
             key={song.id}

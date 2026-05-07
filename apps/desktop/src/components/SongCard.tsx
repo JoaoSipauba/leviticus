@@ -180,7 +180,7 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
             </span>
           )}
         </div>
-        <p className="text-sm truncate" style={{ color: '#9ca3af' }}>
+        <p className="truncate" style={{ fontSize: 10, color: '#4b5563' }}>
           {song.artist}
         </p>
         <div style={{ marginTop: 5 }}>
