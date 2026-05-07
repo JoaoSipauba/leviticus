@@ -274,7 +274,12 @@ function SearchResultCard({
       role="button"
       tabIndex={0}
       onClick={onClick}
-      onKeyDown={(e) => e.key === 'Enter' && onClick()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick()
+        }
+      }}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -339,7 +344,7 @@ function SearchResultCard({
 
       {/* Preview button */}
       <button
-        onClick={(e) => { e.stopPropagation(); onPreview() }}
+        onClick={(e) => { e.stopPropagation(); if (!loading) onPreview() }}
         style={{
           width: 26, height: 26, borderRadius: '50%',
           border: '1px solid rgba(37,99,235,0.4)',
@@ -460,6 +465,7 @@ export function AddSongModal() {
 
   // preview
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const previewAbortRef = useRef(0)
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewTime, setPreviewTime] = useState(0)
@@ -505,6 +511,16 @@ export function AddSongModal() {
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [query, tab])
 
+  // cleanup audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+      }
+    }
+  }, [])
+
   function triggerClose() {
     if (step === 3) return
     setClosing(true)
@@ -515,6 +531,7 @@ export function AddSongModal() {
   }
 
   function stopPreview() {
+    previewAbortRef.current++
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.src = ''
@@ -530,15 +547,17 @@ export function AddSongModal() {
     if (previewId === result.id) {
       if (audioRef.current) {
         if (previewPlaying) { audioRef.current.pause(); setPreviewPlaying(false) }
-        else { void audioRef.current.play(); setPreviewPlaying(true) }
+        else { audioRef.current.play().then(() => setPreviewPlaying(true)).catch(() => { console.error('[preview] play() rejected'); stopPreview() }) }
       }
       return
     }
     stopPreview()
     setPreviewId(result.id)
     setPreviewLoading(true)
+    const token = ++previewAbortRef.current
     try {
       const url = await getPreviewUrl(result.id)
+      if (token !== previewAbortRef.current) return  // superseded by newer click
       const audio = new Audio(url)
       audioRef.current = audio
       audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
@@ -548,8 +567,10 @@ export function AddSongModal() {
         console.error('[preview] audio playback error')
         stopPreview()
       }
-      void audio.play()
-      setPreviewPlaying(true)
+      audio.play().then(() => setPreviewPlaying(true)).catch(() => {
+        console.error('[preview] play() rejected')
+        stopPreview()
+      })
     } catch (e) {
       console.error('[handlePreview]', e)
       stopPreview()
