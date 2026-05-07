@@ -456,6 +456,7 @@ export function AddSongModal() {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const searchTokenRef = useRef(0)
 
   // fake download progress
   const downloadStartRef = useRef(0)
@@ -508,7 +509,7 @@ export function AddSongModal() {
     if (tab !== 'search') return
     if (query.trim().length < 2) { setSearchResults([]); setSearchError(null); return }
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => doSearch(query), 400)
+    searchTimerRef.current = setTimeout(() => doSearch(query), 900)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [query, tab])
 
@@ -605,6 +606,7 @@ export function AddSongModal() {
     setSearchError(null)
     setSearching(false)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    searchTokenRef.current++
   }
 
   // ── search tab logic ──────────────────────────────────────────────────────
@@ -620,17 +622,20 @@ export function AddSongModal() {
 
   async function doSearch(q: string) {
     if (q.trim().length < 2) { setSearchResults([]); return }
+    const token = ++searchTokenRef.current
     setSearching(true)
     setSearchError(null)
     try {
       const results = await searchYoutube(q)
+      if (token !== searchTokenRef.current) return  // resultado de busca antiga — ignorar
       setSearchResults(results)
       if (results.length === 0) setSearchError('Nenhum resultado encontrado.')
     } catch {
+      if (token !== searchTokenRef.current) return
       setSearchError('Erro ao buscar. Tente novamente.')
       setSearchResults([])
     } finally {
-      setSearching(false)
+      if (token === searchTokenRef.current) setSearching(false)
     }
   }
 
