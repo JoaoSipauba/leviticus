@@ -1018,13 +1018,23 @@ export function AddSongModal() {
                                   <span>{fmtDuration(Math.floor(previewTime))}</span>
                                   <span>{previewDuration > 0 ? fmtDuration(Math.floor(previewDuration)) : '--:--'}</span>
                                 </div>
-                                <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                                <div
+                                  onClick={(e) => {
+                                    if (!audioRef.current || previewDuration <= 0) return
+                                    const rect = e.currentTarget.getBoundingClientRect()
+                                    const fraction = (e.clientX - rect.left) / rect.width
+                                    const newTime = fraction * previewDuration
+                                    audioRef.current.currentTime = newTime
+                                    setPreviewTime(newTime)
+                                  }}
+                                  style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
+                                >
                                   <div style={{
                                     height: '100%',
                                     width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
                                     background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
                                     borderRadius: 99,
-                                    transition: 'width 0.5s linear',
+                                    transition: 'width 0.3s linear',
                                   }} />
                                 </div>
                               </div>
