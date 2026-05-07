@@ -474,6 +474,7 @@ export function AddSongModal() {
   const [previewDuration, setPreviewDuration] = useState(0)
   const [previewPlaying, setPreviewPlaying] = useState(false)
   const [previewError, setPreviewError] = useState(false)
+  const [previewBuffered, setPreviewBuffered] = useState(0)
   const [previewHoverTime, setPreviewHoverTime] = useState<number | null>(null)
   const [previewHoverX, setPreviewHoverX] = useState(0)
 
@@ -547,6 +548,7 @@ export function AddSongModal() {
     setPreviewDuration(0)
     setPreviewPlaying(false)
     setPreviewError(false)
+    setPreviewBuffered(0)
   }
 
   async function handlePreview(result: YTSearchResult) {
@@ -572,6 +574,12 @@ export function AddSongModal() {
       // o audio.duration do M4A do YouTube frequentemente reporta valor errado.
       if (result.duration > 0) setPreviewDuration(result.duration)
       audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
+      audio.onprogress = () => {
+        if (audio.buffered.length > 0 && previewDuration > 0) {
+          const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
+          setPreviewBuffered((bufferedEnd / previewDuration) * 100)
+        }
+      }
       audio.onloadedmetadata = () => {
         // Só usa audio.duration se não temos duração da busca
         if (result.duration <= 0 && isFinite(audio.duration)) setPreviewDuration(audio.duration)
@@ -1065,10 +1073,19 @@ export function AddSongModal() {
                                       onMouseLeave={() => setPreviewHoverTime(null)}
                                       style={{ position: 'relative', height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'visible', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
                                     >
-                                      {/* clip inner fill */}
+                                      {/* clip inner fills */}
                                       <div style={{ position: 'absolute', inset: 0, borderRadius: 99, overflow: 'hidden' }}>
+                                        {/* buffered */}
                                         <div style={{
-                                          height: '100%',
+                                          position: 'absolute', top: 0, left: 0, height: '100%',
+                                          width: `${previewBuffered}%`,
+                                          background: 'rgba(255,255,255,0.15)',
+                                          borderRadius: 99,
+                                          transition: 'width 0.5s ease',
+                                        }} />
+                                        {/* playback */}
+                                        <div style={{
+                                          position: 'absolute', top: 0, left: 0, height: '100%',
                                           width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
                                           background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
                                           borderRadius: 99,
