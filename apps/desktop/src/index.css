@@ -56,25 +56,32 @@
   border-radius: 4px;
 }
 
-/* Scrollbar — invisível por padrão, fade in durante scroll/hover, fade out devagar.
-   Track sempre transparente. Thumb com mais respiro à esquerda (4px) que à direita (1px).
-   `background-clip: padding-box` força a cor a ficar dentro do border, criando o "espaço". */
-.styled-scroll::-webkit-scrollbar { width: 9px; }
-.styled-scroll::-webkit-scrollbar-track { background: transparent; }
-.styled-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(255,255,255,0);
-  border-style: solid;
-  border-color: transparent;
-  border-width: 2px 1px 2px 4px;
-  background-clip: padding-box;
+/* Scrollbar custom — WebKit pseudo-scrollbars não suportam transition (bug 104412).
+   Solução: esconder a nativa e renderizar um thumb real via JS (Layout.tsx).
+   O thumb é um div normal, então opacity transitions funcionam perfeitamente. */
+.styled-scroll {
+  scrollbar-width: none;        /* Firefox */
+  position: relative;
+}
+.styled-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.custom-scroll-thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 4px;
+  background: rgba(255,255,255,0.28);
   border-radius: 99px;
-  transition: background-color 0.9s ease 0.6s; /* fade out: delay 0.6s, demora 0.9s */
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10;
+  will-change: opacity, transform, height;
 }
-.styled-scroll.is-scrolling::-webkit-scrollbar-thumb {
-  background-color: rgba(255,255,255,0.22);
-  transition: background-color 0.18s ease; /* fade in rápido */
+.custom-scroll-thumb.visible {
+  opacity: 1;
+  transition: opacity 0.15s ease; /* fade in rápido */
 }
-.styled-scroll.is-scrolling::-webkit-scrollbar-thumb:hover,
-.styled-scroll.is-scrolling::-webkit-scrollbar-thumb:active {
-  background-color: rgba(255,255,255,0.40);
+.custom-scroll-thumb.fading {
+  opacity: 0;
+  transition: opacity 0.9s ease 0.6s; /* fade out: delay 0.6s, demora 0.9s */
 }
