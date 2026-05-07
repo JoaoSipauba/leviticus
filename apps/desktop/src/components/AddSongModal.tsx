@@ -554,8 +554,9 @@ export function AddSongModal() {
   async function handlePreview(result: YTSearchResult) {
     if (previewId === result.id) {
       if (audioRef.current) {
-        if (previewPlaying) { audioRef.current.pause(); setPreviewPlaying(false) }
-        else { audioRef.current.play().then(() => setPreviewPlaying(true)).catch(() => { console.error('[preview] play() rejected'); stopPreview() }) }
+        if (previewPlaying) audioRef.current.pause()
+        else audioRef.current.play().catch((e) => console.warn('[preview] play() resume rejected', e))
+        // onplaying / onpause atualizam o estado
       }
       return
     }
@@ -586,16 +587,30 @@ export function AddSongModal() {
         if (result.duration <= 0 && isFinite(audio.duration)) setPreviewDuration(audio.duration)
       }
       audio.onended = () => { setPreviewPlaying(false); setPreviewTime(0) }
+      // onplaying é a fonte de verdade: dispara quando o áudio realmente começa.
+      // Se um onerror espúrio (ex: network blip que se recupera) aparecer antes,
+      // onplaying limpa o estado de erro automaticamente.
+      audio.onplaying = () => {
+        setPreviewPlaying(true)
+        setPreviewError(false)
+        setPreviewLoading(false)
+      }
+      audio.onpause = () => setPreviewPlaying(false)
       audio.onerror = (e) => {
+        // Se o áudio já está tocando (ou já tocou), o erro provavelmente é não-fatal
+        if (!audio.paused || audio.currentTime > 0) {
+          console.warn('[preview] non-fatal audio error', e)
+          return
+        }
         console.error('[preview] audio playback error', e)
         setPreviewError(true)
         setPreviewPlaying(false)
         setPreviewLoading(false)
       }
-      audio.play().then(() => setPreviewPlaying(true)).catch((e) => {
-        console.error('[preview] play() rejected', e)
-        setPreviewError(true)
-        setPreviewPlaying(false)
+      // play() pode rejeitar por motivos não-fatais — só logamos.
+      // O estado real é determinado por onplaying / onerror.
+      audio.play().catch((e) => {
+        console.warn('[preview] play() promise rejected (often non-fatal)', e)
       })
     } catch (e) {
       console.error('[handlePreview]', e)
