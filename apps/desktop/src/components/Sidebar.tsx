@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom'
 import { Music, LayoutGrid, CalendarDays, Users, LogOut, Home } from 'lucide-react'
 import { useAuthStore } from '../store/auth.js'
 import { supabase } from '../lib/supabase.js'
+import { Logo } from './brand/Logo.js'
 
 const links = [
   { to: '/library', label: 'Biblioteca', Icon: Music },
@@ -28,15 +29,25 @@ export function Sidebar() {
 
   return (
     <aside
-      className="w-52 h-full flex flex-col py-5 px-0"
-      style={{ background: '#0d0d16', borderRight: '1px solid rgba(255,255,255,0.04)' }}
+      className="w-52 h-full flex flex-col py-5 px-0 relative overflow-hidden bg-bg-sidebar border-r border-divider"
     >
-      <h1
-        className="font-bold text-white px-4 mb-6"
-        style={{ fontSize: '17px', letterSpacing: '-0.3px' }}
-      >
-        Leviticus
-      </h1>
+      {/* Ambient glow sutil atrás do logo */}
+      <div
+        aria-hidden="true"
+        className="absolute pointer-events-none"
+        style={{
+          top: '-20%',
+          left: '-30%',
+          width: 280,
+          height: 280,
+          background: 'radial-gradient(circle, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0) 70%)',
+          filter: 'blur(40px)',
+        }}
+      />
+
+      <div className="px-4 mb-6 relative z-10">
+        <Logo variant="lockup" size={18} />
+      </div>
       <nav className="flex-1 px-2 space-y-0.5">
         {links.map(({ to, label, Icon }) => (
           <NavLink

@@ -17,6 +17,7 @@ type PlayerState = {
   setPosition: (pos: number) => void
   setVolume: (vol: number) => void
   setDownloading: (loading: boolean, progress?: number) => void
+  setPlaylistSongs: (songs: Song[]) => void
   nextInPlaylist: () => Song | null
   previousInPlaylist: () => Song | null
 }
@@ -46,6 +47,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => set({ volume }),
   setDownloading: (isDownloading, downloadProgress = 0) =>
     set({ isDownloading, downloadProgress }),
+  setPlaylistSongs: (songs) => {
+    const { currentSong } = get()
+    const newPos = currentSong ? songs.findIndex((s) => s.id === currentSong.id) : -1
+    set({ playlistSongs: songs, playlistPosition: newPos === -1 ? null : newPos })
+  },
   nextInPlaylist: () => {
     const { playlistSongs, playlistPosition } = get()
     if (playlistPosition === null) return null

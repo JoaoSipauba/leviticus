@@ -2,6 +2,8 @@ import { Howl } from 'howler'
 import { convertFileSrc } from '@tauri-apps/api/core'
 
 let _howl: Howl | null = null
+let _currentSrc: string | null = null
+let _currentCallbacks: AudioCallbacks | undefined
 
 type AudioCallbacks = {
   onEnd?: () => void
@@ -16,6 +18,8 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   }
 
   const src = convertFileSrc(filePath)
+  _currentSrc = src
+  _currentCallbacks = callbacks
   _howl = new Howl({
     src: [src],
     format: ['mp3'],
@@ -29,6 +33,24 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   })
 
   return _howl
+}
+
+// Reinicia a faixa atual do zero (cria nova Howl sobre a mesma fonte).
+// Usado pelo repeat-one — mais confiável que loop nativo do Howler em html5.
+export function restartCurrent(): void {
+  if (!_currentSrc) return
+  if (_howl) { _howl.stop(); _howl.unload() }
+  _howl = new Howl({
+    src: [_currentSrc],
+    format: ['mp3'],
+    html5: true,
+    autoplay: true,
+    volume: _currentCallbacks?.volume ?? 1,
+    onend: _currentCallbacks?.onEnd,
+    onload: _currentCallbacks?.onLoad,
+    onloaderror: (_id, err) => console.error('[audio] load error:', err),
+    onplayerror: (_id, err) => console.error('[audio] play error:', err),
+  })
 }
 
 export function getCurrentHowl(): Howl | null {

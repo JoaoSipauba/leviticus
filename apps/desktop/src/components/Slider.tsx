@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 
 type Props = {
   min?: number
@@ -8,10 +9,22 @@ type Props = {
   onChange: (val: number) => void
   thin?: boolean
   formatTooltip?: (val: number) => string
+  /**
+   * Valor secundário renderizado como camada de fundo atrás do progresso.
+   * Mesma escala de `value` (entre `min` e `max`). Use para indicar buffer
+   * de áudio/vídeo. Se omitido, nenhuma camada extra é renderizada.
+   */
+  buffered?: number
+  /**
+   * Notifica mudanças no estado de drag (mouse pressionado arrastando).
+   * Útil pra manter o slider visível enquanto o usuário arrasta, mesmo que
+   * o cursor saia do hit area do parent (ex: volume escondido em hover).
+   */
+  onDragChange?: (dragging: boolean) => void
   style?: CSSProperties
 }
 
-export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, formatTooltip, style }: Props) {
+export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, formatTooltip, buffered, onDragChange, style }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -19,6 +32,9 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
   stateRef.current = { onChange, min, max, step, value }
 
   const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+  const bufferedPct = buffered != null
+    ? Math.max(0, Math.min(100, ((buffered - min) / (max - min)) * 100))
+    : null
   const trackH = thin ? 3 : 4
   const thumbSize = thin ? 10 : 12
 
@@ -38,6 +54,7 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
   }
 
   useEffect(() => {
+    onDragChange?.(isDragging)
     if (!isDragging) return
     function onMove(e: MouseEvent) {
       stateRef.current.onChange(getValFromClientX(e.clientX))
@@ -49,7 +66,7 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [isDragging, getValFromClientX])
+  }, [isDragging, getValFromClientX, onDragChange])
 
   const hoverVal = hoverX !== null && trackRef.current
     ? (() => {
@@ -80,13 +97,26 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
         background: 'rgba(255,255,255,0.1)',
         overflow: 'hidden',
       }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: '#3b82f6' }} />
+        {bufferedPct != null && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0,
+            height: '100%', width: `${bufferedPct}%`,
+            background: 'rgba(255,255,255,0.18)',
+            transition: 'width 0.5s ease',
+          }} />
+        )}
+        <div style={{
+          position: 'absolute', top: 0, left: 0,
+          height: '100%', width: `${pct}%`,
+          background: '#3b82f6',
+        }} />
       </div>
 
-      {/* Thumb */}
+      {/* Thumb — left calc mantém a bolinha dentro do container nos extremos (0% e 100%) */}
       <div style={{
         position: 'absolute',
-        top: '50%', left: `${pct}%`,
+        top: '50%',
+        left: `calc(${thumbSize / 2}px + (100% - ${thumbSize}px) * ${pct / 100})`,
         transform: 'translate(-50%, -50%)',
         width: thumbSize, height: thumbSize,
         borderRadius: '50%',
@@ -95,26 +125,37 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
         pointerEvents: 'none',
       }} />
 
-      {/* Tooltip */}
-      {formatTooltip && hoverX !== null && hoverVal !== null && (
-        <div style={{
-          position: 'absolute',
-          bottom: 'calc(100% + 4px)',
-          left: hoverX,
-          transform: 'translateX(-50%)',
-          background: 'rgba(15,15,25,0.92)',
-          color: '#f3f4f6',
-          fontSize: 11,
-          padding: '2px 6px',
-          borderRadius: 4,
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none',
-          fontVariantNumeric: 'tabular-nums',
-          border: '1px solid rgba(255,255,255,0.1)',
-          zIndex: 10,
-        }}>
-          {formatTooltip(hoverVal)}
-        </div>
+      {/* Tooltip — renderizado via portal para escapar de containers com overflow:hidden.
+          Durante drag, mostra o `value` atual; em hover, mostra o valor da posição do cursor. */}
+      {formatTooltip && trackRef.current && (hoverX !== null || isDragging) && createPortal(
+        (() => {
+          const rect = trackRef.current!.getBoundingClientRect()
+          const showVal = isDragging ? value : (hoverVal ?? value)
+          const xOffset = isDragging
+            ? rect.width * pct / 100
+            : (hoverX ?? rect.width * pct / 100)
+          return (
+            <div style={{
+              position: 'fixed',
+              top: rect.top - 4,
+              left: rect.left + xOffset,
+              transform: 'translate(-50%, -100%)',
+              background: 'rgba(15,15,25,0.92)',
+              color: '#f3f4f6',
+              fontSize: 11,
+              padding: '2px 6px',
+              borderRadius: 4,
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              fontVariantNumeric: 'tabular-nums',
+              border: '1px solid rgba(255,255,255,0.1)',
+              zIndex: 9999,
+            }}>
+              {formatTooltip(showVal)}
+            </div>
+          )
+        })(),
+        document.body
       )}
     </div>
   )

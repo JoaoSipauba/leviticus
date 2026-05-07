@@ -37,18 +37,40 @@ export async function downloadSong(
     youtubeUrl,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
-  command.stdout.on('data', (line: string) => {
-    const match = line.match(/(\d+\.?\d*)%/)
-    if (match) onProgress(parseFloat(match[1]) / 100)
-  })
+  // Usa spawn() para receber eventos de stdout em tempo real.
+  // execute() não emite eventos intermediários no Tauri v2, causando rejeição não-Error.
+  return new Promise((resolve, reject) => {
+    let stderrBuf = ''
 
-  const result = await command.execute()
-  if (result.code !== 0) {
-    console.error(`[downloadSong] yt-dlp exited with code ${result.code}:`, result.stderr)
-    throw new Error('Falha ao baixar o áudio. Tente novamente.')
-  }
-  onProgress(1)
-  return outputPath
+    command.stdout.on('data', (line: string) => {
+      const match = line.match(/(\d+\.?\d*)%/)
+      if (match) onProgress(parseFloat(match[1]) / 100)
+    })
+
+    command.stderr.on('data', (line: string) => {
+      stderrBuf += line + '\n'
+    })
+
+    command.on('close', ({ code }) => {
+      if (code !== 0) {
+        console.error(`[downloadSong] yt-dlp saiu com código ${code}:`, stderrBuf)
+        reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+      } else {
+        onProgress(1)
+        resolve(outputPath)
+      }
+    })
+
+    command.on('error', (err) => {
+      console.error('[downloadSong] erro ao iniciar processo:', err)
+      reject(new Error(`Não foi possível iniciar o download: ${err}`))
+    })
+
+    command.spawn().catch((err: unknown) => {
+      console.error('[downloadSong] spawn() rejeitado:', err)
+      reject(new Error(`Não foi possível iniciar o download: ${String(err)}`))
+    })
+  })
 }
 
 export async function fetchYoutubeMetadata(rawUrl: string): Promise<{

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, Check, Headphones, Loader2, Mic, Music, Plus, Save, Trash2, X } from 'lucide-react'
+import { Check, Headphones, Loader2, Mic, Music, Plus, Save, X } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
@@ -180,8 +180,6 @@ export function EditSongModal() {
   const [songType, setSongType] = useState<SongType>('normal')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -194,7 +192,6 @@ export function EditSongModal() {
     setSelectedGroups(songToEditGroups)
     setSongType((songToEdit.song_type as SongType) ?? 'normal')
     setError(null)
-    setConfirmDelete(false)
 
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
     getDb().then((db) =>
@@ -214,7 +211,7 @@ export function EditSongModal() {
   }, [songToEdit])
 
   function triggerClose() {
-    if (saving || deleting) return
+    if (saving) return
     setClosing(true)
   }
 
@@ -240,41 +237,24 @@ export function EditSongModal() {
     setSaving(true)
     setError(null)
 
-    const { error: updateError } = await supabase
-      .from('songs')
-      .update({ title: title.trim(), artist: artist.trim(), song_type: songType, updated_at: new Date().toISOString() })
-      .eq('id', songToEdit.id)
+    const { error: saveErr } = await supabase.rpc('update_song', {
+      p_song_id:         songToEdit.id,
+      p_org_id:          songToEdit.org_id,
+      p_youtube_url:     songToEdit.youtube_url,
+      p_thumbnail_url:   songToEdit.thumbnail_url,
+      p_duration_seconds: songToEdit.duration_seconds,
+      p_added_by:        songToEdit.added_by,
+      p_title:           title.trim(),
+      p_artist:          artist.trim(),
+      p_song_type:       songType,
+      p_group_ids:       selectedGroups.length > 0 ? selectedGroups : null,
+    })
 
-    if (updateError) {
-      console.error(updateError)
-      setError('Erro ao salvar. Tente novamente.')
+    if (saveErr) {
+      console.error('[EditSong] update_song rpc error:', saveErr.code, saveErr.message)
+      setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
-    }
-
-    // replace song_groups: delete then re-insert
-    const { error: delGroupsErr } = await supabase
-      .from('song_groups')
-      .delete()
-      .eq('song_id', songToEdit.id)
-
-    if (delGroupsErr) {
-      console.error('[EditSong] delete song_groups error:', delGroupsErr.code, delGroupsErr.message, delGroupsErr.details)
-      setError('Erro ao atualizar ministérios. Tente novamente.')
-      setSaving(false)
-      return
-    }
-
-    if (selectedGroups.length > 0) {
-      const { error: insGroupsErr } = await supabase.from('song_groups').insert(
-        selectedGroups.map((gid) => ({ song_id: songToEdit.id, group_id: gid }))
-      )
-      if (insGroupsErr) {
-        console.error(insGroupsErr)
-        setError('Erro ao atualizar ministérios. Tente novamente.')
-        setSaving(false)
-        return
-      }
     }
 
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
@@ -284,37 +264,10 @@ export function EditSongModal() {
     triggerClose()
   }
 
-  // ── delete ────────────────────────────────────────────────────────────────
-
-  async function handleDelete() {
-    if (!songToEdit) return
-    setDeleting(true)
-    setError(null)
-
-    const { error: deleteError } = await supabase
-      .from('songs')
-      .delete()
-      .eq('id', songToEdit.id)
-
-    if (deleteError) {
-      console.error(deleteError)
-      setError('Erro ao excluir. Tente novamente.')
-      setDeleting(false)
-      setConfirmDelete(false)
-      return
-    }
-
-    const orgId = localStorage.getItem('leviticus_org_id') ?? ''
-    await syncOrg(orgId)
-    bumpLibrary()
-    setDeleting(false)
-    closeEditSong()
-  }
-
   if (!songToEdit) return null
 
   const modalClass = closing ? 'animate-modal-out' : 'animate-modal-in'
-  const busy = saving || deleting
+  const busy = saving
 
   return (
     <div
@@ -326,8 +279,9 @@ export function EditSongModal() {
         position: 'fixed',
         inset: 0,
         zIndex: 50,
-        background: 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(4px)',
+        background: 'rgba(3,7,18,0.7)',
+        backdropFilter: 'blur(12px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -340,10 +294,12 @@ export function EditSongModal() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: '#13131f',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(19,19,31,0.7)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 20,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          boxShadow: '0 20px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
           overflow: 'hidden',
         }}
       >
@@ -498,145 +454,46 @@ export function EditSongModal() {
             <p role="alert" style={{ color: '#f87171', fontSize: 12, margin: 0 }}>{error}</p>
           )}
 
-          {/* delete confirmation */}
-          {confirmDelete ? (
-            <div
+          {/* action row */}
+          <div style={{ marginTop: 2 }}>
+            <button
+              onClick={handleSave}
+              disabled={busy}
               style={{
-                background: 'rgba(127,29,29,0.2)',
-                border: '1px solid rgba(239,68,68,0.25)',
-                borderRadius: 12,
-                padding: '12px 14px',
+                width: '100%',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                padding: '10px 0',
+                borderRadius: 10,
+                background: busy ? 'rgba(37,99,235,0.45)' : '#2563eb',
+                border: 'none',
+                color: 'white',
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: busy ? 'default' : 'pointer',
+                transition: 'background 0.15s, box-shadow 0.15s',
+              }}
+              onMouseEnter={(e) => {
+                if (!busy) {
+                  e.currentTarget.style.background = '#1d4ed8'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.35)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = busy ? 'rgba(37,99,235,0.45)' : '#2563eb'
+                e.currentTarget.style.boxShadow = 'none'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#fca5a5' }}>
-                <AlertTriangle size={14} strokeWidth={2} style={{ flexShrink: 0 }} />
-                Excluir esta música da biblioteca? Essa ação não pode ser desfeita.
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  onClick={() => setConfirmDelete(false)}
-                  disabled={deleting}
-                  style={{
-                    flex: 1,
-                    padding: '8px 0',
-                    borderRadius: 8,
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    color: '#9ca3af',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  style={{
-                    flex: 1,
-                    padding: '8px 0',
-                    borderRadius: 8,
-                    background: deleting ? 'rgba(185,28,28,0.5)' : '#dc2626',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: deleting ? 'default' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                  }}
-                >
-                  {deleting ? (
-                    <Loader2 size={13} className="animate-spin-smooth" />
-                  ) : (
-                    <Trash2 size={13} strokeWidth={2} />
-                  )}
-                  {deleting ? 'Excluindo…' : 'Excluir'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* action row */
-            <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                disabled={busy}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: 'rgba(127,29,29,0.15)',
-                  border: '1px solid rgba(239,68,68,0.2)',
-                  color: '#f87171',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: busy ? 'default' : 'pointer',
-                  opacity: busy ? 0.5 : 1,
-                  transition: 'background 0.15s, border-color 0.15s',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => {
-                  if (!busy) {
-                    e.currentTarget.style.background = 'rgba(185,28,28,0.25)'
-                    e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(127,29,29,0.15)'
-                  e.currentTarget.style.borderColor = 'rgba(239,68,68,0.2)'
-                }}
-              >
-                <Trash2 size={14} strokeWidth={2} />
-              </button>
-
-              <button
-                onClick={handleSave}
-                disabled={busy}
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                  padding: '10px 0',
-                  borderRadius: 10,
-                  background: busy ? 'rgba(37,99,235,0.45)' : '#2563eb',
-                  border: 'none',
-                  color: 'white',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: busy ? 'default' : 'pointer',
-                  transition: 'background 0.15s, box-shadow 0.15s',
-                }}
-                onMouseEnter={(e) => {
-                  if (!busy) {
-                    e.currentTarget.style.background = '#1d4ed8'
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.35)'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = busy ? 'rgba(37,99,235,0.45)' : '#2563eb'
-                  e.currentTarget.style.boxShadow = 'none'
-                }}
-              >
-                {saving ? (
-                  <Loader2 size={14} className="animate-spin-smooth" />
-                ) : (
-                  <Save size={14} strokeWidth={2} />
-                )}
-                {saving ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
-          )}
+              {saving ? (
+                <Loader2 size={14} className="animate-spin-smooth" />
+              ) : (
+                <Save size={14} strokeWidth={2} />
+              )}
+              {saving ? 'Salvando…' : 'Salvar'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

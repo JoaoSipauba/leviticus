@@ -100,16 +100,20 @@ export function Library() {
   return (
     <div className="p-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="font-semibold" style={{ color: '#f3f4f6', fontSize: 18 }}>
-          Biblioteca
-        </h2>
+        <div className="flex flex-col gap-0.5">
+          <p className="text-caps text-brand">BIBLIOTECA</p>
+          <h2 className="font-semibold text-heading" style={{ fontSize: 22, letterSpacing: '-0.01em' }}>
+            Suas músicas
+          </h2>
+        </div>
         <button
           onClick={openAddSong}
-          className="flex items-center gap-1.5 font-semibold text-white transition-colors hover:bg-blue-700"
+          className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand cursor-pointer"
           style={{
-            background: '#2563eb', borderRadius: 10,
+            borderRadius: 10,
             padding: '8px 14px', fontSize: 13,
-            border: 'none', cursor: 'pointer',
+            border: 'none',
+            boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)',
           }}
         >
           <Plus size={13} strokeWidth={2.5} />

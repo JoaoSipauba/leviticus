@@ -14,13 +14,17 @@ import {
   Plus,
   Search,
   Square,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react'
 import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
+import { Slider } from './Slider.js'
 import { supabase } from '../lib/supabase.js'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
+import { pauseAudio } from '../lib/audio.js'
 import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
 import { useUIStore } from '../store/ui.js'
@@ -475,8 +479,21 @@ export function AddSongModal() {
   const [previewPlaying, setPreviewPlaying] = useState(false)
   const [previewError, setPreviewError] = useState(false)
   const [previewBuffered, setPreviewBuffered] = useState(0)
-  const [previewHoverTime, setPreviewHoverTime] = useState<number | null>(null)
-  const [previewHoverX, setPreviewHoverX] = useState(0)
+  const [previewVolume, setPreviewVolume] = useState<number>(() => {
+    const saved = localStorage.getItem('leviticus_preview_volume')
+    const n = saved != null ? Number(saved) : 0.7
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.7
+  })
+  const [previewMuted, setPreviewMuted] = useState(false)
+  const [previewVolDragging, setPreviewVolDragging] = useState(false)
+
+  // sync volume com o audio element atual + persist
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = previewMuted ? 0 : previewVolume
+    }
+    localStorage.setItem('leviticus_preview_volume', String(previewVolume))
+  }, [previewVolume, previewMuted])
 
   // reset when modal opens
   useEffect(() => {
@@ -527,6 +544,21 @@ export function AddSongModal() {
     }
   }, [])
 
+  // Para preview quando o modal fecha (componente fica montado mas escondido)
+  useEffect(() => {
+    if (!showAddSong) stopPreview()
+  }, [showAddSong])
+
+  // Para preview quando o player principal começa a tocar (em qualquer lugar)
+  // — nunca duas fontes de áudio simultâneas.
+  const playerIsPlaying = usePlayerStore((s) => s.isPlaying)
+  const playerCurrentSong = usePlayerStore((s) => s.currentSong)
+  useEffect(() => {
+    if (playerIsPlaying && playerCurrentSong && audioRef.current && !audioRef.current.paused) {
+      stopPreview()
+    }
+  }, [playerIsPlaying, playerCurrentSong])
+
   function triggerClose() {
     if (step === 3) return
     setClosing(true)
@@ -552,6 +584,13 @@ export function AddSongModal() {
   }
 
   async function handlePreview(result: YTSearchResult) {
+    // Player principal sempre pausa ao iniciar/retomar preview — só uma fonte de áudio por vez
+    const player = usePlayerStore.getState()
+    if (player.isPlaying) {
+      pauseAudio()
+      player.pause()
+    }
+
     if (previewId === result.id) {
       if (audioRef.current) {
         if (previewPlaying) audioRef.current.pause()
@@ -605,7 +644,11 @@ export function AddSongModal() {
       return
     }
 
-    const audio = new Audio(url)
+    const audio = new Audio()
+    audio.preload = 'auto'      // streaming progressivo (browser baixa enquanto toca)
+    audio.crossOrigin = 'anonymous'
+    audio.volume = previewMuted ? 0 : previewVolume
+    audio.src = url
     audioRef.current = audio
     if (result.duration > 0) setPreviewDuration(result.duration)
     audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
@@ -613,7 +656,7 @@ export function AddSongModal() {
       const dur = result.duration > 0 ? result.duration : audio.duration
       if (audio.buffered.length > 0 && dur > 0 && isFinite(dur)) {
         const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
-        setPreviewBuffered((bufferedEnd / dur) * 100)
+        setPreviewBuffered(bufferedEnd)
       }
     }
     audio.onloadedmetadata = () => {
@@ -625,6 +668,11 @@ export function AddSongModal() {
       setPreviewError(false)
       setPreviewLoading(false)
     }
+    audio.onwaiting = () => {
+      // Buffer underrun durante reprodução — mostrar indicador de loading
+      setPreviewLoading(true)
+    }
+    audio.oncanplay = () => setPreviewLoading(false)
     audio.onpause = () => setPreviewPlaying(false)
     audio.onerror = (e) => {
       // Se já tocou algo, é erro não-fatal — ignorar
@@ -634,6 +682,21 @@ export function AddSongModal() {
       }
       // Áudio nunca tocou — tentar de novo
       retry(e)
+    }
+
+    // Antes de tocar: verifica se o token ainda é válido E se nada novo
+    // tomou conta do player principal (ex: usuário começou outra música no
+    // miniplayer enquanto isso carregava). Sem isso, tocariam em paralelo.
+    if (token !== previewAbortRef.current) {
+      audio.pause(); audio.src = ''; audioRef.current = null
+      return
+    }
+    const player = usePlayerStore.getState()
+    if (player.isPlaying && player.currentSong) {
+      // Main player começou a tocar — abortar preview
+      audio.pause(); audio.src = ''; audioRef.current = null
+      setPreviewId(null); setPreviewPlaying(false); setPreviewLoading(false)
+      return
     }
     audio.play().catch((e) => {
       console.warn('[preview] play() promise rejected (often non-fatal)', e)
@@ -848,8 +911,9 @@ export function AddSongModal() {
     } catch (e) {
       await supabase.from('song_groups').delete().eq('song_id', song.id)
       await supabase.from('songs').delete().eq('id', song.id)
+      await syncOrg(orgId)
       console.error('[handleConfirm] download error:', e)
-      setError(e instanceof Error ? e.message : 'Erro ao baixar. Tente novamente.')
+      setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
       setStep(2)
     } finally {
       setDownloading(false)
@@ -888,8 +952,9 @@ export function AddSongModal() {
         position: 'fixed',
         inset: 0,
         zIndex: 50,
-        background: closing ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(4px)',
+        background: closing ? 'rgba(0,0,0,0)' : 'rgba(3,7,18,0.7)',
+        backdropFilter: 'blur(12px) saturate(140%)',
+        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -903,10 +968,12 @@ export function AddSongModal() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: '#13131f',
-          border: '1px solid rgba(255,255,255,0.1)',
+          background: 'rgba(19,19,31,0.7)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 20,
-          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          boxShadow: '0 20px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
           overflow: 'hidden',
         }}
       >
@@ -1093,7 +1160,9 @@ export function AddSongModal() {
                                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     }}
                                   >
-                                    {previewPlaying
+                                    {previewLoading && previewId === r.id
+                                      ? <Loader2 size={12} color="white" className="animate-spin-smooth" />
+                                      : previewPlaying
                                       ? <Pause size={11} color="white" fill="white" />
                                       : <Play size={11} color="white" fill="white" />}
                                   </button>
@@ -1102,67 +1171,60 @@ export function AddSongModal() {
                                       <span>{fmtDuration(Math.floor(previewTime))}</span>
                                       <span>{previewDuration > 0 ? fmtDuration(Math.floor(previewDuration)) : '--:--'}</span>
                                     </div>
-                                    <div
-                                      onClick={(e) => {
+                                    <Slider
+                                      thin
+                                      min={0}
+                                      max={previewDuration || 1}
+                                      step={1}
+                                      value={previewTime}
+                                      buffered={previewBuffered}
+                                      onChange={(v) => {
                                         if (!audioRef.current || previewDuration <= 0) return
-                                        const rect = e.currentTarget.getBoundingClientRect()
-                                        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-                                        const newTime = fraction * previewDuration
-                                        audioRef.current.currentTime = newTime
-                                        setPreviewTime(newTime)
+                                        audioRef.current.currentTime = v
+                                        setPreviewTime(v)
                                       }}
-                                      onMouseMove={(e) => {
-                                        if (previewDuration <= 0) return
-                                        const rect = e.currentTarget.getBoundingClientRect()
-                                        const fraction = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-                                        setPreviewHoverTime(fraction * previewDuration)
-                                        setPreviewHoverX(fraction * 100)
+                                      formatTooltip={(v) => fmtDuration(Math.floor(v))}
+                                    />
+                                  </div>
+                                  <div className="group/vol flex items-center flex-shrink-0">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setPreviewMuted((m) => !m) }}
+                                      aria-label={previewMuted ? 'Ativar som' : 'Silenciar'}
+                                      className="hover:bg-white/[0.08] hover:opacity-100 transition-colors"
+                                      style={{
+                                        width: 32, height: 32, borderRadius: 8,
+                                        background: 'transparent', border: 'none', padding: 0,
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        cursor: 'pointer', color: '#9ca3af',
+                                        opacity: 0.7,
+                                        flexShrink: 0,
                                       }}
-                                      onMouseLeave={() => setPreviewHoverTime(null)}
-                                      style={{ position: 'relative', height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'visible', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
                                     >
-                                      {/* clip inner fills */}
-                                      <div style={{ position: 'absolute', inset: 0, borderRadius: 99, overflow: 'hidden' }}>
-                                        {/* buffered */}
-                                        <div style={{
-                                          position: 'absolute', top: 0, left: 0, height: '100%',
-                                          width: `${previewBuffered}%`,
-                                          background: 'rgba(255,255,255,0.15)',
-                                          borderRadius: 99,
-                                          transition: 'width 0.5s ease',
-                                        }} />
-                                        {/* playback */}
-                                        <div style={{
-                                          position: 'absolute', top: 0, left: 0, height: '100%',
-                                          width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
-                                          background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
-                                          borderRadius: 99,
-                                          transition: 'width 0.3s linear',
-                                        }} />
+                                      {previewMuted || previewVolume === 0
+                                        ? <VolumeX size={14} strokeWidth={2} />
+                                        : <Volume2 size={14} strokeWidth={2} />}
+                                    </button>
+                                    <div
+                                      className={
+                                        previewVolDragging
+                                          ? 'overflow-hidden transition-none w-[76px] opacity-100'
+                                          : 'overflow-hidden transition-all duration-700 delay-300 ease-out w-0 opacity-0 group-hover/vol:duration-200 group-hover/vol:delay-0 group-hover/vol:w-[76px] group-hover/vol:opacity-100 focus-within:duration-200 focus-within:delay-0 focus-within:w-[76px] focus-within:opacity-100'
+                                      }
+                                    >
+                                      <div className="pl-1.5">
+                                        <Slider
+                                          value={previewMuted ? 0 : previewVolume}
+                                          onChange={(v) => {
+                                            setPreviewVolume(v)
+                                            if (v > 0 && previewMuted) setPreviewMuted(false)
+                                          }}
+                                          onDragChange={setPreviewVolDragging}
+                                          formatTooltip={(v) => `${Math.round(v * 100)}%`}
+                                          style={{ width: 70 }}
+                                        />
                                       </div>
-                                      {/* tooltip */}
-                                      {previewHoverTime !== null && (
-                                        <div style={{
-                                          position: 'absolute',
-                                          bottom: 14,
-                                          left: `${previewHoverX}%`,
-                                          transform: 'translateX(-50%)',
-                                          background: 'rgba(15,15,25,0.92)',
-                                          border: '1px solid rgba(255,255,255,0.12)',
-                                          borderRadius: 5,
-                                          padding: '2px 6px',
-                                          fontSize: 10,
-                                          color: '#e5e7eb',
-                                          whiteSpace: 'nowrap',
-                                          pointerEvents: 'none',
-                                          zIndex: 10,
-                                        }}>
-                                          {fmtDuration(Math.floor(previewHoverTime))}
-                                        </div>
-                                      )}
                                     </div>
                                   </div>
-                                  <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0 }}>Pré-escuta</span>
                                 </>
                               )}
                             </div>

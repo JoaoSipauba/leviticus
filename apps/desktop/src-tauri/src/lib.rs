@@ -21,6 +21,12 @@ pub fn run() {
                             sql: include_str!("../migrations/002_groups_color_index.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 3,
+                            description: "song_type",
+                            sql: include_str!("../migrations/003_song_type.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),

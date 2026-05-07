@@ -4,6 +4,9 @@ import { Building2, Hash, Plus, ChevronRight } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useAuthStore } from '../store/auth.js'
+import { Logo } from '../components/brand/Logo.js'
+import { GlowBackdrop } from '../components/brand/GlowBackdrop.js'
+import { GlassCard } from '../components/brand/GlassCard.js'
 
 type Org = { id: string; name: string }
 
@@ -111,147 +114,116 @@ export function OrgSelect() {
     navigate('/library')
   }
 
-  const inputStyle = {
-    width: '100%', background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 10, padding: '11px 14px',
-    color: '#f3f4f6', outline: 'none',
-    fontSize: 14, minHeight: 44,
-    boxSizing: 'border-box' as const,
-  }
+  const inputClass =
+    'w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3.5 py-2.5 text-heading text-sm outline-none focus:border-brand/60 focus:bg-white/[0.06] transition-colors backdrop-blur-sm'
+  const ghostBtn =
+    'w-full flex items-center gap-2 justify-center font-medium transition-colors rounded-lg py-2.5 min-h-[44px] text-sm bg-white/[0.04] border border-hairline text-body hover:bg-white/[0.07] hover:text-heading cursor-pointer'
+  const primaryBtn =
+    'w-full flex items-center gap-2 justify-center font-semibold text-heading rounded-lg py-2.5 min-h-[44px] text-sm bg-brand-active hover:bg-brand transition-colors cursor-pointer disabled:bg-brand-active/40 disabled:cursor-default'
 
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: '#09090f' }}>
-      <div
-        className="w-full"
-        style={{
-          maxWidth: 360,
-          background: 'linear-gradient(135deg,#13131f,#161625)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 16, padding: '32px 28px',
-        }}
-      >
-        <h1 className="font-bold mb-6" style={{ color: '#f3f4f6', fontSize: 20 }}>
-          Selecionar Organização
-        </h1>
+    <div className="min-h-screen bg-bg-app relative flex items-center justify-center p-6 overflow-hidden">
+      <GlowBackdrop />
 
-        {mode === 'list' && (
-          <>
-            {orgs.length > 0 && (
-              <div className="space-y-2 mb-4">
-                {orgs.map((org) => (
-                  <button
-                    key={org.id}
-                    onClick={() => selectOrg(org)}
-                    className="w-full flex items-center gap-3 text-left transition-colors"
-                    style={{
-                      padding: '12px 14px', borderRadius: 10,
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid rgba(255,255,255,0.06)',
-                      cursor: 'pointer', color: '#f3f4f6', fontSize: 14,
-                    }}
-                  >
-                    <Building2 size={16} color="#3b82f6" strokeWidth={2} />
-                    <span className="flex-1 font-medium">{org.name}</span>
-                    <ChevronRight size={15} color="#4b5563" strokeWidth={2} />
-                  </button>
-                ))}
+      <div className="relative z-10 w-full max-w-[400px] flex flex-col items-center animate-pop-in">
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <Logo variant="mark" size={56} />
+          <p className="text-caps text-brand">ORGANIZAÇÃO</p>
+        </div>
+
+        <GlassCard className="w-full p-7">
+          <h1 className="text-heading text-xl font-semibold mb-1">Selecionar organização</h1>
+          <p className="text-body text-sm mb-6">
+            Escolha uma org existente, entre com código ou crie uma nova.
+          </p>
+
+          {mode === 'list' && (
+            <>
+              {orgs.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {orgs.map((org) => (
+                    <button
+                      key={org.id}
+                      onClick={() => selectOrg(org)}
+                      className="w-full flex items-center gap-3 text-left transition-colors rounded-lg px-3.5 py-3 bg-white/[0.04] border border-hairline hover:bg-white/[0.07] cursor-pointer"
+                    >
+                      <Building2 size={16} className="text-brand" strokeWidth={2} />
+                      <span className="flex-1 font-medium text-heading text-sm">{org.name}</span>
+                      <ChevronRight size={15} className="text-muted" strokeWidth={2} />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="space-y-2">
+                <button onClick={() => setMode('join')} className={ghostBtn}>
+                  <Hash size={15} strokeWidth={2} />
+                  Entrar com código
+                </button>
+                <button
+                  onClick={() => setMode('create')}
+                  className={primaryBtn}
+                  style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
+                >
+                  <Plus size={15} strokeWidth={2.5} />
+                  Criar organização
+                </button>
               </div>
-            )}
-            <div className="space-y-2">
+            </>
+          )}
+
+          {mode === 'join' && (
+            <div className="space-y-4">
+              <input
+                placeholder="Código de convite"
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                maxLength={12}
+                className={`${inputClass} text-center tracking-[0.15em] font-mono text-base`}
+              />
+              {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
               <button
-                onClick={() => setMode('join')}
-                className="w-full flex items-center gap-2 justify-center font-medium transition-colors"
-                style={{
-                  borderRadius: 10, padding: '10px',
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#9ca3af', cursor: 'pointer', fontSize: 14, minHeight: 44,
-                }}
+                onClick={handleJoin}
+                disabled={loading || !code}
+                className={primaryBtn}
+                style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
               >
-                <Hash size={15} color="#6b7280" strokeWidth={2} />
-                Entrar com código
+                Entrar
               </button>
               <button
-                onClick={() => setMode('create')}
-                className="w-full flex items-center gap-2 justify-center font-semibold text-white transition-colors"
-                style={{
-                  borderRadius: 10, padding: '10px',
-                  background: '#2563eb', border: 'none',
-                  cursor: 'pointer', fontSize: 14, minHeight: 44,
-                }}
+                onClick={() => setMode('list')}
+                className="w-full text-sm bg-transparent border-0 text-muted hover:text-body cursor-pointer"
               >
-                <Plus size={15} strokeWidth={2.5} />
-                Criar organização
+                Voltar
               </button>
             </div>
-          </>
-        )}
+          )}
 
-        {mode === 'join' && (
-          <div className="space-y-4">
-            <input
-              placeholder="Código de convite"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              style={{ ...inputStyle, letterSpacing: '0.15em', textAlign: 'center', fontFamily: 'monospace', fontSize: 18 }}
-              maxLength={12}
-            />
-            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-            <button
-              onClick={handleJoin}
-              disabled={loading || !code}
-              className="w-full font-semibold text-white"
-              style={{
-                borderRadius: 10, padding: '10px',
-                background: (loading || !code) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                border: 'none', cursor: (loading || !code) ? 'default' : 'pointer',
-                fontSize: 14, minHeight: 44,
-              }}
-            >
-              Entrar
-            </button>
-            <button
-              onClick={() => setMode('list')}
-              className="w-full text-sm"
-              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
-            >
-              Voltar
-            </button>
-          </div>
-        )}
-
-        {mode === 'create' && (
-          <div className="space-y-4">
-            <input
-              placeholder="Nome da organização"
-              value={newOrgName}
-              onChange={(e) => setNewOrgName(e.target.value)}
-              style={inputStyle}
-            />
-            {error && <p className="text-sm" style={{ color: '#ef4444' }}>{error}</p>}
-            <button
-              onClick={handleCreate}
-              disabled={loading || !newOrgName.trim()}
-              className="w-full font-semibold text-white"
-              style={{
-                borderRadius: 10, padding: '10px',
-                background: (loading || !newOrgName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                border: 'none', cursor: (loading || !newOrgName.trim()) ? 'default' : 'pointer',
-                fontSize: 14, minHeight: 44,
-              }}
-            >
-              Criar
-            </button>
-            <button
-              onClick={() => setMode('list')}
-              className="w-full text-sm"
-              style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}
-            >
-              Voltar
-            </button>
-          </div>
-        )}
+          {mode === 'create' && (
+            <div className="space-y-4">
+              <input
+                placeholder="Nome da organização"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                className={inputClass}
+              />
+              {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
+              <button
+                onClick={handleCreate}
+                disabled={loading || !newOrgName.trim()}
+                className={primaryBtn}
+                style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
+              >
+                Criar
+              </button>
+              <button
+                onClick={() => setMode('list')}
+                className="w-full text-sm bg-transparent border-0 text-muted hover:text-body cursor-pointer"
+              >
+                Voltar
+              </button>
+            </div>
+          )}
+        </GlassCard>
       </div>
     </div>
   )

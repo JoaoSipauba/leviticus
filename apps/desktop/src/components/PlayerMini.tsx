@@ -1,12 +1,16 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
-import { Music, Volume2, VolumeX, Maximize2, Repeat, Repeat1, ListEnd } from 'lucide-react'
+import { Music, Volume2, VolumeX, Maximize2, Repeat1, ListEnd } from 'lucide-react'
 import { Slider } from './Slider.js'
 import { usePlayerStore } from '../store/player.js'
+import { usePlayedStore } from '../store/played.js'
 import {
   pauseAudio, resumeAudio, playSong, getPosition, getDuration,
   seekTo, setVolume,
 } from '../lib/audio.js'
+import {
+  handleSongEnd, setRepeatMode, setAutoplayMode, type RepeatMode,
+} from '../lib/playback.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 
@@ -16,11 +20,9 @@ function fmt(s: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-type RepeatMode = 'none' | 'all' | 'one'
-
 export function PlayerMini() {
   const {
-    currentSong, isPlaying, volume,
+    currentSong, currentPlaylist, isPlaying, volume,
     pause, resume, setPosition, setVolume: storeSetVolume,
     nextInPlaylist,
   } = usePlayerStore()
@@ -33,27 +35,38 @@ export function PlayerMini() {
   const [repeat, setRepeat] = useState<RepeatMode>('none')
   const [autoplay, setAutoplay] = useState(false)
 
-  // Avança para a próxima faixa (autoplay)
+  // Sincroniza o estado de repeat/autoplay com o módulo central de playback
+  // (lê valores atuais sempre que onEnd é invocado, evitando closures stale)
+  useEffect(() => { setRepeatMode(repeat) }, [repeat])
+  useEffect(() => { setAutoplayMode(autoplay) }, [autoplay])
+
+  // Avança para a próxima faixa (botão next, atalhos, media keys)
   const playNext = useCallback(async () => {
     const next = nextInPlaylist()
     if (!next) return
     if (!(await isDownloaded(next.id))) return
     const path = await getSongFilename(next.id)
-    playSong(path, { onEnd: () => handleEnd(), volume: usePlayerStore.getState().volume })
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
     usePlayerStore.getState().resume()
   }, [nextInPlaylist])
 
-  const handleEnd = useCallback(() => {
-    if (repeat === 'one') {
-      resumeAudio()
-      return
+  // Detector de ≥70% — marca como tocada uma vez por (playlist, song)
+  const playedKeyRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!currentSong || !currentPlaylist || duration <= 0) return
+    const key = `${currentPlaylist.id}:${currentSong.id}`
+    if (playedKeyRef.current === key) return
+    if (pos / duration >= 0.7) {
+      usePlayedStore.getState().markPlayed(currentPlaylist.id, currentSong.id)
+      playedKeyRef.current = key
     }
-    if (autoplay || repeat === 'all') {
-      playNext()
-      return
-    }
-    usePlayerStore.getState().pause()
-  }, [repeat, autoplay, playNext])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos, duration, currentSong?.id, currentPlaylist?.id])
+
+  // Reset do flag quando muda música
+  useEffect(() => {
+    playedKeyRef.current = null
+  }, [currentSong?.id])
 
   // Referências estáveis para uso nos listeners de mídia
   const isPlayingRef = useRef(isPlaying)
@@ -75,7 +88,7 @@ export function PlayerMini() {
         isDownloaded(prev.id).then(ok => {
           if (!ok) return
           getSongFilename(prev.id).then(path => {
-            playSong(path, { onEnd: () => handleEnd(), volume: usePlayerStore.getState().volume })
+            playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
             usePlayerStore.getState().resume()
           })
         })
@@ -129,16 +142,26 @@ export function PlayerMini() {
           handleMute()
           break
         case 'r': case 'R':
-          setRepeat(r => r === 'none' ? 'all' : r === 'all' ? 'one' : 'none')
+          setRepeat(r => r === 'one' ? 'none' : 'one')
           break
         case 's': case 'S':
           setAutoplay(v => !v)
+          break
+        case 'f': case 'F':
+          e.preventDefault()
+          setExpanded((v) => !v)
+          break
+        case 'Escape':
+          if (expanded) {
+            e.preventDefault()
+            setExpanded(false)
+          }
           break
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [isPlaying, volume, muted, lastVolume])
+  }, [isPlaying, volume, muted, lastVolume, expanded])
 
   function handlePlayPause() {
     if (isPlaying) { pauseAudio(); pause() }
@@ -171,17 +194,18 @@ export function PlayerMini() {
   }
 
   function cycleRepeat() {
-    setRepeat(r => r === 'none' ? 'all' : r === 'all' ? 'one' : 'none')
+    setRepeat(r => r === 'one' ? 'none' : 'one')
   }
 
   const iconBtn = (active = false) => ({
     background: 'none', border: 'none', cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 32, height: 32, padding: 0, flexShrink: 0,
-    borderRadius: 6,
-    transition: 'opacity 0.15s',
+    width: 36, height: 36, padding: 0, flexShrink: 0,
+    borderRadius: 8,
+    transition: 'opacity 0.15s, background 0.15s',
     opacity: active ? 1 : 0.55,
   } as const)
+  const iconBtnClass = 'hover:bg-white/[0.08] hover:opacity-100'
 
   if (!currentSong) {
     return (
@@ -249,7 +273,7 @@ export function PlayerMini() {
               onClick={() => setAutoplay(v => !v)}
               title="Reprodução automática (S)"
               style={iconBtn(autoplay)}
-              className="hover:opacity-100"
+              className={iconBtnClass}
             >
               <ListEnd size={16} color={autoplay ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
             </button>
@@ -261,7 +285,7 @@ export function PlayerMini() {
               }}
               title="Anterior (←)"
               style={iconBtn()}
-              className="hover:opacity-100"
+              className={iconBtnClass}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="19,20 9,12 19,4" /><line x1="5" y1="19" x2="5" y2="5" />
@@ -297,7 +321,7 @@ export function PlayerMini() {
               onClick={() => playNext()}
               title="Próxima (→)"
               style={iconBtn()}
-              className="hover:opacity-100"
+              className={iconBtnClass}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5,4 15,12 5,20" /><line x1="19" y1="5" x2="19" y2="19" />
@@ -307,14 +331,11 @@ export function PlayerMini() {
             {/* Repeat */}
             <button
               onClick={cycleRepeat}
-              title="Repetir (R)"
+              title={repeat === 'one' ? 'Desativar repetição (R)' : 'Repetir atual (R)'}
               style={iconBtn(repeat !== 'none')}
-              className="hover:opacity-100"
+              className={iconBtnClass}
             >
-              {repeat === 'one'
-                ? <Repeat1 size={16} color="#3b82f6" strokeWidth={2} />
-                : <Repeat size={16} color={repeat === 'all' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
-              }
+              <Repeat1 size={16} color={repeat === 'one' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
             </button>
 
           </div>
@@ -346,7 +367,7 @@ export function PlayerMini() {
             onClick={handleMute}
             title="Mudo (M)"
             style={iconBtn()}
-            className="hover:opacity-100"
+            className={iconBtnClass}
           >
             {muted
               ? <VolumeX size={16} color="#9ca3af" strokeWidth={2} />
@@ -356,13 +377,14 @@ export function PlayerMini() {
           <Slider
             value={muted ? 0 : volume}
             onChange={handleVolumeChange}
+            formatTooltip={(v) => `${Math.round(v * 100)}%`}
             style={{ width: 88 }}
           />
           <button
             onClick={() => setExpanded(true)}
-            title="Expandir"
+            title="Expandir (F)"
             style={iconBtn()}
-            className="hover:opacity-100"
+            className={iconBtnClass}
           >
             <Maximize2 size={14} color="#9ca3af" strokeWidth={2} />
           </button>
