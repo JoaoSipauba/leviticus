@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { LayoutGrid } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
@@ -28,6 +29,7 @@ export function Groups() {
   const [selectedColorIdx, setSelectedColorIdx] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const navigate = useNavigate()
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
 
   async function loadGroups() {
@@ -140,6 +142,7 @@ export function Groups() {
             return (
               <div
                 key={g.id}
+                onClick={() => navigate(`/ministries/${g.id}`)}
                 className="flex items-center gap-3 cursor-pointer transition-opacity hover:opacity-80"
                 style={{
                   background: 'linear-gradient(135deg,#13131f,#161625)',
