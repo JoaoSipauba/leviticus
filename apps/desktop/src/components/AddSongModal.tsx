@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle,
   Check,
@@ -9,14 +9,17 @@ import {
   Loader2,
   Mic,
   Music,
+  Pause,
+  Play,
   Plus,
   Search,
+  Square,
   X,
 } from 'lucide-react'
 import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase.js'
-import { fetchYoutubeMetadata, downloadSong, searchYoutube, type YTSearchResult } from '../lib/ytdlp.js'
+import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
@@ -252,16 +255,26 @@ function SearchResultCard({
   result,
   loading,
   onClick,
+  onPreview,
+  isPreviewing,
+  isPreviewLoading,
+  isPreviewPlaying,
 }: {
   result: YTSearchResult
   loading: boolean
   onClick: () => void
+  onPreview: () => void
+  isPreviewing: boolean
+  isPreviewLoading: boolean
+  isPreviewPlaying: boolean
 }) {
   const [hov, setHov] = useState(false)
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      disabled={loading}
+      onKeyDown={(e) => e.key === 'Enter' && onClick()}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       style={{
@@ -323,7 +336,27 @@ function SearchResultCard({
           {fmtDuration(result.duration)}
         </span>
       )}
-    </button>
+
+      {/* Preview button */}
+      <button
+        onClick={(e) => { e.stopPropagation(); onPreview() }}
+        style={{
+          width: 26, height: 26, borderRadius: '50%',
+          border: '1px solid rgba(37,99,235,0.4)',
+          background: isPreviewing ? 'rgba(37,99,235,0.35)' : 'rgba(37,99,235,0.15)',
+          color: '#60a5fa', cursor: 'pointer', flexShrink: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          opacity: hov || isPreviewing ? 1 : 0,
+          transition: 'opacity 0.15s, background 0.15s',
+        }}
+      >
+        {isPreviewLoading
+          ? <Loader2 size={10} className="animate-spin-smooth" />
+          : isPreviewPlaying
+            ? <Square size={10} fill="#60a5fa" strokeWidth={0} />
+            : <Play size={10} fill="#60a5fa" strokeWidth={0} />}
+      </button>
+    </div>
   )
 }
 
@@ -425,6 +458,14 @@ export function AddSongModal() {
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // preview
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewTime, setPreviewTime] = useState(0)
+  const [previewDuration, setPreviewDuration] = useState(0)
+  const [previewPlaying, setPreviewPlaying] = useState(false)
+
   // reset when modal opens
   useEffect(() => {
     if (showAddSong) {
@@ -473,7 +514,52 @@ export function AddSongModal() {
     if (closing) closeAddSong()
   }
 
+  function stopPreview() {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+    }
+    setPreviewId(null)
+    setPreviewLoading(false)
+    setPreviewTime(0)
+    setPreviewDuration(0)
+    setPreviewPlaying(false)
+  }
+
+  async function handlePreview(result: YTSearchResult) {
+    if (previewId === result.id) {
+      if (audioRef.current) {
+        if (previewPlaying) { audioRef.current.pause(); setPreviewPlaying(false) }
+        else { void audioRef.current.play(); setPreviewPlaying(true) }
+      }
+      return
+    }
+    stopPreview()
+    setPreviewId(result.id)
+    setPreviewLoading(true)
+    try {
+      const url = await getPreviewUrl(result.id)
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
+      audio.onloadedmetadata = () => setPreviewDuration(audio.duration)
+      audio.onended = () => setPreviewPlaying(false)
+      audio.onerror = () => {
+        console.error('[preview] audio playback error')
+        stopPreview()
+      }
+      void audio.play()
+      setPreviewPlaying(true)
+    } catch (e) {
+      console.error('[handlePreview]', e)
+      stopPreview()
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
   function resetToStep1() {
+    stopPreview()
     setStep(1)
     setUrl('')
     setMetadata(null)
@@ -523,6 +609,7 @@ export function AddSongModal() {
   }
 
   async function handleSelectResult(r: YTSearchResult) {
+    stopPreview()
     setError(null)
     setFetching(true)
     try {
@@ -876,14 +963,58 @@ export function AddSongModal() {
 
                   {/* Results */}
                   {!searching && searchResults.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div className="styled-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 280, overflowY: 'auto' }}>
                       {searchResults.map((r) => (
-                        <SearchResultCard
-                          key={r.id}
-                          result={r}
-                          loading={fetching}
-                          onClick={() => !fetching && handleSelectResult(r)}
-                        />
+                        <Fragment key={r.id}>
+                          <SearchResultCard
+                            result={r}
+                            loading={fetching}
+                            onClick={() => !fetching && handleSelectResult(r)}
+                            onPreview={() => { void handlePreview(r) }}
+                            isPreviewing={previewId === r.id}
+                            isPreviewLoading={previewLoading && previewId === r.id}
+                            isPreviewPlaying={previewPlaying && previewId === r.id}
+                          />
+                          {previewId === r.id && (
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '8px 12px',
+                              background: 'rgba(37,99,235,0.08)',
+                              border: '1px solid rgba(37,99,235,0.22)',
+                              borderRadius: 10,
+                              marginTop: -2,
+                            }}>
+                              <button
+                                onClick={() => { void handlePreview(r) }}
+                                style={{
+                                  width: 28, height: 28, borderRadius: '50%', border: 'none',
+                                  background: '#2563eb', cursor: 'pointer', flexShrink: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                }}
+                              >
+                                {previewPlaying
+                                  ? <Pause size={11} color="white" fill="white" />
+                                  : <Play size={11} color="white" fill="white" />}
+                              </button>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6b7280', marginBottom: 4 }}>
+                                  <span>{fmtDuration(Math.floor(previewTime))}</span>
+                                  <span>{previewDuration > 0 ? fmtDuration(Math.floor(previewDuration)) : '--:--'}</span>
+                                </div>
+                                <div style={{ height: 3, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden' }}>
+                                  <div style={{
+                                    height: '100%',
+                                    width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
+                                    background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
+                                    borderRadius: 99,
+                                    transition: 'width 0.5s linear',
+                                  }} />
+                                </div>
+                              </div>
+                              <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0 }}>Pré-escuta</span>
+                            </div>
+                          )}
+                        </Fragment>
                       ))}
                     </div>
                   )}
