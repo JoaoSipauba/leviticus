@@ -117,12 +117,8 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   const command = Command.create('yt-dlp', [
     '--dump-json',
     '--no-playlist',
-    '--flat-playlist',
     `ytsearch5:${query}`,
   ])
-
-  let stdout = ''
-  command.stdout.on('data', (line: string) => { stdout += line + '\n' })
 
   const result = await command.execute()
   if (result.code !== 0) {
@@ -131,7 +127,7 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   }
 
   // yt-dlp outputs NDJSON: one JSON object per line
-  const output = stdout || result.stdout
+  const output = result.stdout
   return output
     .split('\n')
     .filter(Boolean)
