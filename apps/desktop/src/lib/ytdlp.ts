@@ -102,3 +102,52 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
     normalizedUrl: url,
   }
 }
+
+export type YTSearchResult = {
+  id: string
+  title: string
+  channel: string
+  duration: number      // seconds (integer)
+  webpage_url: string
+}
+
+export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
+  if (!query.trim()) return []
+
+  const command = Command.create('yt-dlp', [
+    '--dump-json',
+    '--no-playlist',
+    '--flat-playlist',
+    `ytsearch5:${query}`,
+  ])
+
+  let stdout = ''
+  command.stdout.on('data', (line: string) => { stdout += line + '\n' })
+
+  const result = await command.execute()
+  if (result.code !== 0) {
+    console.error('[searchYoutube] yt-dlp error:', result.stderr)
+    return []
+  }
+
+  // yt-dlp outputs NDJSON: one JSON object per line
+  const output = stdout || result.stdout
+  return output
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        const v = JSON.parse(line)
+        if (!v.id || !v.title) return []
+        return [{
+          id:          String(v.id),
+          title:       String(v.title),
+          channel:     String(v.uploader ?? v.channel ?? ''),
+          duration:    Math.floor(Number(v.duration) || 0),
+          webpage_url: String(v.webpage_url ?? `https://www.youtube.com/watch?v=${v.id}`),
+        }]
+      } catch {
+        return []
+      }
+    })
+}
