@@ -221,7 +221,7 @@ export function GroupDetail() {
       </p>
 
       {/* Song list */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
+      <div className="space-y-2 flex-1 overflow-y-auto styled-scroll">
         {songs.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-4">
             <Music size={40} color="#4b5563" strokeWidth={1.5} />
