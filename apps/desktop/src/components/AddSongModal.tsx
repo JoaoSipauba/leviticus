@@ -563,6 +563,7 @@ export function AddSongModal() {
 
   function triggerClose() {
     if (step === 3) return
+    stopPreview()
     setClosing(true)
   }
 
