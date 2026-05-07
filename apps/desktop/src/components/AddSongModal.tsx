@@ -419,6 +419,10 @@ export function AddSongModal() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // fake download progress
+  const downloadStartRef = useRef(0)
+  const realProgressRef = useRef(0)
+
   const overlayRef = useRef<HTMLDivElement>(null)
 
   // reset when modal opens
@@ -436,6 +440,19 @@ export function AddSongModal() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [step])
+
+  // fake download progress — asymptotic curve that never exceeds 95% until real completion
+  useEffect(() => {
+    if (step !== 3) return
+    downloadStartRef.current = Date.now()
+    realProgressRef.current = 0
+    const timer = setInterval(() => {
+      const elapsed = (Date.now() - downloadStartRef.current) / 1000
+      const fake = Math.min(1 - Math.exp(-elapsed / 7), 0.95)
+      setProgress((prev) => Math.max(prev, fake))
+    }, 150)
+    return () => clearInterval(timer)
   }, [step])
 
   // debounce search query
@@ -650,7 +667,8 @@ export function AddSongModal() {
 
     try {
       await downloadSong(song.id, metadata.normalizedUrl, (p) => {
-        setProgress(p)
+        realProgressRef.current = p
+        setProgress((prev) => Math.max(prev, p))
         setDownloading(true, p)
       })
       await syncOrg(orgId)
