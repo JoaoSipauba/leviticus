@@ -722,10 +722,6 @@ export function AddSongModal() {
   // ── step 2 logic ──────────────────────────────────────────────────────────
 
   async function handleConfirm() {
-    if (selectedGroups.length === 0) {
-      setError('Selecione pelo menos um ministério.')
-      return
-    }
     if (!metadata) {
       setError('Dados de metadados ausentes.')
       setStep(1)
