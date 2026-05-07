@@ -76,7 +76,11 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   scrollbar-width: none;        /* Firefox */
   overscroll-behavior: contain; /* desabilita rubber-band/overscroll do WebKit no macOS */
   position: relative;
-  padding-right: 10px;          /* reserva espaço para o thumb não sobrepor o conteúdo */
+  padding-right: 0;
+  transition: padding-right 0.2s ease;
+}
+.styled-scroll.scrollbar-active {
+  padding-right: 14px;
 }
 
 /* Estado base dos badges (canto inferior-direito do thumb).
@@ -165,7 +169,7 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   position: absolute;
   top: 0;
   right: 2px;
-  width: 4px;
+  width: 5px;
   background: rgba(255,255,255,0.28);
   border-radius: 99px;
   opacity: 0;
@@ -186,12 +190,12 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
 }
 .custom-scroll-thumb.visible:hover {
   background: rgba(255,255,255,0.42);
-  width: 6px;
+  width: 7px;
   right: 1px;
 }
 .custom-scroll-thumb.dragging {
   background: rgba(255,255,255,0.55) !important;
-  width: 6px !important;
+  width: 7px !important;
   right: 1px !important;
   cursor: grabbing;
   opacity: 1 !important;
