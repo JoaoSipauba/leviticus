@@ -15,7 +15,7 @@ export function Layout({ children }: { children: ReactNode }) {
       el.classList.add('is-scrolling')
       const existing = timers.get(el)
       if (existing !== undefined) window.clearTimeout(existing)
-      timers.set(el, window.setTimeout(() => el.classList.remove('is-scrolling'), 1200))
+      timers.set(el, window.setTimeout(() => el.classList.remove('is-scrolling'), 2200))
     }
     document.addEventListener('scroll', handleScroll, true)
     return () => document.removeEventListener('scroll', handleScroll, true)

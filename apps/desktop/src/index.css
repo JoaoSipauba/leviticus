@@ -68,14 +68,13 @@
   border-width: 2px 1px 2px 4px;
   background-clip: padding-box;
   border-radius: 99px;
-  transition: background-color 0.6s ease 0.4s; /* fade out: delay 0.4s, demora 0.6s */
+  transition: background-color 0.9s ease 0.6s; /* fade out: delay 0.6s, demora 0.9s */
 }
-.styled-scroll.is-scrolling::-webkit-scrollbar-thumb,
-.styled-scroll:hover::-webkit-scrollbar-thumb {
+.styled-scroll.is-scrolling::-webkit-scrollbar-thumb {
   background-color: rgba(255,255,255,0.22);
   transition: background-color 0.18s ease; /* fade in rápido */
 }
-.styled-scroll::-webkit-scrollbar-thumb:hover,
-.styled-scroll::-webkit-scrollbar-thumb:active {
-  background-color: rgba(255,255,255,0.40) !important;
+.styled-scroll.is-scrolling::-webkit-scrollbar-thumb:hover,
+.styled-scroll.is-scrolling::-webkit-scrollbar-thumb:active {
+  background-color: rgba(255,255,255,0.40);
 }
