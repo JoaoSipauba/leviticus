@@ -163,6 +163,9 @@ export async function getPreviewUrl(videoId: string): Promise<string> {
     throw new Error('Não foi possível carregar a pré-escuta.')
   }
   const url = result.stdout.trim().split('\n')[0]
-  if (!url) throw new Error('Não foi possível carregar a pré-escuta.')
+  if (!url) {
+    console.error('[getPreviewUrl] yt-dlp returned empty URL')
+    throw new Error('Não foi possível carregar a pré-escuta.')
+  }
   return url
 }
