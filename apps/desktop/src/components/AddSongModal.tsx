@@ -556,7 +556,6 @@ export function AddSongModal() {
       if (audioRef.current) {
         if (previewPlaying) audioRef.current.pause()
         else audioRef.current.play().catch((e) => console.warn('[preview] play() resume rejected', e))
-        // onplaying / onpause atualizam o estado
       }
       return
     }
@@ -564,60 +563,81 @@ export function AddSongModal() {
     setPreviewId(result.id)
     setPreviewLoading(true)
     const token = ++previewAbortRef.current
-    try {
-      const cached = previewUrlCacheRef.current.get(result.id)
-      const url = cached ?? await getPreviewUrl(result.id)
-      if (token !== previewAbortRef.current) return  // superseded by newer click
-      if (!cached) previewUrlCacheRef.current.set(result.id, url)
-      const audio = new Audio(url)
-      audioRef.current = audio
-      // Usa a duração do resultado de busca como fonte de verdade —
-      // o audio.duration do M4A do YouTube frequentemente reporta valor errado.
-      if (result.duration > 0) setPreviewDuration(result.duration)
-      audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
-      audio.onprogress = () => {
-        const dur = result.duration > 0 ? result.duration : audio.duration
-        if (audio.buffered.length > 0 && dur > 0 && isFinite(dur)) {
-          const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
-          setPreviewBuffered((bufferedEnd / dur) * 100)
-        }
+    void attemptPreview(result, token, 1)
+  }
+
+  // Tenta carregar e tocar a pré-escuta. Em caso de falha (yt-dlp ou audio.onerror antes
+  // de começar), faz retry transparente até MAX_PREVIEW_ATTEMPTS antes de mostrar erro.
+  async function attemptPreview(result: YTSearchResult, token: number, attempt: number) {
+    const MAX_PREVIEW_ATTEMPTS = 3
+    const retry = (reason: unknown) => {
+      console.warn(`[preview] tentativa ${attempt}/${MAX_PREVIEW_ATTEMPTS} falhou:`, reason)
+      if (token !== previewAbortRef.current) return
+      // limpar audio atual
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.src = ''
+        audioRef.current = null
       }
-      audio.onloadedmetadata = () => {
-        // Só usa audio.duration se não temos duração da busca
-        if (result.duration <= 0 && isFinite(audio.duration)) setPreviewDuration(audio.duration)
+      // URL pode ter expirado — invalidar cache para forçar fetch novo
+      previewUrlCacheRef.current.delete(result.id)
+      if (attempt < MAX_PREVIEW_ATTEMPTS) {
+        const delay = 400 * attempt // 400ms, 800ms backoff
+        window.setTimeout(() => {
+          if (token === previewAbortRef.current) void attemptPreview(result, token, attempt + 1)
+        }, delay)
+        return
       }
-      audio.onended = () => { setPreviewPlaying(false); setPreviewTime(0) }
-      // onplaying é a fonte de verdade: dispara quando o áudio realmente começa.
-      // Se um onerror espúrio (ex: network blip que se recupera) aparecer antes,
-      // onplaying limpa o estado de erro automaticamente.
-      audio.onplaying = () => {
-        setPreviewPlaying(true)
-        setPreviewError(false)
-        setPreviewLoading(false)
-      }
-      audio.onpause = () => setPreviewPlaying(false)
-      audio.onerror = (e) => {
-        // Se o áudio já está tocando (ou já tocou), o erro provavelmente é não-fatal
-        if (!audio.paused || audio.currentTime > 0) {
-          console.warn('[preview] non-fatal audio error', e)
-          return
-        }
-        console.error('[preview] audio playback error', e)
-        setPreviewError(true)
-        setPreviewPlaying(false)
-        setPreviewLoading(false)
-      }
-      // play() pode rejeitar por motivos não-fatais — só logamos.
-      // O estado real é determinado por onplaying / onerror.
-      audio.play().catch((e) => {
-        console.warn('[preview] play() promise rejected (often non-fatal)', e)
-      })
-    } catch (e) {
-      console.error('[handlePreview]', e)
+      console.error(`[preview] todas as ${MAX_PREVIEW_ATTEMPTS} tentativas falharam`)
       setPreviewError(true)
-    } finally {
+      setPreviewPlaying(false)
       setPreviewLoading(false)
     }
+
+    let url: string
+    try {
+      const cached = previewUrlCacheRef.current.get(result.id)
+      url = cached ?? await getPreviewUrl(result.id)
+      if (token !== previewAbortRef.current) return
+      if (!cached) previewUrlCacheRef.current.set(result.id, url)
+    } catch (e) {
+      retry(e)
+      return
+    }
+
+    const audio = new Audio(url)
+    audioRef.current = audio
+    if (result.duration > 0) setPreviewDuration(result.duration)
+    audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
+    audio.onprogress = () => {
+      const dur = result.duration > 0 ? result.duration : audio.duration
+      if (audio.buffered.length > 0 && dur > 0 && isFinite(dur)) {
+        const bufferedEnd = audio.buffered.end(audio.buffered.length - 1)
+        setPreviewBuffered((bufferedEnd / dur) * 100)
+      }
+    }
+    audio.onloadedmetadata = () => {
+      if (result.duration <= 0 && isFinite(audio.duration)) setPreviewDuration(audio.duration)
+    }
+    audio.onended = () => { setPreviewPlaying(false); setPreviewTime(0) }
+    audio.onplaying = () => {
+      setPreviewPlaying(true)
+      setPreviewError(false)
+      setPreviewLoading(false)
+    }
+    audio.onpause = () => setPreviewPlaying(false)
+    audio.onerror = (e) => {
+      // Se já tocou algo, é erro não-fatal — ignorar
+      if (!audio.paused || audio.currentTime > 0) {
+        console.warn('[preview] erro não-fatal de áudio', e)
+        return
+      }
+      // Áudio nunca tocou — tentar de novo
+      retry(e)
+    }
+    audio.play().catch((e) => {
+      console.warn('[preview] play() promise rejected (often non-fatal)', e)
+    })
   }
 
   function resetToStep1() {
