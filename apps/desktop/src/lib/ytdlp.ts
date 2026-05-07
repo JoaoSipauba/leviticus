@@ -153,7 +153,7 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
 export async function getPreviewUrl(videoId: string): Promise<string> {
   const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
   const command = Command.create('yt-dlp', [
-    '-f', 'bestaudio',
+    '-f', 'bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio',
     '--get-url',
     `https://youtube.com/watch?v=${videoId}`,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })

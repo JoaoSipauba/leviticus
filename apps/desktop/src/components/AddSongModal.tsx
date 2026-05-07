@@ -471,6 +471,7 @@ export function AddSongModal() {
   const [previewTime, setPreviewTime] = useState(0)
   const [previewDuration, setPreviewDuration] = useState(0)
   const [previewPlaying, setPreviewPlaying] = useState(false)
+  const [previewError, setPreviewError] = useState(false)
 
   // reset when modal opens
   useEffect(() => {
@@ -541,6 +542,7 @@ export function AddSongModal() {
     setPreviewTime(0)
     setPreviewDuration(0)
     setPreviewPlaying(false)
+    setPreviewError(false)
   }
 
   async function handlePreview(result: YTSearchResult) {
@@ -563,17 +565,20 @@ export function AddSongModal() {
       audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
       audio.onloadedmetadata = () => setPreviewDuration(audio.duration)
       audio.onended = () => setPreviewPlaying(false)
-      audio.onerror = () => {
-        console.error('[preview] audio playback error')
-        stopPreview()
+      audio.onerror = (e) => {
+        console.error('[preview] audio playback error', e)
+        setPreviewError(true)
+        setPreviewPlaying(false)
+        setPreviewLoading(false)
       }
-      audio.play().then(() => setPreviewPlaying(true)).catch(() => {
-        console.error('[preview] play() rejected')
-        stopPreview()
+      audio.play().then(() => setPreviewPlaying(true)).catch((e) => {
+        console.error('[preview] play() rejected', e)
+        setPreviewError(true)
+        setPreviewPlaying(false)
       })
     } catch (e) {
       console.error('[handlePreview]', e)
-      stopPreview()
+      setPreviewError(true)
     } finally {
       setPreviewLoading(false)
     }
@@ -1001,44 +1006,52 @@ export function AddSongModal() {
                               borderRadius: 10,
                               marginTop: -2,
                             }}>
-                              <button
-                                onClick={() => { void handlePreview(r) }}
-                                style={{
-                                  width: 28, height: 28, borderRadius: '50%', border: 'none',
-                                  background: '#2563eb', cursor: 'pointer', flexShrink: 0,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                }}
-                              >
-                                {previewPlaying
-                                  ? <Pause size={11} color="white" fill="white" />
-                                  : <Play size={11} color="white" fill="white" />}
-                              </button>
-                              <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6b7280', marginBottom: 4 }}>
-                                  <span>{fmtDuration(Math.floor(previewTime))}</span>
-                                  <span>{previewDuration > 0 ? fmtDuration(Math.floor(previewDuration)) : '--:--'}</span>
-                                </div>
-                                <div
-                                  onClick={(e) => {
-                                    if (!audioRef.current || previewDuration <= 0) return
-                                    const rect = e.currentTarget.getBoundingClientRect()
-                                    const fraction = (e.clientX - rect.left) / rect.width
-                                    const newTime = fraction * previewDuration
-                                    audioRef.current.currentTime = newTime
-                                    setPreviewTime(newTime)
-                                  }}
-                                  style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
-                                >
-                                  <div style={{
-                                    height: '100%',
-                                    width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
-                                    background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
-                                    borderRadius: 99,
-                                    transition: 'width 0.3s linear',
-                                  }} />
-                                </div>
-                              </div>
-                              <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0 }}>Pré-escuta</span>
+                              {previewError ? (
+                                <p style={{ fontSize: 11, color: '#f87171', margin: 0, flex: 1 }}>
+                                  Não foi possível carregar a pré-escuta.
+                                </p>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => { void handlePreview(r) }}
+                                    style={{
+                                      width: 28, height: 28, borderRadius: '50%', border: 'none',
+                                      background: '#2563eb', cursor: 'pointer', flexShrink: 0,
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    }}
+                                  >
+                                    {previewPlaying
+                                      ? <Pause size={11} color="white" fill="white" />
+                                      : <Play size={11} color="white" fill="white" />}
+                                  </button>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6b7280', marginBottom: 4 }}>
+                                      <span>{fmtDuration(Math.floor(previewTime))}</span>
+                                      <span>{previewDuration > 0 ? fmtDuration(Math.floor(previewDuration)) : '--:--'}</span>
+                                    </div>
+                                    <div
+                                      onClick={(e) => {
+                                        if (!audioRef.current || previewDuration <= 0) return
+                                        const rect = e.currentTarget.getBoundingClientRect()
+                                        const fraction = (e.clientX - rect.left) / rect.width
+                                        const newTime = fraction * previewDuration
+                                        audioRef.current.currentTime = newTime
+                                        setPreviewTime(newTime)
+                                      }}
+                                      style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 99, overflow: 'hidden', cursor: previewDuration > 0 ? 'pointer' : 'default' }}
+                                    >
+                                      <div style={{
+                                        height: '100%',
+                                        width: previewDuration > 0 ? `${(previewTime / previewDuration) * 100}%` : '0%',
+                                        background: 'linear-gradient(90deg,#2563eb,#60a5fa)',
+                                        borderRadius: 99,
+                                        transition: 'width 0.3s linear',
+                                      }} />
+                                    </div>
+                                  </div>
+                                  <span style={{ fontSize: 10, color: '#6b7280', flexShrink: 0 }}>Pré-escuta</span>
+                                </>
+                              )}
                             </div>
                           )}
                         </Fragment>
