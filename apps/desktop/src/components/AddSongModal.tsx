@@ -278,15 +278,23 @@ function SearchResultCard({
         transition: 'all 0.15s',
       }}
     >
-      {/* Thumbnail placeholder */}
-      <div
-        style={{
-          width: 56, height: 36, borderRadius: 6, flexShrink: 0,
-          background: 'linear-gradient(135deg,#1e3a8a,#2563eb)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}
-      >
-        <Music size={13} color="rgba(255,255,255,0.4)" />
+      {/* Thumbnail */}
+      <div style={{ width: 56, height: 36, borderRadius: 6, flexShrink: 0, overflow: 'hidden', position: 'relative' }}>
+        <div
+          style={{
+            position: 'absolute', inset: 0,
+            background: 'linear-gradient(135deg,#1e3a8a,#2563eb)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <Music size={13} color="rgba(255,255,255,0.4)" />
+        </div>
+        <img
+          src={`https://img.youtube.com/vi/${result.id}/mqdefault.jpg`}
+          alt=""
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+        />
       </div>
 
       {/* Info */}
@@ -760,7 +768,7 @@ export function AddSongModal() {
               {/* ── Search tab ── */}
               {tab === 'search' && (
                 <>
-                  <div style={{ position: 'relative' }}>
+                  <div>
                     <ModalInput
                       value={query}
                       onChange={setQuery}
@@ -773,14 +781,11 @@ export function AddSongModal() {
                         }
                       }}
                     />
-                  </div>
-
-                  {/* Loading */}
-                  {searching && (
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
-                      <Loader2 size={18} color="#3b82f6" className="animate-spin-smooth" />
+                    {/* Progress bar */}
+                    <div style={{ height: 2, background: 'rgba(255,255,255,0.06)', borderRadius: 99, marginTop: 4, overflow: 'hidden', opacity: searching ? 1 : 0, transition: 'opacity 0.2s' }}>
+                      <div className="animate-search-progress" style={{ position: 'relative', height: '100%', background: 'linear-gradient(90deg,#2563eb,#60a5fa)', borderRadius: 99 }} />
                     </div>
-                  )}
+                  </div>
 
                   {/* Hint */}
                   {!searching && query.trim().length < 2 && query.length > 0 && (
