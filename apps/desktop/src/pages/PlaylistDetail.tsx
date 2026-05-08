@@ -17,6 +17,9 @@ import { AddSongToPlaylistModal } from '../components/AddSongToPlaylistModal.js'
 import { AddSectionModal } from '../components/AddSectionModal.js'
 import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
 import { usePlayerStore } from '../store/player.js'
+import { playSong } from '../lib/audio.js'
+import { handleSongEnd } from '../lib/playback.js'
+import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 
 type DraftSection = {
   sectionId: string
@@ -308,6 +311,46 @@ export function PlaylistDetail() {
     }
   }
 
+  // ─── Play helpers ──────────────────────────────────────────────────────
+
+  // Toca uma sequência de músicas — filtra primeiro só as baixadas pra evitar
+  // que o player engane na fila com itens que não dão play. Aproveita o
+  // store global (currentPlaylist + playlistSongs + position) que handleSongEnd
+  // já usa pra avançar.
+  async function playSongs(songsToPlay: Song[]) {
+    if (!playlist || songsToPlay.length === 0) return
+    const downloadable: Song[] = []
+    for (const s of songsToPlay) {
+      if (await isDownloaded(s.id)) downloadable.push(s)
+    }
+    if (downloadable.length === 0) {
+      console.warn('[PlaylistDetail] nenhuma música baixada nesta seleção')
+      return
+    }
+    const first = downloadable[0]
+    try {
+      const path = await getSongFilename(first.id)
+      const volume = usePlayerStore.getState().volume
+      playSong(path, { onEnd: () => void handleSongEnd(), volume })
+      usePlayerStore.getState().play(first, {
+        playlist,
+        songs: downloadable,
+        position: 0,
+      })
+    } catch (e) {
+      console.error('[PlaylistDetail] playSongs falhou:', e)
+    }
+  }
+
+  function playAll() {
+    const allSongs = sections.flatMap((s) => s.songs.map((ps) => ps.song))
+    void playSongs(allSongs)
+  }
+
+  function playSection(section: SectionView) {
+    void playSongs(section.songs.map((ps) => ps.song))
+  }
+
   async function confirmMerge() {
     const m = pendingMerge
     if (!m || !id) return
@@ -352,8 +395,8 @@ export function PlaylistDetail() {
       </div>
 
       {totalSongs > 0 && (
-        <button disabled title="Em breve"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm mb-6 cursor-not-allowed opacity-60"
+        <button onClick={playAll}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm mb-6 cursor-pointer"
           style={{ background: '#2563eb', color: '#fff' }}>
           <Play size={14} fill="#fff" stroke="none" /> Tocar tudo
         </button>
@@ -373,6 +416,7 @@ export function PlaylistDetail() {
               isPlayerPlaying={isPlayerPlaying}
               dragState={drag}
               dropTarget={dropTarget}
+              onPlay={section.songs.length > 0 ? () => playSection(section) : undefined}
               onStartDragSong={(songId) => startDrag({ kind: 'song', sectionId: section.sectionId, songId })}
               onStartDragSection={() => {
                 if (!section.isDraft) startDrag({ kind: 'section', sectionId: section.sectionId })
@@ -459,7 +503,7 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 
 function PlaylistSection({
   section, currentSongId, isPlayerPlaying, dragState, dropTarget,
-  onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
+  onPlay, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
@@ -467,6 +511,7 @@ function PlaylistSection({
   isPlayerPlaying: boolean
   dragState: DragState
   dropTarget: DropTarget
+  onPlay?: () => void
   onStartDragSong: (songId: string) => void
   onStartDragSection: () => void
   onSongDragOver: (beforeSongId: string | null) => void
@@ -490,6 +535,7 @@ function PlaylistSection({
     >
       <SectionHeader
         section={section}
+        onPlay={onPlay}
         onStartDragSection={onStartDragSection}
         onEndDrag={onEndDrag}
         onRename={onRename}
@@ -568,9 +614,10 @@ function PlaylistSection({
 }
 
 function SectionHeader({
-  section, onStartDragSection, onEndDrag, onRename, onDelete,
+  section, onPlay, onStartDragSection, onEndDrag, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
+  onPlay?: () => void
   onStartDragSection: () => void
   onEndDrag: () => void
   onRename?: (newLabel: string) => void
@@ -632,9 +679,10 @@ function SectionHeader({
           {section.isDraft && ' · seção vazia'}
         </p>
       </div>
-      <button disabled title="Em breve"
-        className="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 opacity-60 cursor-not-allowed text-body"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <button onClick={onPlay} disabled={!onPlay}
+        className="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-body hover:text-heading hover:bg-white/[0.08]"
+        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+        title={onPlay ? 'Tocar a partir desta seção' : 'Adicione uma música primeiro'}>
         <Play size={11} fill="currentColor" /> Tocar
       </button>
       <div className="relative">
