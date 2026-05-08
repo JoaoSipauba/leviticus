@@ -672,7 +672,8 @@ export function AddSongModal() {
 
     const audio = new Audio()
     audio.preload = 'auto'      // streaming progressivo (browser baixa enquanto toca)
-    audio.crossOrigin = 'anonymous'
+    // Sem crossOrigin: googlevideo não responde com headers CORS, e setando
+    // 'anonymous' o áudio fica preso carregando sem disparar onplaying.
     audio.volume = previewMuted ? 0 : previewVolume
     audio.src = url
     audioRef.current = audio
