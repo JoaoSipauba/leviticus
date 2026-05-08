@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2 } from 'lucide-react'
+import { AlertTriangle, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, X } from 'lucide-react'
 import { isDownloaded, getSongFilename, deleteSongFile } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -89,12 +89,15 @@ function ThumbPlayOverlay({
 }
 
 function ActionsMenu({
-  onEdit, onDelete, onDeleteFromDevice, isDownloadedOnDevice,
+  onEdit, onDelete, onDeleteFromDevice, isDownloadedOnDevice, onRemoveFromPlaylist,
 }: {
   onEdit?: () => void
   onDelete: () => Promise<void> | void
   onDeleteFromDevice?: () => Promise<void> | void
   isDownloadedOnDevice: boolean
+  // Quando preenchido, a row está num culto e o menu mostra "Remover do culto"
+  // antes de "Excluir da biblioteca" (que continua disponível pra quem tem permissão).
+  onRemoveFromPlaylist?: () => Promise<void> | void
 }) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -243,6 +246,17 @@ function ActionsMenu({
                 </button>
               )}
 
+              {onRemoveFromPlaylist && (
+                <button
+                  role="menuitem"
+                  onClick={(e) => { e.stopPropagation(); setOpen(false); void onRemoveFromPlaylist() }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] transition-colors text-left cursor-pointer"
+                >
+                  <X size={14} className="text-body" strokeWidth={2} />
+                  Remover deste culto
+                </button>
+              )}
+
               <button
                 role="menuitem"
                 onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
@@ -262,11 +276,30 @@ function ActionsMenu({
 
 type Props = {
   song: Song
-  playlistContext?: { playlistId: string; songs: Song[]; position: number }
+  // Quando preenchido, a row vira "música dentro de um culto":
+  //  - Click (e baixada) toca usando a fila do culto, respeitando a ordem
+  //  - ActionsMenu mostra "Remover deste culto" no lugar de "Excluir da biblioteca"
+  //  - indexInList aparece à esquerda da thumb pra mostrar a posição na fila
+  playlistContext?: {
+    playlist: import('@leviticus/core').Playlist
+    songs: Song[]
+    position: number
+    indexInList?: number
+    onRemoveFromPlaylist: () => void
+  }
   onEdit?: () => void
+  // Drag handlers HTML5 — quando o consumidor quer permitir arrastar a row
+  // (ex: reordenar dentro de um culto). Aplicados direto na div root.
+  draggable?: boolean
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
+  onDragEnd?: () => void
 }
 
-export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Props) {
+export function SongCard({
+  song, playlistContext, onEdit,
+  draggable, onDragStart, onDragOver, onDragEnd,
+}: Props) {
   const [downloaded, setDownloaded] = useState(false)
   // Animação de "concluído": logo após o download terminar, exibe um check
   // verde por ~800ms antes de revelar o overlay de play. Sincronizado com a
@@ -327,7 +360,15 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
     }
     const filePath = await getSongFilename(song.id)
     playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
-    play(song)
+    if (playlistContext) {
+      play(song, {
+        playlist: playlistContext.playlist,
+        songs: playlistContext.songs,
+        position: playlistContext.position,
+      })
+    } else {
+      play(song)
+    }
   }
 
   async function handleDelete() {
@@ -402,6 +443,10 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
 
   return (
     <div
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragEnd={onDragEnd}
       className="group relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all overflow-hidden"
       style={{
         background: isCurrentlyPlaying
@@ -412,8 +457,16 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
         border: isCurrentlyPlaying
           ? `1px solid ${typeColor}55`
           : '1px solid rgba(255,255,255,0.06)',
+        cursor: draggable ? 'grab' : undefined,
       }}
     >
+      {/* Posição na fila do culto — só aparece quando dentro de um playlistContext */}
+      {playlistContext?.indexInList != null && (
+        <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0">
+          {playlistContext.indexInList}
+        </span>
+      )}
+
       {/* Thumbnail com play/pause overlay */}
       <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04]">
         {song.thumbnail_url ? (
@@ -475,6 +528,7 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
         onDelete={handleDelete}
         onDeleteFromDevice={handleDeleteFromDevice}
         isDownloadedOnDevice={downloaded}
+        onRemoveFromPlaylist={playlistContext?.onRemoveFromPlaylist}
       />
     </div>
   )

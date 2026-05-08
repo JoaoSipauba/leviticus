@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Play, Plus, MoreHorizontal, Music, Mic, Pencil, Trash2,
-  X, Loader2, AlertTriangle, GripVertical, CloudDownload, Clock,
+  Loader2, AlertTriangle, GripVertical,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
@@ -16,9 +16,9 @@ import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { AddSongToPlaylistModal } from '../components/AddSongToPlaylistModal.js'
 import { AddSectionModal } from '../components/AddSectionModal.js'
 import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
+import { SongCard } from '../components/SongCard.js'
 import { usePlayerStore } from '../store/player.js'
-import { useDownloadsStore, selectStatus } from '../store/downloads.js'
-import { playSong, pauseAudio, resumeAudio } from '../lib/audio.js'
+import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 
@@ -51,13 +51,6 @@ export function PlaylistDetail() {
   const [sections, setSections] = useState<SectionView[]>([])
   const [draftSections, setDraftSections] = useState<DraftSection[]>([])
   const [groups, setGroups] = useState<GroupRef[]>([])
-  // Map songId → tem arquivo no disco. Atualizado no load() e quando um
-  // download termina (subscribeCompleted) ou é cancelado (subscribeCanceled).
-  const [downloadedMap, setDownloadedMap] = useState<Map<string, boolean>>(new Map())
-  const enqueueDownload = useDownloadsStore((s) => s.enqueue)
-  const cancelDownload = useDownloadsStore((s) => s.cancel)
-  const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
-  const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
 
   const [editingPlaylist, setEditingPlaylist] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -83,8 +76,6 @@ export function PlaylistDetail() {
     targetIndex: number
   } | null>(null)
 
-  const currentSong = usePlayerStore((s) => s.currentSong)
-  const isPlayerPlaying = usePlayerStore((s) => s.isPlaying)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -116,30 +107,10 @@ export function PlaylistDetail() {
     setGroups(grps)
     setSections(groupSongsBySection(enriched, grps))
 
-    // Verifica quais músicas estão baixadas. Nem todas as músicas do culto
-    // precisam estar baixadas — o user pode adicionar e baixar depois.
-    const checks = await Promise.all(
-      Array.from(new Set(songIds)).map(async (sid) => [sid, await isDownloaded(sid)] as const)
-    )
-    setDownloadedMap(new Map(checks))
-
     setDraftSections((prev) => prev.filter((d) => !ps.some((p) => p.section_id === d.sectionId)))
   }, [id, navigate, orgId])
 
   useEffect(() => { void load() }, [load])
-
-  // Quando um download termina, marca como baixada localmente. Quando é
-  // cancelado, garante que continua marcada como não baixada (caso o RPC
-  // tenha apagado o arquivo legado).
-  useEffect(() => {
-    const offCompleted = subscribeCompleted((songId) => {
-      setDownloadedMap((prev) => new Map(prev).set(songId, true))
-    })
-    const offCanceled = subscribeCanceled((songId) => {
-      setDownloadedMap((prev) => new Map(prev).set(songId, false))
-    })
-    return () => { offCompleted(); offCanceled() }
-  }, [subscribeCompleted, subscribeCanceled])
 
   // Une seções reais e drafts pra render. Drafts vão pro fim.
   const allSections = useMemo(() => {
@@ -393,29 +364,6 @@ export function PlaylistDetail() {
     void playSongs(section.songs.map((ps) => ps.song))
   }
 
-  // Click em uma música específica do culto:
-  //  - Se ela já é a atual → toggle play/pause
-  //  - Se não está baixada → enqueue download (não tenta tocar)
-  //  - Senão, toca a partir dela mantendo o restante do culto na fila.
-  async function handleClickSong(ps: PlaylistSong & { song: Song }) {
-    if (currentSong?.id === ps.song_id) {
-      if (isPlayerPlaying) {
-        pauseAudio(); usePlayerStore.getState().pause()
-      } else {
-        resumeAudio(); usePlayerStore.getState().resume()
-      }
-      return
-    }
-    if (!downloadedMap.get(ps.song_id)) {
-      enqueueDownload(ps.song_id, ps.song.youtube_url)
-      return
-    }
-    const allSongs = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
-    const startIdx = allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id)
-    if (startIdx < 0) return
-    void playSongs(allSongs.slice(startIdx).map((p) => p.song))
-  }
-
   async function confirmMerge() {
     const m = pendingMerge
     if (!m || !id) return
@@ -432,6 +380,12 @@ export function PlaylistDetail() {
   }
 
   const totalSongs = sections.reduce((sum, s) => sum + s.songs.length, 0)
+  // Lista flat ordenada por position — usada pra calcular position/indexInList
+  // de cada song no SongCard (a fila do culto inteira).
+  const allSongsFlat = useMemo(
+    () => sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position),
+    [sections],
+  )
 
   return (
     <div className="px-8 py-6 max-w-[900px] mx-auto">
@@ -477,14 +431,11 @@ export function PlaylistDetail() {
             />
             <PlaylistSection
               section={section}
-              currentSongId={currentSong?.id ?? null}
-              isPlayerPlaying={isPlayerPlaying}
+              playlist={playlist}
+              allSongs={allSongsFlat}
               dragState={drag}
               dropTarget={dropTarget}
               onPlay={section.songs.length > 0 ? () => playSection(section) : undefined}
-              onClickSong={handleClickSong}
-              downloadedMap={downloadedMap}
-              onCancelDownload={cancelDownload}
               onStartDragSong={(songId) => startDrag({ kind: 'song', sectionId: section.sectionId, songId })}
               onStartDragSection={() => {
                 if (!section.isDraft) startDrag({ kind: 'section', sectionId: section.sectionId })
@@ -570,26 +521,22 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 }
 
 function PlaylistSection({
-  section, currentSongId, isPlayerPlaying, dragState, dropTarget,
-  onPlay, onClickSong, downloadedMap, onCancelDownload,
-  onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
+  section, playlist, allSongs, dragState, dropTarget,
+  onPlay, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
-  currentSongId: string | null
-  isPlayerPlaying: boolean
+  playlist: Playlist
+  allSongs: Array<PlaylistSong & { song: Song }>
   dragState: DragState
   dropTarget: DropTarget
   onPlay?: () => void
-  onClickSong: (ps: PlaylistSong & { song: Song }) => void
-  downloadedMap: Map<string, boolean>
-  onCancelDownload: (songId: string) => void
   onStartDragSong: (songId: string) => void
   onStartDragSection: () => void
   onSongDragOver: (beforeSongId: string | null) => void
   onEndDrag: () => void
   onAddSong: () => void
-  onRemoveSong: (ps: PlaylistSong) => void
+  onRemoveSong: (ps: PlaylistSong & { song: Song }) => void
   onRename?: (newLabel: string) => void
   onDelete: () => void
 }) {
@@ -613,15 +560,24 @@ function PlaylistSection({
         onRename={onRename}
         onDelete={onDelete}
       />
-      <div className="px-4 pb-2 space-y-1">
-        {section.songs.map((ps, idx) => {
-          const isCurrent = currentSongId === ps.song_id
+      <div className="px-4 pb-2 space-y-1.5">
+        {section.songs.map((ps) => {
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
           const showDropBefore = dropTarget?.kind === 'song'
             && dropTarget.sectionId === section.sectionId
             && dropTarget.beforeSongId === ps.song_id
+          // playlistContext do SongCard: ele já cuida de download, play da fila
+          // do culto (com onEnd → próxima da fila), highlight de "tocando agora",
+          // e do menu de ações (Remover deste culto).
+          const ctx = {
+            playlist,
+            songs: allSongs.map((p) => p.song),
+            position: allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id),
+            indexInList: allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id) + 1,
+            onRemoveFromPlaylist: () => onRemoveSong(ps),
+          }
           return (
-            <div key={`${ps.section_id}-${ps.song_id}`}>
+            <div key={`${ps.section_id}-${ps.song_id}`} style={{ opacity: isBeingDragged ? 0.4 : 1 }}>
               <div
                 onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
                 style={{
@@ -632,19 +588,16 @@ function PlaylistSection({
                   transition: 'all 0.08s',
                 }}
               />
-              <PlaylistSongRow
-                ps={ps}
-                idx={idx}
-                isCurrent={isCurrent}
-                isPlayerPlaying={isPlayerPlaying}
-                isBeingDragged={isBeingDragged}
-                downloaded={downloadedMap.get(ps.song_id) ?? false}
-                onClick={() => onClickSong(ps)}
-                onCancelDownload={() => onCancelDownload(ps.song_id)}
-                onStartDrag={() => onStartDragSong(ps.song_id)}
-                onDragOver={() => onSongDragOver(ps.song_id)}
-                onEndDrag={onEndDrag}
-                onRemove={() => onRemoveSong(ps)}
+              <SongCard
+                song={ps.song}
+                playlistContext={ctx}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move'
+                  onStartDragSong(ps.song_id)
+                }}
+                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
+                onDragEnd={onEndDrag}
               />
             </div>
           )
@@ -844,98 +797,3 @@ function PlaylistMenu({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Linha de música — observa o downloads store pra mostrar progresso da fila.
-
-function PlaylistSongRow({
-  ps, idx, isCurrent, isPlayerPlaying, isBeingDragged, downloaded,
-  onClick, onCancelDownload, onStartDrag, onDragOver, onEndDrag, onRemove,
-}: {
-  ps: PlaylistSong & { song: Song }
-  idx: number
-  isCurrent: boolean
-  isPlayerPlaying: boolean
-  isBeingDragged: boolean
-  downloaded: boolean
-  onClick: () => void
-  onCancelDownload: () => void
-  onStartDrag: () => void
-  onDragOver: () => void
-  onEndDrag: () => void
-  onRemove: () => void
-}) {
-  const status = useDownloadsStore(selectStatus(ps.song_id))
-  const isQueued = status.state === 'queued'
-  const isDownloading = status.state === 'downloading'
-  const showAsMissing = !downloaded && !isQueued && !isDownloading
-
-  return (
-    <div
-      draggable
-      onClick={onClick}
-      onDragStart={(e) => {
-        e.dataTransfer.effectAllowed = 'move'
-        onStartDrag()
-      }}
-      onDragOver={(e) => { e.preventDefault(); onDragOver() }}
-      onDragEnd={onEndDrag}
-      className="flex items-center gap-3 px-2 py-2 rounded-lg group transition-colors hover:bg-white/[0.04]"
-      style={{
-        background: isCurrent ? 'rgba(37,99,235,0.12)' : undefined,
-        cursor: 'pointer',
-        opacity: isBeingDragged ? 0.4 : showAsMissing ? 0.65 : 1,
-      }}
-    >
-      <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0 group-hover:hidden">{idx + 1}</span>
-      <Play size={11} fill="currentColor" stroke="none" className="hidden group-hover:block w-6 text-brand flex-shrink-0" />
-      <div className="relative w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] overflow-hidden flex items-center justify-center">
-        {ps.song.thumbnail_url ? (
-          <img src={ps.song.thumbnail_url} alt="" className="w-full h-full object-cover" />
-        ) : (
-          <Music size={14} className="text-muted" />
-        )}
-        {/* Overlay de status do download */}
-        {(showAsMissing || isQueued || isDownloading) && (
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
-            {isDownloading ? (
-              <span className="text-[9px] font-bold text-white" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                {Math.round(status.progress * 100)}%
-              </span>
-            ) : isQueued ? (
-              <Clock size={12} className="text-white" />
-            ) : (
-              <CloudDownload size={14} className="text-white" />
-            )}
-          </div>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm font-semibold truncate ${isCurrent ? 'text-brand' : 'text-heading'}`}>{ps.song.title}</p>
-        <p className="text-xs text-body truncate">
-          {ps.song.artist}
-          {showAsMissing && ' · clique para baixar'}
-          {isQueued && ' · na fila'}
-          {isDownloading && ` · baixando ${Math.round(status.progress * 100)}%`}
-        </p>
-      </div>
-      {isCurrent && isPlayerPlaying && <span className="text-brand text-xs">tocando</span>}
-      {(isQueued || isDownloading) && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onCancelDownload() }}
-          className="p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
-          aria-label="Cancelar download"
-          title="Cancelar download"
-        >
-          <X size={14} />
-        </button>
-      )}
-      <button
-        onClick={(e) => { e.stopPropagation(); onRemove() }}
-        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
-        aria-label="Remover do culto"
-      >
-        <X size={14} />
-      </button>
-    </div>
-  )
-}
