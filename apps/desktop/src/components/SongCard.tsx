@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2 } from 'lucide-react'
-import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
+import { AlertTriangle, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2 } from 'lucide-react'
+import { isDownloaded, getSongFilename, deleteSongFile } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { usePlayerStore } from '../store/player.js'
@@ -86,7 +86,14 @@ function ThumbPlayOverlay({
   )
 }
 
-function ActionsMenu({ onEdit, onDelete }: { onEdit?: () => void; onDelete: () => Promise<void> | void }) {
+function ActionsMenu({
+  onEdit, onDelete, onDeleteFromDevice, isDownloadedOnDevice,
+}: {
+  onEdit?: () => void
+  onDelete: () => Promise<void> | void
+  onDeleteFromDevice?: () => Promise<void> | void
+  isDownloadedOnDevice: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -157,7 +164,10 @@ function ActionsMenu({ onEdit, onDelete }: { onEdit?: () => void; onDelete: () =
         aria-label="Mais ações"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-9 h-9 rounded-full flex items-center justify-center cursor-pointer bg-white/[0.04] border border-hairline hover:bg-white/[0.08] transition-colors"
+        className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer bg-white/[0.04] border border-hairline transition-opacity ${
+          open ? 'opacity-100' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+        }`}
+        style={{ willChange: 'opacity', transform: 'translateZ(0)' }}
       >
         <MoreHorizontal size={15} className="text-body" strokeWidth={2} />
       </button>
@@ -215,6 +225,22 @@ function ActionsMenu({ onEdit, onDelete }: { onEdit?: () => void; onDelete: () =
                   Editar
                 </button>
               )}
+
+              {/* Apagar do dispositivo — reversível, não-destrutivo. Só aparece quando há arquivo local. */}
+              {isDownloadedOnDevice && onDeleteFromDevice && (
+                <button
+                  role="menuitem"
+                  onClick={(e) => { e.stopPropagation(); setOpen(false); void onDeleteFromDevice() }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] transition-colors text-left cursor-pointer"
+                >
+                  <HardDriveDownload size={14} className="text-body" strokeWidth={2} />
+                  <div className="flex-1">
+                    <div>Apagar do dispositivo</div>
+                    <div className="text-xs text-muted font-normal mt-0.5">Libera espaço — pode baixar de novo</div>
+                  </div>
+                </button>
+              )}
+
               <button
                 role="menuitem"
                 onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
@@ -284,6 +310,22 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
     bumpLibrary()
   }
 
+  // Apaga só o arquivo local — música segue no Supabase, pode ser baixada de novo.
+  async function handleDeleteFromDevice() {
+    // Se for a música tocando, pausa antes (Howler com html5 streama do arquivo)
+    if (currentSong?.id === song.id) {
+      pauseAudio()
+      usePlayerStore.setState({ currentSong: null, isPlaying: false })
+    }
+    try {
+      await deleteSongFile(song.id)
+    } catch (e) {
+      console.error('[SongCard] deleteSongFile error:', e)
+      return
+    }
+    setDownloaded(false)
+  }
+
   return (
     <div
       className="group relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all overflow-hidden"
@@ -341,9 +383,12 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
         </span>
       )}
 
-      <div className="flex items-center opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <ActionsMenu onEdit={onEdit} onDelete={handleDelete} />
-      </div>
+      <ActionsMenu
+        onEdit={onEdit}
+        onDelete={handleDelete}
+        onDeleteFromDevice={handleDeleteFromDevice}
+        isDownloadedOnDevice={downloaded}
+      />
     </div>
   )
 }

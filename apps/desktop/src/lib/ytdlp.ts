@@ -1,6 +1,6 @@
 import { Command } from '@tauri-apps/plugin-shell'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
-import { exists, mkdir } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
 
 export async function getSongFilename(songId: string): Promise<string> {
   const dataDir = await appLocalDataDir()
@@ -10,6 +10,15 @@ export async function getSongFilename(songId: string): Promise<string> {
 export async function isDownloaded(songId: string): Promise<boolean> {
   const path = await getSongFilename(songId)
   return exists(path)
+}
+
+// Apaga o arquivo de áudio do dispositivo. A música continua no Supabase —
+// pode ser baixada novamente a qualquer momento via downloadSong.
+export async function deleteSongFile(songId: string): Promise<void> {
+  const path = await getSongFilename(songId)
+  if (await exists(path)) {
+    await remove(path)
+  }
 }
 
 export async function downloadSong(
