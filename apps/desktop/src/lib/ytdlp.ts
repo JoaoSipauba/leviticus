@@ -159,9 +159,28 @@ export function startDownload(
     return new Promise<string>((resolve, reject) => {
       let stderrBuf = ''
 
+      // Animação assintótica de progresso. Pra m4a sem reencoding, o
+      // download é tão rápido (~1-2s pra músicas de 4 min) que o yt-dlp
+      // raramente emite progress intermediário — vai de 0 a close direto.
+      // A curva fake (1 - e^(-t/tau)) cresce rápido no início e desacelera
+      // até assintotar em 95%. Quando o yt-dlp emite progress real, usamos
+      // o maior valor pra evitar regressão. O close dispara o 100%.
+      let lastReal = 0
+      const startedAt = Date.now()
+      const FAKE_CEILING = 0.95
+      const FAKE_TAU = 1.5 // segundos pra atingir ~63% da curva
+      const reportProgress = (real?: number) => {
+        if (real !== undefined && real > lastReal) lastReal = real
+        const elapsed = (Date.now() - startedAt) / 1000
+        const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
+        onProgress(Math.min(0.99, Math.max(lastReal, fake)))
+      }
+      const animationTimer = window.setInterval(() => reportProgress(), 150)
+      const stopAnimation = () => window.clearInterval(animationTimer)
+
       command.stdout.on('data', (line: string) => {
         const match = line.match(/(\d+\.?\d*)%/)
-        if (match) onProgress(parseFloat(match[1]) / 100)
+        if (match) reportProgress(parseFloat(match[1]) / 100)
       })
 
       command.stderr.on('data', (line: string) => {
@@ -169,6 +188,7 @@ export function startDownload(
       })
 
       command.on('close', ({ code }) => {
+        stopAnimation()
         void (async () => {
           if (canceled) {
             // child.kill() é assíncrono e o yt-dlp pode ter completado o
@@ -200,6 +220,7 @@ export function startDownload(
       })
 
       command.on('error', (err) => {
+        stopAnimation()
         if (canceled) {
           void cleanupOutput(songId)
           reject(new Error(DOWNLOAD_CANCELED))
@@ -218,6 +239,7 @@ export function startDownload(
           }
         })
         .catch((err: unknown) => {
+          stopAnimation()
           console.error('[startDownload] spawn() rejeitado:', err)
           reject(new Error(`Não foi possível iniciar o download: ${String(err)}`))
         })
