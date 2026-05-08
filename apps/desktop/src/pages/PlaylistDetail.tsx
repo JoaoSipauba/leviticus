@@ -670,9 +670,6 @@ function SectionHeader({
         <GripVertical size={14} />
       </button>
       {section.type === 'avulso' && <Mic size={12} className="text-body flex-shrink-0" />}
-      {section.color && (
-        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: section.color.icon }} />
-      )}
       <div className="flex-1 min-w-0">
         {renaming ? (
           <input
