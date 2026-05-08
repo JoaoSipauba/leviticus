@@ -1,6 +1,13 @@
-import { Command } from '@tauri-apps/plugin-shell'
+import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
 import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
+
+export const DOWNLOAD_CANCELED = 'canceled'
+
+export type DownloadHandle = {
+  promise: Promise<string>
+  cancel: () => void
+}
 
 export async function getSongFilename(songId: string): Promise<string> {
   const dataDir = await appLocalDataDir()
@@ -21,65 +28,126 @@ export async function deleteSongFile(songId: string): Promise<void> {
   }
 }
 
+// Remove o arquivo de saída se existir. Tolerante a falhas (race com fs).
+// Usado no cancel/erro do startDownload pra garantir que isDownloaded() não
+// retorne true por engano logo depois de um cancel.
+async function cleanupOutput(path: string): Promise<void> {
+  try {
+    if (await exists(path)) await remove(path)
+  } catch (e) {
+    console.warn('[cleanupOutput] não foi possível remover arquivo parcial:', e)
+  }
+}
+
+// Inicia um download cancelável. Retorna { promise, cancel } onde:
+//   - promise resolve com o caminho do arquivo, ou rejeita com Error('canceled')
+//     quando cancelado pelo usuário, ou Error com mensagem amigável em outras falhas.
+//   - cancel() mata o processo yt-dlp em execução (se já iniciado) ou marca
+//     para abortar antes do spawn completar.
+export function startDownload(
+  songId: string,
+  youtubeUrl: string,
+  onProgress: (progress: number) => void,
+): DownloadHandle {
+  let child: Child | null = null
+  let canceled = false
+
+  const promise: Promise<string> = (async () => {
+    const dataDir = await appLocalDataDir()
+    const audioDir = await join(dataDir, 'audio')
+    await mkdir(audioDir, { recursive: true })
+
+    const outputPath = await getSongFilename(songId)
+
+    // Tauri não herda o PATH do shell — passa os caminhos comuns do Homebrew via PATH
+    const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
+
+    const command = Command.create('yt-dlp', [
+      '--no-playlist',
+      '-x',
+      '--audio-format', 'mp3',
+      '--audio-quality', '0',
+      '--ffmpeg-location', '/opt/homebrew/bin',
+      '--newline',
+      '-o', outputPath,
+      youtubeUrl,
+    ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+
+    return new Promise<string>((resolve, reject) => {
+      let stderrBuf = ''
+
+      command.stdout.on('data', (line: string) => {
+        const match = line.match(/(\d+\.?\d*)%/)
+        if (match) onProgress(parseFloat(match[1]) / 100)
+      })
+
+      command.stderr.on('data', (line: string) => {
+        stderrBuf += line + '\n'
+      })
+
+      command.on('close', ({ code }) => {
+        if (canceled) {
+          // child.kill() é assíncrono e o yt-dlp pode ter completado a
+          // conversão antes do sinal chegar — nesse caso o .mp3 final foi
+          // gerado mesmo após o usuário clicar cancelar. Remove qualquer
+          // arquivo final que tenha ficado pra trás.
+          void cleanupOutput(outputPath)
+          reject(new Error(DOWNLOAD_CANCELED))
+          return
+        }
+        if (code !== 0) {
+          console.error(`[startDownload] yt-dlp saiu com código ${code}:`, stderrBuf)
+          // Falha real: também remove arquivo parcial que possa ter sido
+          // criado, pra não confundir isDownloaded() em retentativas.
+          void cleanupOutput(outputPath)
+          reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+        } else {
+          onProgress(1)
+          resolve(outputPath)
+        }
+      })
+
+      command.on('error', (err) => {
+        if (canceled) {
+          void cleanupOutput(outputPath)
+          reject(new Error(DOWNLOAD_CANCELED))
+          return
+        }
+        console.error('[startDownload] erro ao iniciar processo:', err)
+        reject(new Error(`Não foi possível iniciar o download: ${err}`))
+      })
+
+      command.spawn()
+        .then((c) => {
+          child = c
+          // Se cancelaram entre o spawn() e o resolve, mata imediatamente.
+          if (canceled) {
+            c.kill().catch(() => {})
+          }
+        })
+        .catch((err: unknown) => {
+          console.error('[startDownload] spawn() rejeitado:', err)
+          reject(new Error(`Não foi possível iniciar o download: ${String(err)}`))
+        })
+    })
+  })()
+
+  return {
+    promise,
+    cancel: () => {
+      canceled = true
+      if (child) child.kill().catch(() => {})
+    },
+  }
+}
+
+// Compatibilidade: AddSongModal e RemoteControl usam o fluxo direto (sem fila).
 export async function downloadSong(
   songId: string,
   youtubeUrl: string,
-  onProgress: (progress: number) => void
+  onProgress: (progress: number) => void,
 ): Promise<string> {
-  const dataDir = await appLocalDataDir()
-  const audioDir = await join(dataDir, 'audio')
-  await mkdir(audioDir, { recursive: true })
-
-  const outputPath = await getSongFilename(songId)
-
-  // Tauri não herda o PATH do shell — passa os caminhos comuns do Homebrew via PATH
-  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
-
-  const command = Command.create('yt-dlp', [
-    '--no-playlist',
-    '-x',
-    '--audio-format', 'mp3',
-    '--audio-quality', '0',
-    '--ffmpeg-location', '/opt/homebrew/bin',
-    '--newline',
-    '-o', outputPath,
-    youtubeUrl,
-  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
-
-  // Usa spawn() para receber eventos de stdout em tempo real.
-  // execute() não emite eventos intermediários no Tauri v2, causando rejeição não-Error.
-  return new Promise((resolve, reject) => {
-    let stderrBuf = ''
-
-    command.stdout.on('data', (line: string) => {
-      const match = line.match(/(\d+\.?\d*)%/)
-      if (match) onProgress(parseFloat(match[1]) / 100)
-    })
-
-    command.stderr.on('data', (line: string) => {
-      stderrBuf += line + '\n'
-    })
-
-    command.on('close', ({ code }) => {
-      if (code !== 0) {
-        console.error(`[downloadSong] yt-dlp saiu com código ${code}:`, stderrBuf)
-        reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
-      } else {
-        onProgress(1)
-        resolve(outputPath)
-      }
-    })
-
-    command.on('error', (err) => {
-      console.error('[downloadSong] erro ao iniciar processo:', err)
-      reject(new Error(`Não foi possível iniciar o download: ${err}`))
-    })
-
-    command.spawn().catch((err: unknown) => {
-      console.error('[downloadSong] spawn() rejeitado:', err)
-      reject(new Error(`Não foi possível iniciar o download: ${String(err)}`))
-    })
-  })
+  return startDownload(songId, youtubeUrl, onProgress).promise
 }
 
 export async function fetchYoutubeMetadata(rawUrl: string): Promise<{

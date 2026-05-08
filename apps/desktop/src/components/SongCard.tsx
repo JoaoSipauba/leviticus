@@ -7,10 +7,11 @@ import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
+import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
-import { DownloadButton } from './DownloadButton.js'
+import { DownloadBadge } from './DownloadBadge.js'
 
 function fmtDuration(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -267,8 +268,17 @@ type Props = {
 
 export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Props) {
   const [downloaded, setDownloaded] = useState(false)
+  // Animação de "concluído": logo após o download terminar, exibe um check
+  // verde por ~800ms antes de revelar o overlay de play. Sincronizado com a
+  // animação CSS .completed-badge.
+  const [justCompleted, setJustCompleted] = useState(false)
   const { play, currentSong, isPlaying } = usePlayerStore()
   const bumpLibrary = useUIStore((s) => s.bumpLibrary)
+  const downloadStatus = useDownloadsStore(selectStatus(song.id))
+  const enqueueDownload = useDownloadsStore((s) => s.enqueue)
+  const cancelDownload = useDownloadsStore((s) => s.cancel)
+  const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
+  const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
   const isCurrentlyPlaying = currentSong?.id === song.id && isPlaying
   const songType = song.song_type ?? 'normal'
   const typeColor = TYPE_CONFIG[songType].hex
@@ -276,6 +286,37 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
   useEffect(() => {
     isDownloaded(song.id).then(setDownloaded)
   }, [song.id])
+
+  // Quando o download desta música terminar (vindo da fila):
+  //   1. Marca downloaded=true (já dispara o ThumbPlayOverlay no DOM)
+  //   2. Liga justCompleted por 800ms — durante esse tempo, renderizamos o
+  //      DownloadBadge no estado "completed" (check verde animado) por cima.
+  //   3. Após 800ms, justCompleted=false e o ThumbPlayOverlay assume.
+  useEffect(() => {
+    let timer: number | null = null
+    const unsubscribe = subscribeCompleted((completedId) => {
+      if (completedId !== song.id) return
+      setDownloaded(true)
+      setJustCompleted(true)
+      if (timer !== null) window.clearTimeout(timer)
+      timer = window.setTimeout(() => setJustCompleted(false), 800)
+    })
+    return () => {
+      unsubscribe()
+      if (timer !== null) window.clearTimeout(timer)
+    }
+  }, [song.id, subscribeCompleted])
+
+  // Cancel: cobre a race onde o download terminou microsegundos antes do
+  // cancel ser clicado. Nesse caso o onCompleted já disparou (downloaded=true,
+  // justCompleted=true), e precisamos desfazer ambos pra UI refletir o cancel.
+  useEffect(() => {
+    return subscribeCanceled((canceledId) => {
+      if (canceledId !== song.id) return
+      setDownloaded(false)
+      setJustCompleted(false)
+    })
+  }, [song.id, subscribeCanceled])
 
   async function handlePlay() {
     if (!downloaded) return
@@ -299,7 +340,7 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
     // Usa RPC em vez de DELETE direto. Motivo: a policy de DELETE de songs
     // depende de checks em organizations, e o PostgREST tem comportamento
     // inconsistente nesse caminho (retorna 0 rows mesmo quando o user é owner).
-    // A RPC sempre retorna HTTP 200 com envelope {ok, error?} pra contornar
+    // A RPC v2 sempre retorna HTTP 200 com envelope {ok, error?} pra contornar
     // o tauri-plugin-http engolir o body de respostas 4xx.
     const { data, error: deleteError } = await supabase.rpc('delete_song', {
       p_song_id: song.id,
@@ -316,7 +357,7 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
         throw new Error('Você não tem permissão para excluir músicas desta biblioteca.')
       }
       if (code === 'not_found') {
-        // Música já não existia no Supabase — segue limpando o cache local.
+        // Música já não existe no Supabase — segue limpando o cache local.
         console.warn('[SongCard] música já não existia no Supabase')
       } else {
         console.error('[SongCard] delete unexpected envelope:', result)
@@ -326,14 +367,13 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
 
     // syncOrg é UPSERT-only, nunca deleta do SQLite local. Precisa apagar
     // manualmente aqui pra UI refletir a exclusão. Junction tables (song_groups,
-    // playlist_songs) caem por ON DELETE CASCADE no SQLite.
+    // playlist_songs) caem por ON DELETE CASCADE no SQLite (mesma config do schema).
     const db = await getDb()
     await db.execute('DELETE FROM songs WHERE id = ?', [song.id])
 
-    // Limpa também o arquivo .mp3 local — música não existe mais, não tem
-    // motivo pra ocupar espaço em disco.
-    const wasDownloaded = await isDownloaded(song.id).catch(() => false)
-    if (wasDownloaded) {
+    // Limpa também o arquivo .mp3 local — música não existe mais, não tem motivo
+    // pra ocupar espaço em disco.
+    if (downloaded) {
       await deleteSongFile(song.id).catch((e) => {
         console.warn('[SongCard] não foi possível apagar arquivo local:', e)
       })
@@ -384,19 +424,32 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
           </div>
         )}
 
-        {downloaded ? (
+        {/* Prioridade:
+            1. justCompleted (800ms após download terminar)  → check verde animado
+            2. status da fila (queued/downloading)            → badge cinza/azul
+            3. arquivo baixado                                 → ThumbPlayOverlay
+            4. não baixado                                     → badge azul cloud-download
+
+            justCompleted vem PRIMEIRO porque, no momento exato em que o
+            download conclui, o store remove a entry e setDownloaded vira true.
+            Sem isso, a UI saltaria do ring direto pro play overlay. */}
+        {justCompleted ? (
+          <DownloadBadge state="completed" />
+        ) : downloadStatus.state === 'downloading' ? (
+          <DownloadBadge
+            state="downloading"
+            progress={downloadStatus.progress}
+            onCancel={() => cancelDownload(song.id)}
+          />
+        ) : downloadStatus.state === 'queued' ? (
+          <DownloadBadge state="queued" onCancel={() => cancelDownload(song.id)} />
+        ) : downloaded ? (
           <ThumbPlayOverlay isCurrentlyPlaying={isCurrentlyPlaying} onClick={handlePlay} />
         ) : (
-          <div
-            className="absolute inset-0 flex items-center justify-center rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.55))' }}
-          >
-            <DownloadButton
-              songId={song.id}
-              youtubeUrl={song.youtube_url}
-              onDownloaded={() => setDownloaded(true)}
-            />
-          </div>
+          <DownloadBadge
+            state="not_downloaded"
+            onDownload={() => enqueueDownload(song.id, song.youtube_url)}
+          />
         )}
       </div>
 

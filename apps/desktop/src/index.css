@@ -78,6 +78,87 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   position: relative;
   padding-right: 10px;          /* reserva espaço para o thumb não sobrepor o conteúdo */
 }
+
+/* Estado base dos badges (canto inferior-direito do thumb).
+   A transition fica no `.badge-layer-visible/hidden > *` (mais abaixo) pra
+   cobrir crossfade + zoom no hover sem conflitar entre regras. */
+.download-badge,
+.cancel-queue-badge,
+.downloading-badge {
+  transform: translate(-50%, -50%) translate(21px, 21px);
+  width: 22px;
+  height: 22px;
+}
+.group:hover .download-badge {
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 8px 24px -4px rgba(37,99,235,0.6);
+}
+.group:hover .cancel-queue-badge {
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,0.5);
+}
+.group:hover .downloading-badge {
+  transform: translate(-50%, -50%);
+  width: 28px;
+  height: 28px;
+}
+
+/* Swap clock↔X (queued) e %↔X (downloading) controlado pelo .group:hover. */
+.cancel-icon-default { display: inline-flex; transition: opacity 0.15s ease; }
+.cancel-icon-hover {
+  display: inline-flex;
+  position: absolute;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.group:hover .cancel-icon-default { opacity: 0; }
+.group:hover .cancel-icon-hover { opacity: 1; }
+.downloading-icon-default { transition: opacity 0.15s ease; }
+.downloading-icon-hover { opacity: 0; transition: opacity 0.15s ease; }
+.group:hover .downloading-icon-default { opacity: 0; }
+.group:hover .downloading-icon-hover { opacity: 1; }
+
+/* Crossfade entre estados do DownloadBadge: clock→ring→check.
+   Layers ficam todos montados; opacity decide quem está visível.
+   `display:contents` evita que o wrapper afete layout — o filho absolute do
+   próprio badge é quem se posiciona.
+   `pointer-events:none` no oculto evita que o user clique acidentalmente
+   em elemento invisível durante a transição. */
+.badge-layer-visible,
+.badge-layer-hidden {
+  display: contents;
+}
+.badge-layer-hidden > * {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+.badge-layer-visible > *,
+.badge-layer-hidden > * {
+  transition: opacity 0.2s ease, transform 0.2s ease, width 0.2s ease, height 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Completed: badge verde com check. Pop-in (200ms) + hold (350ms) + fade-out (250ms).
+   Total ~800ms — combina com o timer no SongCard. Não usa hover (não-interativo). */
+@keyframes complete-pop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) translate(21px, 21px) scale(0.4); }
+  20%  { opacity: 1; transform: translate(-50%, -50%) translate(21px, 21px) scale(1.18); }
+  35%  { opacity: 1; transform: translate(-50%, -50%) translate(21px, 21px) scale(1); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) translate(21px, 21px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translate(21px, 21px) scale(0.85); }
+}
+.completed-badge {
+  width: 22px;
+  height: 22px;
+  /* Animation só dispara quando o layer fica visível (não-hidden). */
+  transform: translate(-50%, -50%) translate(21px, 21px);
+}
+.badge-layer-visible > .completed-badge {
+  animation: complete-pop 800ms cubic-bezier(0.34, 1.5, 0.64, 1) forwards;
+}
 .styled-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
 .custom-scroll-thumb {
