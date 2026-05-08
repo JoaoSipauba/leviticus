@@ -240,21 +240,27 @@ export function PlaylistDetail() {
     if (!state || !target || !id) return
 
     if (state.kind === 'song' && target.kind === 'song') {
-      // Move música.
-      const targetSection = sections.find((s) => s.sectionId === target.sectionId)
-      if (!targetSection) return
-      // p_to_position = position do "song antes do qual vamos inserir", ou
-      // last+1 se beforeSongId é null. O RPC renumera depois.
-      let toPosition: number
+      // p_to_position é o RANK 1-indexed da música movida no array final
+      // (incluindo ela mesma). Calculamos simulando o reorder localmente.
+      const flatSongs = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+      const movedIdx = flatSongs.findIndex((s) => s.section_id === state.sectionId && s.song_id === state.songId)
+      if (movedIdx < 0) return
+      const reordered = [...flatSongs]
+      const [moved] = reordered.splice(movedIdx, 1)
+      let insertIdx: number
       if (target.beforeSongId) {
-        const beforePs = targetSection.songs.find((s) => s.song_id === target.beforeSongId)
-        if (!beforePs) return
-        toPosition = beforePs.position
+        // Insere antes desse song no array sem o movido.
+        insertIdx = reordered.findIndex((s) => s.section_id === target.sectionId && s.song_id === target.beforeSongId)
+        if (insertIdx < 0) return
       } else {
-        toPosition = targetSection.songs.length > 0
-          ? targetSection.songs[targetSection.songs.length - 1].position + 1
-          : 1
+        // Sem beforeSongId → fim da seção alvo (insere após a última música dela).
+        const lastInTarget = reordered.map((s, i) => ({ s, i })).filter(({ s }) => s.section_id === target.sectionId).pop()
+        insertIdx = lastInTarget ? lastInTarget.i + 1 : reordered.length
       }
+      reordered.splice(insertIdx, 0, moved)
+      const toPosition = reordered.findIndex((s) => s.section_id === state.sectionId && s.song_id === state.songId) + 1
+      // Detecta no-op: se a música já está exatamente nesse rank, não faz round-trip.
+      if (movedIdx + 1 === toPosition && state.sectionId === target.sectionId) return
       const { error: e } = await supabase.rpc('move_playlist_song', {
         p_playlist_id: id,
         p_song_id: state.songId,
@@ -541,13 +547,7 @@ function PlaylistSection({
         onRename={onRename}
         onDelete={onDelete}
       />
-      <div className="px-4 pb-2 space-y-1"
-        onDragOver={(e) => e.preventDefault()}
-        onMouseEnter={() => {
-          // hover na área de músicas mas não em uma row específica → drop no fim
-          if (dragState?.kind === 'song') onSongDragOver(null)
-        }}
-      >
+      <div className="px-4 pb-2 space-y-1">
         {section.songs.map((ps, idx) => {
           const isCurrent = currentSongId === ps.song_id
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
@@ -556,13 +556,16 @@ function PlaylistSection({
             && dropTarget.beforeSongId === ps.song_id
           return (
             <div key={`${ps.section_id}-${ps.song_id}`}>
-              <div className="h-1" style={{
-                background: showDropBefore ? '#3b82f6' : 'transparent',
-                borderRadius: 2,
-                margin: '-2px 0',
-                opacity: showDropBefore ? 1 : 0,
-                transition: 'opacity 0.1s',
-              }} />
+              <div
+                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
+                style={{
+                  height: showDropBefore ? 6 : 4,
+                  background: showDropBefore ? '#3b82f6' : 'transparent',
+                  borderRadius: 2,
+                  margin: '-2px 0',
+                  transition: 'all 0.08s',
+                }}
+              />
               <div
                 draggable={!isCurrent}
                 onDragStart={(e) => {
@@ -602,6 +605,18 @@ function PlaylistSection({
             </div>
           )
         })}
+        {/* Drop zone explícita pra "fim da seção" — só aparece quando dragging */}
+        {section.songs.length > 0 && dragState?.kind === 'song' && (
+          <div
+            onDragOver={(e) => { e.preventDefault(); onSongDragOver(null) }}
+            style={{
+              height: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? 6 : 8,
+              background: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? '#3b82f6' : 'transparent',
+              borderRadius: 2,
+              transition: 'all 0.08s',
+            }}
+          />
+        )}
       </div>
       <button
         onClick={onAddSong}
