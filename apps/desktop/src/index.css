@@ -8,11 +8,12 @@
 @tailwind utilities;
 
 
-/* Sensação app-like: bloqueia seleção de texto fora de inputs */
+/* Sensação app-like: bloqueia seleção de texto fora de inputs + sem rubber-band */
 html, body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  overscroll-behavior: none;
 }
 input, textarea, [contenteditable="true"], [contenteditable=""] {
   user-select: text;
@@ -73,6 +74,7 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
    O thumb é um div normal, então opacity transitions funcionam perfeitamente. */
 .styled-scroll {
   scrollbar-width: none;        /* Firefox */
+  overscroll-behavior: contain; /* desabilita rubber-band/overscroll do WebKit no macOS */
   position: relative;
   padding-right: 10px;          /* reserva espaço para o thumb não sobrepor o conteúdo */
 }

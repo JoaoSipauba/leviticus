@@ -26,7 +26,15 @@ export function Layout({ children }: { children: ReactNode }) {
       thumb.setAttribute('aria-valuenow', '0')
       thumb.setAttribute('aria-label', 'Barra de rolagem vertical')
       thumb.setAttribute('tabindex', '0')
-      container.appendChild(thumb)
+      // Anexa o thumb ao body com position:fixed — fora do container que rola.
+      // Antes ele ficava como child absolute dentro do container, e o transform
+      // translateY com base em scrollTop fazia o WebKit incluir a posição
+      // transformada no scrollHeight do container, criando um feedback loop
+      // (scrollar aumentava a área de scroll). Posicionando via fixed + rect
+      // do container, o thumb não afeta o layout interno.
+      thumb.style.position = 'fixed'
+      thumb.style.transform = ''
+      document.body.appendChild(thumb)
 
       let hideTimer: number | null = null
       let isDragging = false
@@ -45,12 +53,12 @@ export function Layout({ children }: { children: ReactNode }) {
         const relativeTop = maxScroll > 0
           ? (container.scrollTop / maxScroll) * (container.clientHeight - thumbHeight)
           : 0
+        // Posiciona o thumb via fixed usando o bounding rect do container.
+        // Como ele está fora do container, não afeta scrollHeight.
+        const rect = container.getBoundingClientRect()
         thumb.style.height = `${thumbHeight}px`
-        // O thumb está position:absolute DENTRO do container que scrolla, então
-        // ele "viaja" junto com o conteúdo. Para que apareça grudado na viewport,
-        // somamos scrollTop ao translateY — assim o thumb se reposiciona para a
-        // mesma posição visual da viewport, mostrando a porção correta da lista.
-        thumb.style.transform = `translateY(${container.scrollTop + relativeTop}px)`
+        thumb.style.top = `${rect.top + relativeTop}px`
+        thumb.style.left = `${rect.right - 6}px` // 4px width + 2px right margin
         // ARIA: posição atual em %
         const percent = maxScroll > 0 ? Math.round((container.scrollTop / maxScroll) * 100) : 0
         thumb.setAttribute('aria-valuenow', String(percent))
@@ -131,6 +139,10 @@ export function Layout({ children }: { children: ReactNode }) {
       thumb.addEventListener('focus', showThumb)
 
       container.addEventListener('scroll', showThumb, { passive: true })
+      // Atualiza posição do thumb se a janela ou ancestrais redimensionarem/scrollarem
+      // (necessário porque agora ele é position:fixed baseado em rect do container)
+      window.addEventListener('resize', updateThumb)
+      window.addEventListener('scroll', updateThumb, { capture: true, passive: true })
 
       const ro = new ResizeObserver(updateThumb)
       ro.observe(container)
@@ -143,6 +155,8 @@ export function Layout({ children }: { children: ReactNode }) {
       const cleanupObserver = new MutationObserver(() => {
         if (!document.body.contains(container)) {
           container.removeEventListener('scroll', showThumb)
+          window.removeEventListener('resize', updateThumb)
+          window.removeEventListener('scroll', updateThumb, { capture: true } as EventListenerOptions)
           thumb.removeEventListener('mousedown', onThumbMouseDown)
           thumb.removeEventListener('keydown', onKeyDown)
           thumb.removeEventListener('focus', showThumb)
@@ -152,6 +166,8 @@ export function Layout({ children }: { children: ReactNode }) {
           mo.disconnect()
           cleanupObserver.disconnect()
           if (hideTimer !== null) window.clearTimeout(hideTimer)
+          // Remove o thumb (que agora vive no body)
+          if (thumb.parentNode) thumb.parentNode.removeChild(thumb)
         }
       })
       cleanupObserver.observe(document.body, { childList: true, subtree: true })
