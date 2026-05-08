@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react'
-import { CalendarDays } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import {
+  CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
+  Pencil, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
+} from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { isDownloaded } from '../lib/ytdlp.js'
+import {
+  categorizePlaylist, formatPlaylistDate, formatPlaylistStatus,
+  formatPlaylistTimeRange, formatShortDate, formatTime, formatWeekday,
+} from '../lib/playlist.js'
+import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -22,29 +31,19 @@ function getServiceColor(id: string) {
   return SERVICE_COLORS[sum % SERVICE_COLORS.length]
 }
 
-function formatDate(dateStr: string | null): string | null {
-  if (!dateStr) return null
-  // Aceita tanto YYYY-MM-DD (legado) quanto ISO 8601 com hora.
-  const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00')
-  return d.toLocaleDateString('pt-BR', {
-    day: 'numeric', month: 'short', year: 'numeric',
-  })
-}
-
 export function Playlists() {
+  const navigate = useNavigate()
   const [services, setServices] = useState<ServiceWithStatus[]>([])
   const [showModal, setShowModal] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newDate, setNewDate] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState<Playlist | null>(null)
+  const [showPast, setShowPast] = useState(false)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
 
   async function loadServices() {
     const db = await getDb()
     const rows = await db.select<Playlist[]>(
       `SELECT * FROM playlists WHERE org_id = ?
-       ORDER BY scheduled_at DESC, created_at DESC`,
+       ORDER BY scheduled_at ASC`,
       [orgId]
     )
     const withStatus = await Promise.all(
@@ -62,278 +61,299 @@ export function Playlists() {
 
   useEffect(() => { loadServices().catch(console.error) }, [orgId])
 
-  async function handleCreate() {
-    if (!newName.trim()) return
-    setSaving(true)
-    setError(null)
-
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      setError('Usuário não autenticado.')
-      setSaving(false)
-      return
+  // Categoriza pra render. Ordena: hoje, próximos crescente, passados decrescente.
+  const { today, upcoming, past } = useMemo(() => {
+    const today: ServiceWithStatus[] = []
+    const upcoming: ServiceWithStatus[] = []
+    const past: ServiceWithStatus[] = []
+    for (const s of services) {
+      const cat = categorizePlaylist(s.scheduled_at, s.scheduled_end)
+      if (cat === 'today') today.push(s)
+      else if (cat === 'upcoming') upcoming.push(s)
+      else past.push(s)
     }
+    past.reverse() // mais recentes primeiro
+    return { today, upcoming, past }
+  }, [services])
 
-    // TODO(commit 3): Trocar pelo PlaylistFormModal com hora de início/fim;
-    // por enquanto preenchemos default 09h–11h pra satisfazer o NOT NULL do schema.
-    const baseDate = newDate || new Date().toISOString().slice(0, 10)
-    const startISO = new Date(baseDate + 'T09:00:00').toISOString()
-    const endISO = new Date(baseDate + 'T11:00:00').toISOString()
-    const { data, error: insertError } = await supabase
-      .from('playlists')
-      .insert({
-        org_id: orgId,
-        name: newName.trim(),
-        scheduled_at: startISO,
-        scheduled_end: endISO,
-        created_by: user.id,
-      })
-      .select()
-      .single()
-
-    if (insertError || !data) {
-      console.error('[handleCreate] insertError:', insertError)
-      setError(insertError?.message ?? 'Erro ao criar culto.')
-      setSaving(false)
-      return
-    }
-
-    try {
-      await syncOrg(orgId)
-      await loadServices()
-      setNewName('')
-      setNewDate('')
-      setShowModal(false)
-    } catch {
-      setError('Erro ao sincronizar após criação.')
-    } finally {
-      setSaving(false)
-    }
+  function handleEdit(playlist: Playlist) {
+    setEditing(playlist)
+    setShowModal(true)
   }
-
-  const inputStyle = {
-    width: '100%', background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 10, padding: '10px 12px',
-    color: '#f3f4f6', outline: 'none',
-    fontSize: 14, minHeight: 44,
-    boxSizing: 'border-box' as const,
+  async function handleDelete(playlist: Playlist) {
+    const { data, error } = await supabase.rpc('delete_playlist', { p_id: playlist.id })
+    if (error) {
+      console.error('[Playlists.handleDelete]', error)
+      throw new Error('Não foi possível excluir.')
+    }
+    const r = data as { ok: boolean; error?: string } | null
+    if (!r?.ok) {
+      if (r?.error === 'forbidden') throw new Error('Você não tem permissão para excluir cultos.')
+      throw new Error('Não foi possível excluir.')
+    }
+    const db = await getDb()
+    await db.execute('DELETE FROM playlists WHERE id = ?', [playlist.id])
+    if (orgId) await syncOrg(orgId)
+    await loadServices()
   }
 
   return (
-    <div className="p-6 flex flex-col h-full">
-      {/* Header */}
+    <div className="px-8 py-6 max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="font-semibold" style={{ color: '#f3f4f6', fontSize: 18 }}>
-            Cultos
-          </h2>
-          <p className="text-sm mt-0.5" style={{ color: '#6b7280' }}>
-            Setlists por data de culto
-          </p>
+          <p className="text-caps text-brand">CULTOS</p>
+          <h1 className="text-h1 text-heading">Sua agenda</h1>
         </div>
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 font-semibold text-white"
-          style={{
-            background: '#2563eb', border: 'none',
-            borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, cursor: 'pointer',
-          }}
+          onClick={() => { setEditing(null); setShowModal(true) }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer"
+          style={{ background: '#2563eb', color: '#fff' }}
         >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Novo culto
+          <Plus size={16} /> Novo culto
         </button>
       </div>
 
-      {/* List */}
-      {services.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 gap-4">
-          <CalendarDays size={40} color="#4b5563" strokeWidth={1.5} />
-          <div className="text-center">
-            <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
-              Nenhum culto ainda
-            </p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="text-sm mt-1"
-              style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Criar primeiro culto
-            </button>
+      {today.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-caps text-body mb-3">HOJE</h2>
+          <div className="space-y-3">
+            {today.map((s) => (
+              <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+            ))}
           </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {services.map((s) => {
-            const color = getServiceColor(s.id)
-            const complete = s.total > 0 && s.downloaded === s.total
-            const partial = s.downloaded > 0 && s.downloaded < s.total
-            const dateStr = formatDate(s.scheduled_at)
-
-            return (
-              <div
-                key={s.id}
-                className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                style={{
-                  background: 'linear-gradient(135deg,#13131f,#161625)',
-                  border: '1px solid rgba(255,255,255,0.05)',
-                  borderRadius: 12, padding: '14px 16px',
-                }}
-              >
-                {/* Icon */}
-                <div
-                  className="flex items-center justify-center flex-shrink-0"
-                  style={{
-                    width: 42, height: 42, borderRadius: 10,
-                    background: complete
-                      ? 'linear-gradient(135deg,#14532d,#16a34a)'
-                      : s.total > 0
-                      ? 'linear-gradient(135deg,#78350f,#d97706)'
-                      : color.bg,
-                  }}
-                >
-                  {complete ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#86efac" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20,6 9,17 4,12"/>
-                    </svg>
-                  ) : s.total > 0 ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fde68a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color.icon} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><line x1="3" y1="9" x2="21" y2="9"/><path d="M8 3v6M16 3v6"/>
-                    </svg>
-                  )}
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate" style={{ color: '#f3f4f6', fontSize: 14 }}>
-                    {s.name}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    {dateStr && (
-                      <span style={{ color: '#6b7280', fontSize: 12 }}>{dateStr}</span>
-                    )}
-                    {s.total > 0 && (
-                      <>
-                        {dateStr && <span style={{ width: 3, height: 3, background: '#4b5563', borderRadius: '50%', display: 'inline-block' }} />}
-                        <span
-                          style={{
-                            fontSize: 12, fontWeight: 500,
-                            color: complete ? '#22c55e' : s.total > 0 && !complete ? '#f59e0b' : '#6b7280',
-                          }}
-                        >
-                          {s.downloaded}/{s.total} baixadas
-                        </span>
-                      </>
-                    )}
-                    {s.total === 0 && (
-                      <span style={{ color: '#4b5563', fontSize: 12 }}>Sem músicas</span>
-                    )}
-                  </div>
-                  {partial && (
-                    <div className="mt-1.5 rounded-full overflow-hidden" style={{ height: 3, background: 'rgba(255,255,255,0.09)' }}>
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${(s.downloaded / s.total) * 100}%`,
-                          background: '#f59e0b',
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9,18 15,12 9,6"/>
-                </svg>
-              </div>
-            )
-          })}
-        </div>
+        </section>
       )}
 
-      {/* Modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{ background: 'rgba(0,0,0,0.6)' }}
-          onClick={(e) => { if (e.target === e.currentTarget) { setShowModal(false); setNewName(''); setNewDate(''); setError(null) } }}
-        >
-          <div
-            style={{
-              background: '#13131f', border: '1px solid rgba(255,255,255,0.12)',
-              borderRadius: 16, padding: 24, width: 300,
-              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
-            }}
-          >
-            <h3 className="font-bold mb-5" style={{ color: '#f3f4f6', fontSize: 16 }}>
-              Novo culto
-            </h3>
-
-            <div className="mb-4">
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#9ca3af' }}>
-                Nome
-              </label>
-              <input
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                placeholder="Ex: Culto Domingo Manhã"
-                style={inputStyle}
-                autoFocus
-              />
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-xs font-medium mb-1.5" style={{ color: '#9ca3af' }}>
-                Data{' '}
-                <span style={{ color: '#4b5563', fontWeight: 400 }}>(opcional)</span>
-              </label>
-              <input
-                type="date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
-                style={{ ...inputStyle, colorScheme: 'dark' }}
-              />
-            </div>
-
-            {error && <p className="text-sm mb-3" style={{ color: '#ef4444' }}>{error}</p>}
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setShowModal(false); setNewName(''); setNewDate(''); setError(null) }}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: 'pointer',
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreate}
-                disabled={saving || !newName.trim()}
-                style={{
-                  flex: 1,
-                  background: (saving || !newName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: (saving || !newName.trim()) ? 'default' : 'pointer',
-                }}
-              >
-                {saving ? 'Criando…' : 'Criar'}
-              </button>
-            </div>
+      {upcoming.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-caps text-body mb-3">EM BREVE</h2>
+          <div className="space-y-2">
+            {upcoming.map((s) => (
+              <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+            ))}
           </div>
+        </section>
+      )}
+
+      {today.length === 0 && upcoming.length === 0 && (
+        <EmptyState onCreate={() => { setEditing(null); setShowModal(true) }} />
+      )}
+
+      {past.length > 0 && (
+        <section className="mb-8">
+          <button
+            onClick={() => setShowPast((v) => !v)}
+            className="flex items-center gap-1.5 text-caps text-body hover:text-heading transition-colors mb-3 cursor-pointer"
+          >
+            {showPast ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            PASSADOS · {past.length}
+          </button>
+          {showPast && (
+            <div className="space-y-2" style={{ opacity: 0.55 }}>
+              {past.map((s) => (
+                <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
+                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      <PlaylistFormModal
+        open={showModal}
+        editing={editing}
+        onClose={() => { setShowModal(false); setEditing(null) }}
+        onSaved={() => { void loadServices() }}
+      />
+    </div>
+  )
+}
+
+function EmptyState({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <CalendarDays size={48} className="text-muted mb-4" strokeWidth={1.5} />
+      <p className="text-body mb-1">Nenhum culto agendado.</p>
+      <button onClick={onCreate}
+        className="text-brand font-semibold cursor-pointer"
+        style={{ background: 'none', border: 'none' }}
+      >
+        Criar primeiro culto
+      </button>
+    </div>
+  )
+}
+
+function TodayCard({ service, onClick, onEdit, onDelete }: {
+  service: ServiceWithStatus
+  onClick: () => void
+  onEdit: () => void
+  onDelete: () => Promise<void>
+}) {
+  const color = getServiceColor(service.id)
+  const status = formatPlaylistStatus(service.scheduled_at, service.scheduled_end)
+  return (
+    <div
+      onClick={onClick}
+      className="group relative flex items-center gap-5 px-6 py-5 rounded-2xl cursor-pointer transition-all"
+      style={{
+        background: color.bg,
+        boxShadow: '0 12px 32px -8px rgba(0,0,0,0.5)',
+        border: '1px solid rgba(255,255,255,0.1)',
+      }}
+    >
+      <div className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
+        <CalendarDays size={26} color={color.icon} strokeWidth={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide" style={{ background: 'rgba(255,255,255,0.2)', color: '#fff' }}>
+            HOJE
+          </span>
+          <span className="text-xs text-white/80">{status}</span>
+        </div>
+        <h3 className="text-h2 text-white truncate">{service.name}</h3>
+        <p className="text-sm text-white/80 mt-0.5">
+          {formatWeekday(service.scheduled_at)} · {formatPlaylistTimeRange(service.scheduled_at, service.scheduled_end)}
+        </p>
+        <div className="flex items-center gap-3 mt-2 text-xs text-white/80">
+          <span className="flex items-center gap-1"><Music size={11} />{service.total} {service.total === 1 ? 'música' : 'músicas'}</span>
+          {service.total > 0 && (
+            <span>{service.downloaded}/{service.total} baixadas</span>
+          )}
+        </div>
+      </div>
+      <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark />
+    </div>
+  )
+}
+
+function CompactCard({ service, onClick, onEdit, onDelete }: {
+  service: ServiceWithStatus
+  onClick: () => void
+  onEdit: () => void
+  onDelete: () => Promise<void>
+}) {
+  const color = getServiceColor(service.id)
+  return (
+    <div
+      onClick={onClick}
+      className="group relative flex items-center gap-4 px-4 py-3.5 rounded-xl cursor-pointer transition-colors"
+      style={{
+        background: 'rgba(19,19,31,0.55)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        border: '1px solid rgba(255,255,255,0.06)',
+      }}
+    >
+      <div className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: color.bg }}>
+        <CalendarDays size={20} color={color.icon} strokeWidth={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-heading font-semibold truncate">{service.name}</p>
+        <div className="flex items-center gap-2 mt-1 text-xs text-body">
+          <span>{formatPlaylistDate(service.scheduled_at)}</span>
+          <span>·</span>
+          <span className="flex items-center gap-1"><Clock size={10} />{formatPlaylistTimeRange(service.scheduled_at, service.scheduled_end)}</span>
+          {service.total > 0 && (
+            <>
+              <span>·</span>
+              <span>{service.downloaded}/{service.total} baixadas</span>
+            </>
+          )}
+        </div>
+      </div>
+      <ActionsMenu onEdit={onEdit} onDelete={onDelete} />
+    </div>
+  )
+}
+
+function ActionsMenu({ onEdit, onDelete, dark }: {
+  onEdit: () => void
+  onDelete: () => Promise<void>
+  dark?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => { if (!open) { setConfirming(false); setError(null) } }, [open])
+
+  async function doDelete(e: React.MouseEvent) {
+    e.stopPropagation()
+    setDeleting(true)
+    setError(null)
+    try {
+      await onDelete()
+      setOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+        className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-opacity ${
+          open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+        }`}
+        style={{ background: dark ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${dark ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.1)'}` }}
+        aria-label="Mais ações"
+      >
+        <MoreHorizontal size={15} className={dark ? 'text-white' : 'text-body'} strokeWidth={2} />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-11 min-w-[200px] rounded-xl py-1.5 z-30"
+          style={{
+            background: 'rgba(19,19,31,0.95)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)',
+          }}
+        >
+          {confirming ? (
+            <div className="px-3 py-2.5 flex flex-col gap-2.5">
+              <div className="flex items-start gap-2 text-xs text-red-300">
+                <AlertTriangle size={14} strokeWidth={2} className="flex-shrink-0 mt-0.5" />
+                <span>Excluir este culto? Essa ação não pode ser desfeita.</span>
+              </div>
+              {error && <p className="text-xs text-red-400">{error}</p>}
+              <div className="flex gap-2">
+                <button onClick={(e) => { e.stopPropagation(); setConfirming(false) }} disabled={deleting}
+                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-body bg-white/[0.05] border border-hairline cursor-pointer">
+                  Cancelar
+                </button>
+                <button onClick={doDelete} disabled={deleting}
+                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-white flex items-center justify-center gap-1.5 cursor-pointer"
+                  style={{ background: deleting ? 'rgba(185,28,28,0.5)' : '#dc2626' }}>
+                  {deleting ? <Loader2 size={12} className="animate-spin-smooth" /> : <Trash2 size={12} />}
+                  {deleting ? 'Excluindo…' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit() }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] text-left cursor-pointer">
+                <Pencil size={14} className="text-body" strokeWidth={2} /> Editar
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/[0.08] text-left cursor-pointer">
+                <Trash2 size={14} strokeWidth={2} /> Excluir
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>
   )
 }
+
+// Mantém o import de formatShortDate/formatTime usados via lazy ou referência futura.
+void formatShortDate; void formatTime
