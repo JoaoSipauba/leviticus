@@ -17,7 +17,7 @@ import { AddSongToPlaylistModal } from '../components/AddSongToPlaylistModal.js'
 import { AddSectionModal } from '../components/AddSectionModal.js'
 import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
 import { usePlayerStore } from '../store/player.js'
-import { playSong } from '../lib/audio.js'
+import { playSong, pauseAudio, resumeAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 
@@ -357,6 +357,29 @@ export function PlaylistDetail() {
     void playSongs(section.songs.map((ps) => ps.song))
   }
 
+  // Click em uma música específica do culto:
+  //  - Se ela já é a atual → toggle play/pause
+  //  - Senão, toca a partir dela mantendo o restante do culto na fila (igual
+  //    ao comportamento de "clicar numa música em um álbum no Spotify").
+  async function handleClickSong(ps: PlaylistSong & { song: Song }) {
+    if (currentSong?.id === ps.song_id) {
+      if (isPlayerPlaying) {
+        pauseAudio(); usePlayerStore.getState().pause()
+      } else {
+        resumeAudio(); usePlayerStore.getState().resume()
+      }
+      return
+    }
+    if (!(await isDownloaded(ps.song_id))) {
+      console.warn('[PlaylistDetail] música não baixada:', ps.song.title)
+      return
+    }
+    const allSongs = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+    const startIdx = allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id)
+    if (startIdx < 0) return
+    void playSongs(allSongs.slice(startIdx).map((p) => p.song))
+  }
+
   async function confirmMerge() {
     const m = pendingMerge
     if (!m || !id) return
@@ -423,6 +446,7 @@ export function PlaylistDetail() {
               dragState={drag}
               dropTarget={dropTarget}
               onPlay={section.songs.length > 0 ? () => playSection(section) : undefined}
+              onClickSong={handleClickSong}
               onStartDragSong={(songId) => startDrag({ kind: 'song', sectionId: section.sectionId, songId })}
               onStartDragSection={() => {
                 if (!section.isDraft) startDrag({ kind: 'section', sectionId: section.sectionId })
@@ -509,7 +533,7 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 
 function PlaylistSection({
   section, currentSongId, isPlayerPlaying, dragState, dropTarget,
-  onPlay, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
+  onPlay, onClickSong, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
@@ -518,6 +542,7 @@ function PlaylistSection({
   dragState: DragState
   dropTarget: DropTarget
   onPlay?: () => void
+  onClickSong: (ps: PlaylistSong & { song: Song }) => void
   onStartDragSong: (songId: string) => void
   onStartDragSection: () => void
   onSongDragOver: (beforeSongId: string | null) => void
@@ -567,21 +592,23 @@ function PlaylistSection({
                 }}
               />
               <div
-                draggable={!isCurrent}
+                draggable
+                onClick={() => onClickSong(ps)}
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move'
                   onStartDragSong(ps.song_id)
                 }}
                 onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
                 onDragEnd={onEndDrag}
-                className="flex items-center gap-3 px-2 py-2 rounded-lg group transition-colors"
+                className="flex items-center gap-3 px-2 py-2 rounded-lg group transition-colors hover:bg-white/[0.04]"
                 style={{
                   background: isCurrent ? 'rgba(37,99,235,0.12)' : undefined,
-                  cursor: isCurrent ? 'default' : 'grab',
+                  cursor: 'pointer',
                   opacity: isBeingDragged ? 0.4 : 1,
                 }}
               >
-                <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0">{idx + 1}</span>
+                <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0 group-hover:hidden">{idx + 1}</span>
+                <Play size={11} fill="currentColor" stroke="none" className="hidden group-hover:block w-6 text-brand flex-shrink-0" />
                 <div className="w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] overflow-hidden flex items-center justify-center">
                   {ps.song.thumbnail_url ? (
                     <img src={ps.song.thumbnail_url} alt="" className="w-full h-full object-cover" />
@@ -595,7 +622,7 @@ function PlaylistSection({
                 </div>
                 {isCurrent && isPlayerPlaying && <span className="text-brand text-xs">tocando</span>}
                 <button
-                  onClick={() => onRemoveSong(ps)}
+                  onClick={(e) => { e.stopPropagation(); onRemoveSong(ps) }}
                   className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
                   aria-label="Remover do culto"
                 >
