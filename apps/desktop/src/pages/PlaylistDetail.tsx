@@ -112,6 +112,13 @@ export function PlaylistDetail() {
 
   useEffect(() => { void load() }, [load])
 
+  // Lista flat ordenada por position — usada pra calcular position/indexInList
+  // de cada song no SongCard (a fila do culto inteira).
+  const allSongsFlat = useMemo(
+    () => sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position),
+    [sections],
+  )
+
   // Une seções reais e drafts pra render. Drafts vão pro fim.
   const allSections = useMemo(() => {
     const real = sections.map((s) => ({ ...s, isDraft: false as const }))
@@ -380,12 +387,6 @@ export function PlaylistDetail() {
   }
 
   const totalSongs = sections.reduce((sum, s) => sum + s.songs.length, 0)
-  // Lista flat ordenada por position — usada pra calcular position/indexInList
-  // de cada song no SongCard (a fila do culto inteira).
-  const allSongsFlat = useMemo(
-    () => sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position),
-    [sections],
-  )
 
   return (
     <div className="px-8 py-6 max-w-[900px] mx-auto">
