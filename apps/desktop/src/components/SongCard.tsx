@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
+import { getDb } from '../lib/db.js'
 import { DownloadButton } from './DownloadButton.js'
 
 function fmtDuration(seconds: number): string {
@@ -295,14 +296,47 @@ export function SongCard({ song, playlistContext: _playlistContext, onEdit }: Pr
       usePlayerStore.setState({ currentSong: null, isPlaying: false })
     }
 
-    const { error: deleteError } = await supabase
-      .from('songs')
-      .delete()
-      .eq('id', song.id)
+    // Usa RPC em vez de DELETE direto. Motivo: a policy de DELETE de songs
+    // depende de checks em organizations, e o PostgREST tem comportamento
+    // inconsistente nesse caminho (retorna 0 rows mesmo quando o user é owner).
+    // A RPC sempre retorna HTTP 200 com envelope {ok, error?} pra contornar
+    // o tauri-plugin-http engolir o body de respostas 4xx.
+    const { data, error: deleteError } = await supabase.rpc('delete_song', {
+      p_song_id: song.id,
+    })
 
     if (deleteError) {
       console.error('[SongCard] delete error:', deleteError)
-      throw new Error(deleteError.message ?? 'Erro ao excluir')
+      throw new Error('Não foi possível excluir esta música. Tente novamente.')
+    }
+    const result = data as { ok: boolean; error?: string } | null
+    if (!result || !result.ok) {
+      const code = result?.error
+      if (code === 'forbidden') {
+        throw new Error('Você não tem permissão para excluir músicas desta biblioteca.')
+      }
+      if (code === 'not_found') {
+        // Música já não existia no Supabase — segue limpando o cache local.
+        console.warn('[SongCard] música já não existia no Supabase')
+      } else {
+        console.error('[SongCard] delete unexpected envelope:', result)
+        throw new Error('Não foi possível excluir esta música. Tente novamente.')
+      }
+    }
+
+    // syncOrg é UPSERT-only, nunca deleta do SQLite local. Precisa apagar
+    // manualmente aqui pra UI refletir a exclusão. Junction tables (song_groups,
+    // playlist_songs) caem por ON DELETE CASCADE no SQLite.
+    const db = await getDb()
+    await db.execute('DELETE FROM songs WHERE id = ?', [song.id])
+
+    // Limpa também o arquivo .mp3 local — música não existe mais, não tem
+    // motivo pra ocupar espaço em disco.
+    const wasDownloaded = await isDownloaded(song.id).catch(() => false)
+    if (wasDownloaded) {
+      await deleteSongFile(song.id).catch((e) => {
+        console.warn('[SongCard] não foi possível apagar arquivo local:', e)
+      })
     }
 
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
