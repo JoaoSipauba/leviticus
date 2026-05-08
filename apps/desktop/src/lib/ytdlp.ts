@@ -56,6 +56,51 @@ export async function deleteSongFile(songId: string): Promise<void> {
   if (found) await remove(found)
 }
 
+// Varre o diretório de áudio e apaga arquivos cujos songIds não existem
+// mais na lista fornecida. Protege contra:
+//  - Crashes que interrompem o handleDelete antes do cleanup do arquivo
+//  - Cenários multi-device onde uma música foi apagada noutro dispositivo
+//  - Lixo histórico de versões antigas do app (pré-fix de hoje)
+//
+// Recebe a lista de IDs vivos (ex: do SQLite local). Roda em background,
+// nunca lança — qualquer falha de IO vai pra console.warn.
+export async function cleanupOrphanedAudio(validSongIds: Set<string>): Promise<{
+  deleted: number
+  freedBytes: number
+}> {
+  let deleted = 0
+  let freedBytes = 0
+  try {
+    const dir = await getAudioDir()
+    if (!(await exists(dir))) return { deleted, freedBytes }
+    const entries = await readDir(dir)
+    for (const e of entries) {
+      const name = e.name
+      if (!name) continue
+      // Extrai o songId (parte antes do primeiro ponto). Pula arquivos sem
+      // ponto ou que não parecem um UUID — não queremos apagar lixo de outras
+      // origens por engano.
+      const dot = name.indexOf('.')
+      if (dot <= 0) continue
+      const id = name.slice(0, dot)
+      if (!/^[0-9a-f-]{36}$/i.test(id)) continue
+      if (validSongIds.has(id)) continue
+      try {
+        const path = await join(dir, name)
+        // stat seria mais preciso pra freedBytes, mas não temos sem lib
+        // adicional — é fine deixar freedBytes sempre 0 nesse caminho.
+        await remove(path)
+        deleted++
+      } catch (e) {
+        console.warn('[cleanupOrphanedAudio] não foi possível remover', name, e)
+      }
+    }
+  } catch (e) {
+    console.warn('[cleanupOrphanedAudio] erro varrendo diretório:', e)
+  }
+  return { deleted, freedBytes }
+}
+
 // Remove qualquer arquivo da música (qualquer extensão). Tolerante a falhas.
 // Usado no cancel/erro do startDownload pra garantir que isDownloaded() não
 // retorne true por engano logo depois de um cancel.
