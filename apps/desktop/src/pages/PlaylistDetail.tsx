@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Play, Plus, MoreHorizontal, Music, Mic, Pencil, Trash2,
-  X, Loader2, AlertTriangle, GripVertical,
+  X, Loader2, AlertTriangle, GripVertical, CloudDownload, Clock,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
@@ -17,6 +17,7 @@ import { AddSongToPlaylistModal } from '../components/AddSongToPlaylistModal.js'
 import { AddSectionModal } from '../components/AddSectionModal.js'
 import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
 import { usePlayerStore } from '../store/player.js'
+import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { playSong, pauseAudio, resumeAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
@@ -50,6 +51,13 @@ export function PlaylistDetail() {
   const [sections, setSections] = useState<SectionView[]>([])
   const [draftSections, setDraftSections] = useState<DraftSection[]>([])
   const [groups, setGroups] = useState<GroupRef[]>([])
+  // Map songId → tem arquivo no disco. Atualizado no load() e quando um
+  // download termina (subscribeCompleted) ou é cancelado (subscribeCanceled).
+  const [downloadedMap, setDownloadedMap] = useState<Map<string, boolean>>(new Map())
+  const enqueueDownload = useDownloadsStore((s) => s.enqueue)
+  const cancelDownload = useDownloadsStore((s) => s.cancel)
+  const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
+  const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
 
   const [editingPlaylist, setEditingPlaylist] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -108,10 +116,30 @@ export function PlaylistDetail() {
     setGroups(grps)
     setSections(groupSongsBySection(enriched, grps))
 
+    // Verifica quais músicas estão baixadas. Nem todas as músicas do culto
+    // precisam estar baixadas — o user pode adicionar e baixar depois.
+    const checks = await Promise.all(
+      Array.from(new Set(songIds)).map(async (sid) => [sid, await isDownloaded(sid)] as const)
+    )
+    setDownloadedMap(new Map(checks))
+
     setDraftSections((prev) => prev.filter((d) => !ps.some((p) => p.section_id === d.sectionId)))
   }, [id, navigate, orgId])
 
   useEffect(() => { void load() }, [load])
+
+  // Quando um download termina, marca como baixada localmente. Quando é
+  // cancelado, garante que continua marcada como não baixada (caso o RPC
+  // tenha apagado o arquivo legado).
+  useEffect(() => {
+    const offCompleted = subscribeCompleted((songId) => {
+      setDownloadedMap((prev) => new Map(prev).set(songId, true))
+    })
+    const offCanceled = subscribeCanceled((songId) => {
+      setDownloadedMap((prev) => new Map(prev).set(songId, false))
+    })
+    return () => { offCompleted(); offCanceled() }
+  }, [subscribeCompleted, subscribeCanceled])
 
   // Une seções reais e drafts pra render. Drafts vão pro fim.
   const allSections = useMemo(() => {
@@ -367,8 +395,8 @@ export function PlaylistDetail() {
 
   // Click em uma música específica do culto:
   //  - Se ela já é a atual → toggle play/pause
-  //  - Senão, toca a partir dela mantendo o restante do culto na fila (igual
-  //    ao comportamento de "clicar numa música em um álbum no Spotify").
+  //  - Se não está baixada → enqueue download (não tenta tocar)
+  //  - Senão, toca a partir dela mantendo o restante do culto na fila.
   async function handleClickSong(ps: PlaylistSong & { song: Song }) {
     if (currentSong?.id === ps.song_id) {
       if (isPlayerPlaying) {
@@ -378,8 +406,8 @@ export function PlaylistDetail() {
       }
       return
     }
-    if (!(await isDownloaded(ps.song_id))) {
-      console.warn('[PlaylistDetail] música não baixada:', ps.song.title)
+    if (!downloadedMap.get(ps.song_id)) {
+      enqueueDownload(ps.song_id, ps.song.youtube_url)
       return
     }
     const allSongs = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
@@ -455,6 +483,8 @@ export function PlaylistDetail() {
               dropTarget={dropTarget}
               onPlay={section.songs.length > 0 ? () => playSection(section) : undefined}
               onClickSong={handleClickSong}
+              downloadedMap={downloadedMap}
+              onCancelDownload={cancelDownload}
               onStartDragSong={(songId) => startDrag({ kind: 'song', sectionId: section.sectionId, songId })}
               onStartDragSection={() => {
                 if (!section.isDraft) startDrag({ kind: 'section', sectionId: section.sectionId })
@@ -541,7 +571,8 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 
 function PlaylistSection({
   section, currentSongId, isPlayerPlaying, dragState, dropTarget,
-  onPlay, onClickSong, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
+  onPlay, onClickSong, downloadedMap, onCancelDownload,
+  onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
@@ -551,6 +582,8 @@ function PlaylistSection({
   dropTarget: DropTarget
   onPlay?: () => void
   onClickSong: (ps: PlaylistSong & { song: Song }) => void
+  downloadedMap: Map<string, boolean>
+  onCancelDownload: (songId: string) => void
   onStartDragSong: (songId: string) => void
   onStartDragSection: () => void
   onSongDragOver: (beforeSongId: string | null) => void
@@ -599,44 +632,20 @@ function PlaylistSection({
                   transition: 'all 0.08s',
                 }}
               />
-              <div
-                draggable
+              <PlaylistSongRow
+                ps={ps}
+                idx={idx}
+                isCurrent={isCurrent}
+                isPlayerPlaying={isPlayerPlaying}
+                isBeingDragged={isBeingDragged}
+                downloaded={downloadedMap.get(ps.song_id) ?? false}
                 onClick={() => onClickSong(ps)}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  onStartDragSong(ps.song_id)
-                }}
-                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
-                onDragEnd={onEndDrag}
-                className="flex items-center gap-3 px-2 py-2 rounded-lg group transition-colors hover:bg-white/[0.04]"
-                style={{
-                  background: isCurrent ? 'rgba(37,99,235,0.12)' : undefined,
-                  cursor: 'pointer',
-                  opacity: isBeingDragged ? 0.4 : 1,
-                }}
-              >
-                <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0 group-hover:hidden">{idx + 1}</span>
-                <Play size={11} fill="currentColor" stroke="none" className="hidden group-hover:block w-6 text-brand flex-shrink-0" />
-                <div className="w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] overflow-hidden flex items-center justify-center">
-                  {ps.song.thumbnail_url ? (
-                    <img src={ps.song.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <Music size={14} className="text-muted" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-semibold truncate ${isCurrent ? 'text-brand' : 'text-heading'}`}>{ps.song.title}</p>
-                  <p className="text-xs text-body truncate">{ps.song.artist}</p>
-                </div>
-                {isCurrent && isPlayerPlaying && <span className="text-brand text-xs">tocando</span>}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onRemoveSong(ps) }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
-                  aria-label="Remover do culto"
-                >
-                  <X size={14} />
-                </button>
-              </div>
+                onCancelDownload={() => onCancelDownload(ps.song_id)}
+                onStartDrag={() => onStartDragSong(ps.song_id)}
+                onDragOver={() => onSongDragOver(ps.song_id)}
+                onEndDrag={onEndDrag}
+                onRemove={() => onRemoveSong(ps)}
+              />
             </div>
           )
         })}
@@ -831,6 +840,102 @@ function PlaylistMenu({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Linha de música — observa o downloads store pra mostrar progresso da fila.
+
+function PlaylistSongRow({
+  ps, idx, isCurrent, isPlayerPlaying, isBeingDragged, downloaded,
+  onClick, onCancelDownload, onStartDrag, onDragOver, onEndDrag, onRemove,
+}: {
+  ps: PlaylistSong & { song: Song }
+  idx: number
+  isCurrent: boolean
+  isPlayerPlaying: boolean
+  isBeingDragged: boolean
+  downloaded: boolean
+  onClick: () => void
+  onCancelDownload: () => void
+  onStartDrag: () => void
+  onDragOver: () => void
+  onEndDrag: () => void
+  onRemove: () => void
+}) {
+  const status = useDownloadsStore(selectStatus(ps.song_id))
+  const isQueued = status.state === 'queued'
+  const isDownloading = status.state === 'downloading'
+  const showAsMissing = !downloaded && !isQueued && !isDownloading
+
+  return (
+    <div
+      draggable
+      onClick={onClick}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = 'move'
+        onStartDrag()
+      }}
+      onDragOver={(e) => { e.preventDefault(); onDragOver() }}
+      onDragEnd={onEndDrag}
+      className="flex items-center gap-3 px-2 py-2 rounded-lg group transition-colors hover:bg-white/[0.04]"
+      style={{
+        background: isCurrent ? 'rgba(37,99,235,0.12)' : undefined,
+        cursor: 'pointer',
+        opacity: isBeingDragged ? 0.4 : showAsMissing ? 0.65 : 1,
+      }}
+    >
+      <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0 group-hover:hidden">{idx + 1}</span>
+      <Play size={11} fill="currentColor" stroke="none" className="hidden group-hover:block w-6 text-brand flex-shrink-0" />
+      <div className="relative w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] overflow-hidden flex items-center justify-center">
+        {ps.song.thumbnail_url ? (
+          <img src={ps.song.thumbnail_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <Music size={14} className="text-muted" />
+        )}
+        {/* Overlay de status do download */}
+        {(showAsMissing || isQueued || isDownloading) && (
+          <div className="absolute inset-0 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)' }}>
+            {isDownloading ? (
+              <span className="text-[9px] font-bold text-white" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                {Math.round(status.progress * 100)}%
+              </span>
+            ) : isQueued ? (
+              <Clock size={12} className="text-white" />
+            ) : (
+              <CloudDownload size={14} className="text-white" />
+            )}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className={`text-sm font-semibold truncate ${isCurrent ? 'text-brand' : 'text-heading'}`}>{ps.song.title}</p>
+        <p className="text-xs text-body truncate">
+          {ps.song.artist}
+          {showAsMissing && ' · clique para baixar'}
+          {isQueued && ' · na fila'}
+          {isDownloading && ` · baixando ${Math.round(status.progress * 100)}%`}
+        </p>
+      </div>
+      {isCurrent && isPlayerPlaying && <span className="text-brand text-xs">tocando</span>}
+      {(isQueued || isDownloading) && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onCancelDownload() }}
+          className="p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
+          aria-label="Cancelar download"
+          title="Cancelar download"
+        >
+          <X size={14} />
+        </button>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); onRemove() }}
+        className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md text-body hover:text-red-400 cursor-pointer"
+        aria-label="Remover do culto"
+      >
+        <X size={14} />
+      </button>
     </div>
   )
 }
