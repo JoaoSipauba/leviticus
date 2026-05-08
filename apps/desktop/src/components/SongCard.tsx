@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Check, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, X } from 'lucide-react'
 import { isDownloaded, getSongFilename, deleteSongFile } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -280,11 +280,15 @@ type Props = {
   //  - Click (e baixada) toca usando a fila do culto, respeitando a ordem
   //  - ActionsMenu mostra "Remover deste culto" no lugar de "Excluir da biblioteca"
   //  - indexInList aparece à esquerda da thumb pra mostrar a posição na fila
+  //  - played + onTogglePlayed habilitam o tracking de "já tocada no culto":
+  //    visual desbotado, check verde no lugar do número, botão de undo no hover
   playlistContext?: {
     playlist: import('@leviticus/core').Playlist
     songs: Song[]
     position: number
     indexInList?: number
+    played?: boolean
+    onTogglePlayed?: () => void
     onRemoveFromPlaylist: () => void
   }
   onEdit?: () => void
@@ -446,9 +450,10 @@ export function SongCard({
   }
 
   const isList = variant === 'list'
+  const isPlayed = playlistContext?.played === true
   return (
     <div
-      draggable={draggable}
+      draggable={draggable && !isPlayed}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
@@ -457,7 +462,8 @@ export function SongCard({
       }`}
       style={isList ? {
         background: isCurrentlyPlaying ? `${typeColor}1a` : undefined,
-        cursor: draggable ? 'grab' : undefined,
+        cursor: draggable && !isPlayed ? 'grab' : undefined,
+        opacity: isPlayed ? 0.55 : 1,
       } : {
         background: isCurrentlyPlaying
           ? `linear-gradient(135deg, ${typeColor}22, rgba(19,19,31,0.7))`
@@ -467,13 +473,16 @@ export function SongCard({
         border: isCurrentlyPlaying
           ? `1px solid ${typeColor}55`
           : '1px solid rgba(255,255,255,0.06)',
-        cursor: draggable ? 'grab' : undefined,
+        cursor: draggable && !isPlayed ? 'grab' : undefined,
+        opacity: isPlayed ? 0.55 : 1,
       }}
     >
-      {/* Posição na fila do culto — só aparece quando dentro de um playlistContext */}
+      {/* Posição na fila do culto — vira check verde quando played */}
       {playlistContext?.indexInList != null && (
-        <span className="w-6 text-center text-xs text-muted font-mono flex-shrink-0">
-          {playlistContext.indexInList}
+        <span className="w-6 flex items-center justify-center flex-shrink-0">
+          {isPlayed
+            ? <Check size={14} className="text-emerald-400" strokeWidth={2.5} />
+            : <span className="text-xs text-muted font-mono">{playlistContext.indexInList}</span>}
         </span>
       )}
 
@@ -526,6 +535,21 @@ export function SongCard({
           <p className="text-body text-xs truncate min-w-0">{song.artist}</p>
         </div>
       </div>
+
+      {/* Toggle "marcar como tocada" — só aparece quando dentro de playlistContext */}
+      {playlistContext?.onTogglePlayed && (
+        <button
+          onClick={(e) => { e.stopPropagation(); playlistContext.onTogglePlayed?.() }}
+          className={`w-7 h-7 rounded-md flex items-center justify-center hover:bg-white/[0.08] transition-all flex-shrink-0 cursor-pointer ${
+            isPlayed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          style={{ color: isPlayed ? '#34d399' : '#9ca3af' }}
+          aria-label={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
+          title={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
+        >
+          {isPlayed ? <Undo2 size={13} strokeWidth={2.5} /> : <Check size={14} strokeWidth={2.5} />}
+        </button>
+      )}
 
       {song.duration_seconds != null && (
         <span className="text-body text-sm font-medium font-mono flex-shrink-0">

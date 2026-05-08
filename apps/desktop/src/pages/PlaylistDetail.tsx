@@ -18,6 +18,7 @@ import { AddSectionModal } from '../components/AddSectionModal.js'
 import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
 import { SongCard } from '../components/SongCard.js'
 import { usePlayerStore } from '../store/player.js'
+import { usePlayedStore } from '../store/played.js'
 import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
@@ -51,6 +52,12 @@ export function PlaylistDetail() {
   const [sections, setSections] = useState<SectionView[]>([])
   const [draftSections, setDraftSections] = useState<DraftSection[]>([])
   const [groups, setGroups] = useState<GroupRef[]>([])
+
+  // Tracking de "já tocadas" por culto. Persiste em localStorage. Marca
+  // automática vem de handleSongEnd quando a faixa termina (≥70% ou ended).
+  const playedIds = usePlayedStore((s) => new Set(id ? s.playedByPlaylist[id] ?? [] : []))
+  const markPlayed = usePlayedStore((s) => s.markPlayed)
+  const unmarkPlayed = usePlayedStore((s) => s.unmarkPlayed)
 
   const [editingPlaylist, setEditingPlaylist] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
@@ -112,12 +119,16 @@ export function PlaylistDetail() {
 
   useEffect(() => { void load() }, [load])
 
-  // Lista flat ordenada por position — usada pra calcular position/indexInList
-  // de cada song no SongCard (a fila do culto inteira).
-  const allSongsFlat = useMemo(
-    () => sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position),
-    [sections],
-  )
+  // Lista flat ordenada — concluídas primeiro (na ordem original entre elas),
+  // depois as que faltam executar (também na ordem original). Usada pra
+  // calcular position/indexInList de cada song no SongCard (a fila do culto
+  // inteira). O array no banco mantém position; o reorder é só visual.
+  const allSongsFlat = useMemo(() => {
+    const sorted = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+    const played = sorted.filter((s) => playedIds.has(s.song_id))
+    const unplayed = sorted.filter((s) => !playedIds.has(s.song_id))
+    return [...played, ...unplayed]
+  }, [sections, playedIds])
 
   // Une seções reais e drafts pra render. Drafts vão pro fim.
   const allSections = useMemo(() => {
@@ -363,12 +374,15 @@ export function PlaylistDetail() {
   }
 
   function playAll() {
-    const allSongs = sections.flatMap((s) => s.songs.map((ps) => ps.song))
-    void playSongs(allSongs)
+    // Pula concluídas — toca a partir da próxima não tocada na ordem do banco.
+    const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+    const remaining = all.filter((ps) => !playedIds.has(ps.song_id))
+    void playSongs(remaining.map((ps) => ps.song))
   }
 
   function playSection(section: SectionView) {
-    void playSongs(section.songs.map((ps) => ps.song))
+    const remaining = section.songs.filter((ps) => !playedIds.has(ps.song_id))
+    void playSongs(remaining.map((ps) => ps.song))
   }
 
   async function confirmMerge() {
@@ -447,6 +461,9 @@ export function PlaylistDetail() {
               section={section}
               playlist={playlist}
               allSongs={allSongsFlat}
+              playedIds={playedIds}
+              onMarkPlayed={(songId) => markPlayed(playlist.id, songId)}
+              onUnmarkPlayed={(songId) => unmarkPlayed(playlist.id, songId)}
               dragState={drag}
               dropTarget={dropTarget}
               onPlay={section.songs.length > 0 ? () => playSection(section) : undefined}
@@ -534,13 +551,17 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 }
 
 function PlaylistSection({
-  section, playlist, allSongs, dragState, dropTarget,
+  section, playlist, allSongs, playedIds, onMarkPlayed, onUnmarkPlayed,
+  dragState, dropTarget,
   onPlay, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
   playlist: Playlist
   allSongs: Array<PlaylistSong & { song: Song }>
+  playedIds: Set<string>
+  onMarkPlayed: (songId: string) => void
+  onUnmarkPlayed: (songId: string) => void
   dragState: DragState
   dropTarget: DropTarget
   onPlay?: () => void
@@ -570,17 +591,28 @@ function PlaylistSection({
         onDelete={onDelete}
       />
       <div className="space-y-px">
-        {section.songs.map((ps) => {
+        {(() => {
+          // Reorder: concluídas primeiro (ordem original), depois as que faltam.
+          const playedFirst = section.songs.filter((s) => playedIds.has(s.song_id))
+          const remaining = section.songs.filter((s) => !playedIds.has(s.song_id))
+          return [...playedFirst, ...remaining]
+        })().map((ps) => {
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
           const showDropBefore = dropTarget?.kind === 'song'
             && dropTarget.sectionId === section.sectionId
             && dropTarget.beforeSongId === ps.song_id
           const flatIdx = allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id)
+          const isPlayed = playedIds.has(ps.song_id)
           const ctx = {
             playlist,
             songs: allSongs.map((p) => p.song),
             position: flatIdx,
             indexInList: flatIdx + 1,
+            played: isPlayed,
+            onTogglePlayed: () => {
+              if (isPlayed) onUnmarkPlayed(ps.song_id)
+              else onMarkPlayed(ps.song_id)
+            },
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
           return (
