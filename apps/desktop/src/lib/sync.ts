@@ -29,7 +29,7 @@ export async function syncOrg(orgId: string): Promise<void> {
         .eq('songs.org_id', orgId),
       supabase
         .from('playlist_songs')
-        .select('playlist_id, song_id, position, playlists!inner(org_id)')
+        .select('playlist_id, section_id, song_id, position, group_id, section_label, playlists!inner(org_id)')
         .eq('playlists.org_id', orgId),
     ])
 
@@ -59,9 +59,9 @@ export async function syncOrg(orgId: string): Promise<void> {
   for (const p of playlists.data) {
     await db.execute(
       `INSERT OR REPLACE INTO playlists
-       (id, org_id, name, scheduled_date, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [p.id, p.org_id, p.name, p.scheduled_date, p.created_at, p.updated_at]
+       (id, org_id, name, scheduled_at, scheduled_end, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [p.id, p.org_id, p.name, p.scheduled_at, p.scheduled_end, p.created_at, p.updated_at]
     )
   }
 
@@ -72,10 +72,19 @@ export async function syncOrg(orgId: string): Promise<void> {
     )
   }
 
+  // Junction (playlist_songs) é re-fetched inteira a cada sync porque não tem
+  // updated_at — a forma de capturar removes é wipe + reinsert por playlist.
+  // Limpa primeiro pra refletir deletes que aconteceram em outros devices.
+  const playlistIds = Array.from(new Set(playlistSongs.data.map((p) => p.playlist_id)))
+  for (const pid of playlistIds) {
+    await db.execute(`DELETE FROM playlist_songs WHERE playlist_id = ?`, [pid])
+  }
   for (const ps of playlistSongs.data) {
     await db.execute(
-      `INSERT OR REPLACE INTO playlist_songs (playlist_id, song_id, position) VALUES (?, ?, ?)`,
-      [ps.playlist_id, ps.song_id, ps.position]
+      `INSERT INTO playlist_songs
+       (playlist_id, section_id, song_id, position, group_id, section_label)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [ps.playlist_id, ps.section_id, ps.song_id, ps.position, ps.group_id, ps.section_label]
     )
   }
 

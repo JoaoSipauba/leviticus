@@ -24,7 +24,9 @@ function getServiceColor(id: string) {
 
 function formatDate(dateStr: string | null): string | null {
   if (!dateStr) return null
-  return new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-BR', {
+  // Aceita tanto YYYY-MM-DD (legado) quanto ISO 8601 com hora.
+  const d = dateStr.includes('T') ? new Date(dateStr) : new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('pt-BR', {
     day: 'numeric', month: 'short', year: 'numeric',
   })
 }
@@ -42,7 +44,7 @@ export function Playlists() {
     const db = await getDb()
     const rows = await db.select<Playlist[]>(
       `SELECT * FROM playlists WHERE org_id = ?
-       ORDER BY scheduled_date DESC, created_at DESC`,
+       ORDER BY scheduled_at DESC, created_at DESC`,
       [orgId]
     )
     const withStatus = await Promise.all(
@@ -72,12 +74,18 @@ export function Playlists() {
       return
     }
 
+    // TODO(commit 3): Trocar pelo PlaylistFormModal com hora de início/fim;
+    // por enquanto preenchemos default 09h–11h pra satisfazer o NOT NULL do schema.
+    const baseDate = newDate || new Date().toISOString().slice(0, 10)
+    const startISO = new Date(baseDate + 'T09:00:00').toISOString()
+    const endISO = new Date(baseDate + 'T11:00:00').toISOString()
     const { data, error: insertError } = await supabase
       .from('playlists')
       .insert({
         org_id: orgId,
         name: newName.trim(),
-        scheduled_date: newDate || null,
+        scheduled_at: startISO,
+        scheduled_end: endISO,
         created_by: user.id,
       })
       .select()
@@ -163,7 +171,7 @@ export function Playlists() {
             const color = getServiceColor(s.id)
             const complete = s.total > 0 && s.downloaded === s.total
             const partial = s.downloaded > 0 && s.downloaded < s.total
-            const dateStr = formatDate(s.scheduled_date)
+            const dateStr = formatDate(s.scheduled_at)
 
             return (
               <div

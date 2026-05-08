@@ -27,6 +27,12 @@ pub fn run() {
                             sql: include_str!("../migrations/003_song_type.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 4,
+                            description: "playlist_horario_e_secao",
+                            sql: include_str!("../migrations/004_playlist_horario_e_secao.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
