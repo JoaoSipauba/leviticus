@@ -1,6 +1,6 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { appLocalDataDir, join } from '@tauri-apps/api/path'
-import { exists, mkdir, remove } from '@tauri-apps/plugin-fs'
+import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
 
 export const DOWNLOAD_CANCELED = 'canceled'
 
@@ -9,33 +9,69 @@ export type DownloadHandle = {
   cancel: () => void
 }
 
-export async function getSongFilename(songId: string): Promise<string> {
+async function getAudioDir(): Promise<string> {
   const dataDir = await appLocalDataDir()
-  return join(dataDir, 'audio', `${songId}.mp3`)
+  return join(dataDir, 'audio')
 }
 
-export async function isDownloaded(songId: string): Promise<boolean> {
-  const path = await getSongFilename(songId)
-  return exists(path)
-}
-
-// Apaga o arquivo de áudio do dispositivo. A música continua no Supabase —
-// pode ser baixada novamente a qualquer momento via downloadSong.
-export async function deleteSongFile(songId: string): Promise<void> {
-  const path = await getSongFilename(songId)
-  if (await exists(path)) {
-    await remove(path)
+// Procura o arquivo de áudio salvo pra essa música. A extensão depende do
+// codec original que veio do YouTube (m4a quase sempre, webm pra opus,
+// mp3 pra arquivos legados de antes de pararmos de re-encodar).
+export async function findSongFile(songId: string): Promise<string | null> {
+  try {
+    const dir = await getAudioDir()
+    if (!(await exists(dir))) return null
+    const entries = await readDir(dir)
+    // Match exato `<songId>.<ext>` pra evitar IDs onde um é prefixo do outro.
+    const prefix = `${songId}.`
+    const match = entries.find((e) => {
+      const name = e.name ?? ''
+      return name.startsWith(prefix) && !name.slice(prefix.length).includes('.')
+    })
+    if (!match || !match.name) return null
+    return await join(dir, match.name)
+  } catch {
+    return null
   }
 }
 
-// Remove o arquivo de saída se existir. Tolerante a falhas (race com fs).
+// Mantida por compat com chamadas antigas (RemoteControl, AddSongModal)
+// que esperam um caminho concreto. Retorna o arquivo encontrado ou um
+// caminho-default baseado em mp3 (fallback histórico) quando nada existe
+// ainda — o caller só usa isso em conjunto com isDownloaded().
+export async function getSongFilename(songId: string): Promise<string> {
+  const found = await findSongFile(songId)
+  if (found) return found
+  return await join(await getAudioDir(), `${songId}.mp3`)
+}
+
+export async function isDownloaded(songId: string): Promise<boolean> {
+  return (await findSongFile(songId)) !== null
+}
+
+// Apaga o arquivo de áudio do dispositivo. A música continua no Supabase —
+// pode ser baixada novamente a qualquer momento.
+export async function deleteSongFile(songId: string): Promise<void> {
+  const found = await findSongFile(songId)
+  if (found) await remove(found)
+}
+
+// Remove qualquer arquivo da música (qualquer extensão). Tolerante a falhas.
 // Usado no cancel/erro do startDownload pra garantir que isDownloaded() não
 // retorne true por engano logo depois de um cancel.
-async function cleanupOutput(path: string): Promise<void> {
+async function cleanupOutput(songId: string): Promise<void> {
   try {
-    if (await exists(path)) await remove(path)
+    const dir = await getAudioDir()
+    if (!(await exists(dir))) return
+    const entries = await readDir(dir)
+    const prefix = `${songId}.`
+    for (const e of entries) {
+      if (e.name?.startsWith(prefix)) {
+        await remove(await join(dir, e.name)).catch(() => {})
+      }
+    }
   } catch (e) {
-    console.warn('[cleanupOutput] não foi possível remover arquivo parcial:', e)
+    console.warn('[cleanupOutput] não foi possível limpar arquivos parciais:', e)
   }
 }
 
@@ -53,23 +89,25 @@ export function startDownload(
   let canceled = false
 
   const promise: Promise<string> = (async () => {
-    const dataDir = await appLocalDataDir()
-    const audioDir = await join(dataDir, 'audio')
+    const audioDir = await getAudioDir()
     await mkdir(audioDir, { recursive: true })
 
-    const outputPath = await getSongFilename(songId)
+    // Template com %(ext)s — yt-dlp escolhe a extensão certa baseada no
+    // formato baixado (m4a pra AAC, webm pra opus). Vamos descobrir o path
+    // final via findSongFile() depois que o processo terminar.
+    const outputTemplate = await join(audioDir, `${songId}.%(ext)s`)
 
     // Tauri não herda o PATH do shell — passa os caminhos comuns do Homebrew via PATH
     const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
 
+    // Sem -x e sem --audio-format: pega o stream original do YouTube sem
+    // re-encodar. Prefere m4a (AAC, melhor compat com WebKit/Howler) e cai
+    // pra qualquer bestaudio (geralmente opus/webm) se m4a não existir.
     const command = Command.create('yt-dlp', [
       '--no-playlist',
-      '-x',
-      '--audio-format', 'mp3',
-      '--audio-quality', '0',
-      '--ffmpeg-location', '/opt/homebrew/bin',
+      '-f', 'bestaudio[ext=m4a]/bestaudio',
       '--newline',
-      '-o', outputPath,
+      '-o', outputTemplate,
       youtubeUrl,
     ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
@@ -86,30 +124,39 @@ export function startDownload(
       })
 
       command.on('close', ({ code }) => {
-        if (canceled) {
-          // child.kill() é assíncrono e o yt-dlp pode ter completado a
-          // conversão antes do sinal chegar — nesse caso o .mp3 final foi
-          // gerado mesmo após o usuário clicar cancelar. Remove qualquer
-          // arquivo final que tenha ficado pra trás.
-          void cleanupOutput(outputPath)
-          reject(new Error(DOWNLOAD_CANCELED))
-          return
-        }
-        if (code !== 0) {
-          console.error(`[startDownload] yt-dlp saiu com código ${code}:`, stderrBuf)
-          // Falha real: também remove arquivo parcial que possa ter sido
-          // criado, pra não confundir isDownloaded() em retentativas.
-          void cleanupOutput(outputPath)
-          reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
-        } else {
+        void (async () => {
+          if (canceled) {
+            // child.kill() é assíncrono e o yt-dlp pode ter completado o
+            // download antes do sinal chegar — nesse caso o arquivo final
+            // foi gerado mesmo após o usuário clicar cancelar. Remove
+            // qualquer arquivo (em qualquer extensão) que tenha ficado.
+            await cleanupOutput(songId)
+            reject(new Error(DOWNLOAD_CANCELED))
+            return
+          }
+          if (code !== 0) {
+            console.error(`[startDownload] yt-dlp saiu com código ${code}:`, stderrBuf)
+            // Falha real: também remove arquivo parcial pra não confundir
+            // isDownloaded() em retentativas.
+            await cleanupOutput(songId)
+            reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+            return
+          }
           onProgress(1)
-          resolve(outputPath)
-        }
+          // Descobre a extensão final que o yt-dlp escolheu.
+          const finalPath = await findSongFile(songId)
+          if (!finalPath) {
+            console.error('[startDownload] arquivo final não encontrado após download bem-sucedido')
+            reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+            return
+          }
+          resolve(finalPath)
+        })()
       })
 
       command.on('error', (err) => {
         if (canceled) {
-          void cleanupOutput(outputPath)
+          void cleanupOutput(songId)
           reject(new Error(DOWNLOAD_CANCELED))
           return
         }

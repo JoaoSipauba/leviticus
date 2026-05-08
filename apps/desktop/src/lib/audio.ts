@@ -3,12 +3,24 @@ import { convertFileSrc } from '@tauri-apps/api/core'
 
 let _howl: Howl | null = null
 let _currentSrc: string | null = null
+let _currentFormat: string[] = ['mp3']
 let _currentCallbacks: AudioCallbacks | undefined
 
 type AudioCallbacks = {
   onEnd?: () => void
   onLoad?: () => void
   volume?: number
+}
+
+// Mapeia a extensão do arquivo pra o hint de formato que Howler espera.
+// O Tauri asset:// pode descartar a extensão na URL final, então passamos
+// o hint explicitamente em vez de deixar Howler adivinhar pela src.
+function inferFormat(filePath: string): string[] {
+  const m = filePath.toLowerCase().match(/\.([a-z0-9]+)$/)
+  const ext = m?.[1] ?? 'mp3'
+  if (ext === 'm4a' || ext === 'mp4' || ext === 'aac') return ['m4a']
+  if (ext === 'webm' || ext === 'opus') return ['webm']
+  return [ext]
 }
 
 export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
@@ -18,11 +30,13 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   }
 
   const src = convertFileSrc(filePath)
+  const format = inferFormat(filePath)
   _currentSrc = src
+  _currentFormat = format
   _currentCallbacks = callbacks
   _howl = new Howl({
     src: [src],
-    format: ['mp3'],
+    format,
     html5: true,
     autoplay: true,
     volume: callbacks?.volume ?? 1,
@@ -42,7 +56,7 @@ export function restartCurrent(): void {
   if (_howl) { _howl.stop(); _howl.unload() }
   _howl = new Howl({
     src: [_currentSrc],
-    format: ['mp3'],
+    format: _currentFormat,
     html5: true,
     autoplay: true,
     volume: _currentCallbacks?.volume ?? 1,
