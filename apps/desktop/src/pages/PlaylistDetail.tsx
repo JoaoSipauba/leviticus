@@ -389,43 +389,56 @@ export function PlaylistDetail() {
   const totalSongs = sections.reduce((sum, s) => sum + s.songs.length, 0)
 
   return (
-    <div className="px-8 py-6 max-w-[900px] mx-auto">
-      <div className="flex items-center gap-3 mb-2">
-        <button onClick={() => navigate('/services')} className="text-body hover:text-heading transition-colors" aria-label="Voltar">
-          <ArrowLeft size={20} />
+    <div>
+      {/* Hero header — gradiente sutil com info "destaque" do culto */}
+      <div className="relative px-8 pt-6 pb-8" style={{
+        background: 'linear-gradient(180deg, rgba(37,99,235,0.18) 0%, rgba(19,19,31,0) 100%)',
+      }}>
+        <button onClick={() => navigate('/services')} className="text-body text-sm flex items-center gap-1.5 mb-3 hover:text-heading transition-colors cursor-pointer">
+          <ArrowLeft size={14} /> Voltar
         </button>
-        <p className="text-caps text-brand">CULTO</p>
-      </div>
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex-1 min-w-0">
-          <h1 className="text-h1 text-heading truncate">{playlist.name}</h1>
-          <p className="text-body text-sm mt-1">
-            {formatPlaylistDate(playlist.scheduled_at)} · {formatPlaylistTimeRange(playlist.scheduled_at, playlist.scheduled_end)}
-          </p>
-          <p className="text-muted text-xs mt-1">{totalSongs} {totalSongs === 1 ? 'música' : 'músicas'}</p>
+        <div className="flex items-end gap-5 max-w-[900px] mx-auto">
+          <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)', boxShadow: '0 16px 40px -10px rgba(37,99,235,0.45)' }}>
+            <Music size={42} className="text-blue-200" strokeWidth={1.5} />
+          </div>
+          <div className="flex-1 min-w-0 pb-1">
+            <p className="text-caps text-brand mb-1">CULTO</p>
+            <h1 className="text-heading font-bold leading-tight truncate" style={{ fontSize: 32, letterSpacing: '-0.02em' }}>{playlist.name}</h1>
+            <p className="text-body text-sm mt-1">
+              {formatPlaylistDate(playlist.scheduled_at)} · {formatPlaylistTimeRange(playlist.scheduled_at, playlist.scheduled_end)} · {totalSongs} {totalSongs === 1 ? 'música' : 'músicas'}
+            </p>
+            <div className="flex items-center gap-2 mt-4">
+              {totalSongs > 0 && (
+                <button onClick={playAll}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm cursor-pointer"
+                  style={{ background: '#22c55e', color: '#0d0d16', boxShadow: '0 8px 16px -4px rgba(34,197,94,0.4)' }}>
+                  <Play size={16} fill="#0d0d16" stroke="none" /> Tocar tudo
+                </button>
+              )}
+              <button
+                onClick={() => setAddSectionOpen(true)}
+                className="px-4 py-2.5 rounded-full font-semibold text-sm flex items-center gap-2 text-body hover:text-heading cursor-pointer transition-colors"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <Plus size={14} /> Adicionar seção
+              </button>
+              <PlaylistMenu
+                onEdit={() => setEditingPlaylist(true)}
+                onDelete={() => setConfirmingDelete(true)}
+                confirmingDelete={confirmingDelete}
+                deletingPlaylist={deletingPlaylist}
+                onConfirmDelete={handleDeletePlaylist}
+                onCancelDelete={() => setConfirmingDelete(false)}
+              />
+            </div>
+          </div>
         </div>
-        <PlaylistMenu
-          onEdit={() => setEditingPlaylist(true)}
-          onDelete={() => setConfirmingDelete(true)}
-          confirmingDelete={confirmingDelete}
-          deletingPlaylist={deletingPlaylist}
-          onConfirmDelete={handleDeletePlaylist}
-          onCancelDelete={() => setConfirmingDelete(false)}
-        />
       </div>
 
-      {totalSongs > 0 && (
-        <button onClick={playAll}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm mb-6 cursor-pointer"
-          style={{ background: '#2563eb', color: '#fff' }}>
-          <Play size={14} fill="#fff" stroke="none" /> Tocar tudo
-        </button>
-      )}
-
-      <div className="space-y-2">
+      {/* Lista única — seções viram dividers sticky */}
+      <div className="px-8 max-w-[900px] mx-auto pb-12">
         {allSections.map((section, idx) => (
           <div key={section.sectionId}>
-            {/* Drop zone ANTES desta seção */}
             <SectionDropIndicator
               show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === section.sectionId}
               onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: section.sectionId })}
@@ -450,7 +463,6 @@ export function PlaylistDetail() {
                 : undefined}
               onDelete={() => handleDeleteSection(section.sectionId, section.isDraft)}
             />
-            {/* Drop zone DEPOIS da última seção */}
             {idx === allSections.length - 1 && (
               <SectionDropIndicator
                 show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === null}
@@ -459,15 +471,15 @@ export function PlaylistDetail() {
             )}
           </div>
         ))}
-      </div>
 
-      <button
-        onClick={() => setAddSectionOpen(true)}
-        className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-body hover:text-heading hover:bg-white/[0.04] transition-colors cursor-pointer"
-        style={{ border: '1px dashed rgba(255,255,255,0.1)' }}
-      >
-        <Plus size={16} /> Adicionar seção
-      </button>
+        <button
+          onClick={() => setAddSectionOpen(true)}
+          className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-body hover:text-heading hover:bg-white/[0.04] transition-colors cursor-pointer"
+          style={{ border: '1px dashed rgba(255,255,255,0.1)' }}
+        >
+          <Plus size={16} /> Adicionar seção
+        </button>
+      </div>
 
       <PlaylistFormModal
         open={editingPlaylist}
@@ -544,11 +556,7 @@ function PlaylistSection({
   const isBeingDraggedSection = dragState?.kind === 'section' && dragState.sectionId === section.sectionId
   return (
     <section
-      className="rounded-2xl"
       style={{
-        background: 'rgba(19,19,31,0.55)',
-        backdropFilter: 'blur(20px) saturate(180%)',
-        border: '1px solid rgba(255,255,255,0.06)',
         opacity: isBeingDraggedSection ? 0.4 : 1,
         transition: 'opacity 0.1s',
       }}
@@ -561,20 +569,18 @@ function PlaylistSection({
         onRename={onRename}
         onDelete={onDelete}
       />
-      <div className="px-4 pb-2 space-y-1.5">
+      <div className="space-y-px">
         {section.songs.map((ps) => {
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
           const showDropBefore = dropTarget?.kind === 'song'
             && dropTarget.sectionId === section.sectionId
             && dropTarget.beforeSongId === ps.song_id
-          // playlistContext do SongCard: ele já cuida de download, play da fila
-          // do culto (com onEnd → próxima da fila), highlight de "tocando agora",
-          // e do menu de ações (Remover deste culto).
+          const flatIdx = allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id)
           const ctx = {
             playlist,
             songs: allSongs.map((p) => p.song),
-            position: allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id),
-            indexInList: allSongs.findIndex((p) => p.section_id === ps.section_id && p.song_id === ps.song_id) + 1,
+            position: flatIdx,
+            indexInList: flatIdx + 1,
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
           return (
@@ -582,16 +588,16 @@ function PlaylistSection({
               <div
                 onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
                 style={{
-                  height: showDropBefore ? 6 : 4,
+                  height: showDropBefore ? 4 : 2,
                   background: showDropBefore ? '#3b82f6' : 'transparent',
                   borderRadius: 2,
-                  margin: '-2px 0',
                   transition: 'all 0.08s',
                 }}
               />
               <SongCard
                 song={ps.song}
                 playlistContext={ctx}
+                variant="list"
                 draggable
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = 'move'
@@ -618,9 +624,9 @@ function PlaylistSection({
       </div>
       <button
         onClick={onAddSong}
-        className="w-full px-4 py-2.5 text-sm text-body hover:text-heading hover:bg-white/[0.03] flex items-center gap-2 cursor-pointer rounded-b-2xl"
+        className="text-xs text-muted hover:text-body flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
       >
-        <Plus size={14} /> Adicionar música
+        <Plus size={12} /> Adicionar música
       </button>
     </section>
   )
@@ -644,9 +650,11 @@ function SectionHeader({
   useEffect(() => { setNewLabel(section.label) }, [section.label])
   useEffect(() => { if (!menuOpen) setConfirmingDelete(false) }, [menuOpen])
 
-  const Icon = section.type === 'avulso' ? Mic : Music
   return (
-    <div className="flex items-center gap-3 px-4 pt-3 pb-2">
+    <div
+      className="sticky top-0 z-10 flex items-center gap-3 py-2.5 mt-3 -mx-2 px-2 backdrop-blur-md"
+      style={{ background: 'rgba(13,13,22,0.85)' }}
+    >
       <button
         draggable={!section.isDraft}
         onDragStart={(e) => {
@@ -661,14 +669,9 @@ function SectionHeader({
       >
         <GripVertical size={14} />
       </button>
-      {section.color ? (
-        <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: section.color.bg }}>
-          <Icon size={14} color={section.color.icon} strokeWidth={2.5} />
-        </span>
-      ) : (
-        <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-white/[0.06]">
-          <Icon size={14} className="text-body" strokeWidth={2.5} />
-        </span>
+      {section.type === 'avulso' && <Mic size={12} className="text-body flex-shrink-0" />}
+      {section.color && (
+        <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: section.color.icon }} />
       )}
       <div className="flex-1 min-w-0">
         {renaming ? (
@@ -681,22 +684,24 @@ function SectionHeader({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               if (e.key === 'Escape') { setNewLabel(section.label); setRenaming(false) }
             }}
-            className="text-heading font-semibold bg-transparent border-b border-white/20 focus:outline-none focus:border-brand"
+            className="text-heading font-semibold text-sm uppercase tracking-wide bg-transparent border-b border-white/20 focus:outline-none focus:border-brand"
+            style={{ letterSpacing: '0.06em' }}
             autoFocus
           />
         ) : (
-          <p className="text-heading font-semibold truncate">{section.label}</p>
+          <p className="text-heading font-semibold text-sm uppercase tracking-wide truncate" style={{ letterSpacing: '0.06em' }}>
+            {section.label}
+          </p>
         )}
-        <p className="text-xs text-muted">
-          {section.songs.length} {section.songs.length === 1 ? 'música' : 'músicas'}
-          {section.isDraft && ' · seção vazia'}
-        </p>
       </div>
+      <span className="text-xs text-muted flex-shrink-0">
+        {section.songs.length}
+        {section.isDraft && ' · vazia'}
+      </span>
       <button onClick={onPlay} disabled={!onPlay}
-        className="px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-body hover:text-heading hover:bg-white/[0.08]"
-        style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+        className="px-2 py-1 rounded-md text-xs font-semibold flex items-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-body hover:text-heading hover:bg-white/[0.05]"
         title={onPlay ? 'Tocar a partir desta seção' : 'Adicione uma música primeiro'}>
-        <Play size={11} fill="currentColor" /> Tocar
+        <Play size={10} fill="currentColor" /> Tocar
       </button>
       <div className="relative">
         <button onClick={() => setMenuOpen((v) => !v)}

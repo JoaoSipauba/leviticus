@@ -288,6 +288,10 @@ type Props = {
     onRemoveFromPlaylist: () => void
   }
   onEdit?: () => void
+  // 'standalone' = card glass com padding generoso (uso na biblioteca).
+  // 'list' = row densa sem fundo próprio (uso dentro de uma lista contínua,
+  // ex: detalhe do culto onde já tem ar visual ao redor).
+  variant?: 'standalone' | 'list'
   // Drag handlers HTML5 — quando o consumidor quer permitir arrastar a row
   // (ex: reordenar dentro de um culto). Aplicados direto na div root.
   draggable?: boolean
@@ -297,7 +301,7 @@ type Props = {
 }
 
 export function SongCard({
-  song, playlistContext, onEdit,
+  song, playlistContext, onEdit, variant = 'standalone',
   draggable, onDragStart, onDragOver, onDragEnd,
 }: Props) {
   const [downloaded, setDownloaded] = useState(false)
@@ -441,14 +445,20 @@ export function SongCard({
     setDownloaded(false)
   }
 
+  const isList = variant === 'list'
   return (
     <div
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      className="group relative flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all overflow-hidden"
-      style={{
+      className={`group relative flex items-center gap-4 transition-all overflow-hidden ${
+        isList ? 'gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.04]' : 'px-4 py-3.5 rounded-2xl'
+      }`}
+      style={isList ? {
+        background: isCurrentlyPlaying ? `${typeColor}1a` : undefined,
+        cursor: draggable ? 'grab' : undefined,
+      } : {
         background: isCurrentlyPlaying
           ? `linear-gradient(135deg, ${typeColor}22, rgba(19,19,31,0.7))`
           : 'rgba(19,19,31,0.55)',
@@ -468,7 +478,7 @@ export function SongCard({
       )}
 
       {/* Thumbnail com play/pause overlay */}
-      <div className="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04]">
+      <div className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}>
         {song.thumbnail_url ? (
           <img src={song.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (

@@ -9,7 +9,6 @@ import { PlaylistDetail } from './pages/PlaylistDetail.js'
 import { OrgManage } from './pages/OrgManage.js'
 import { GroupDetail } from './pages/GroupDetail.js'
 import { DownloadBadgePreview } from './pages/_DownloadBadgePreview.js'
-import { PlaylistLayoutsPreview } from './pages/_PlaylistLayoutsPreview.js'
 
 function LoginRoute() {
   const navigate = useNavigate()
@@ -33,6 +32,5 @@ export const router = createBrowserRouter([
   },
   { path: '/login', element: <LoginRoute /> },
   { path: '/preview/download', element: <DownloadBadgePreview /> },
-  { path: '/preview/playlist-layouts', element: <PlaylistLayoutsPreview /> },
   { path: '/org', element: <OrgSelect /> },
 ])
