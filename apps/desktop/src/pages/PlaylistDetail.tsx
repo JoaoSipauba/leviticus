@@ -62,8 +62,11 @@ export function PlaylistDetail() {
     sectionLabel: string | null
   } | null>(null)
 
-  // Drag state
+  // Drag state. dragRef e dropTargetRef são ref síncronas usadas no endDrag
+  // pra evitar race condition: dragend pode disparar antes do React processar
+  // o setDropTarget agendado pelo último dragover. State paralelo é só pra UI.
   const dragRef = useRef<DragState>(null)
+  const dropTargetRef = useRef<DropTarget>(null)
   const [drag, setDrag] = useState<DragState>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
   const [pendingMerge, setPendingMerge] = useState<{
@@ -135,6 +138,7 @@ export function PlaylistDetail() {
     function up() {
       if (dragRef.current) {
         dragRef.current = null
+        dropTargetRef.current = null
         setDrag(null)
         setDropTarget(null)
       }
@@ -222,18 +226,22 @@ export function PlaylistDetail() {
 
   function startDrag(state: DragState) {
     dragRef.current = state
+    dropTargetRef.current = null
     setDrag(state)
+    setDropTarget(null)
   }
 
   function setDragOver(target: DropTarget) {
     if (!dragRef.current) return
+    dropTargetRef.current = target
     setDropTarget(target)
   }
 
   async function endDrag() {
     const state = dragRef.current
-    const target = dropTarget
+    const target = dropTargetRef.current
     dragRef.current = null
+    dropTargetRef.current = null
     setDrag(null)
     setDropTarget(null)
 
