@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Play, Plus, MoreHorizontal, Music, Mic, Pencil, Trash2,
+  ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Trash2,
   Loader2, AlertTriangle, GripVertical,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
@@ -669,7 +669,6 @@ function SectionHeader({
       >
         <GripVertical size={14} />
       </button>
-      {section.type === 'avulso' && <Mic size={12} className="text-body flex-shrink-0" />}
       <div className="flex-1 min-w-0">
         {renaming ? (
           <input
