@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Trash2,
@@ -678,9 +679,41 @@ function SectionHeader({
   const [newLabel, setNewLabel] = useState(section.label)
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const btnMenuRef = useRef<HTMLButtonElement>(null)
+  const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
 
   useEffect(() => { setNewLabel(section.label) }, [section.label])
   useEffect(() => { if (!menuOpen) setConfirmingDelete(false) }, [menuOpen])
+
+  useLayoutEffect(() => {
+    if (!menuOpen || !btnMenuRef.current) return
+    function update() {
+      const rect = btnMenuRef.current!.getBoundingClientRect()
+      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [menuOpen])
+
+  useEffect(() => {
+    if (!menuOpen) return
+    function onDocClick(e: MouseEvent) {
+      if (btnMenuRef.current?.contains(e.target as Node)) return
+      setMenuOpen(false)
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setMenuOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [menuOpen])
 
   return (
     <div
@@ -731,15 +764,30 @@ function SectionHeader({
         title={onPlay ? 'Tocar a partir desta seção' : 'Adicione uma música primeiro'}>
         <Play size={10} fill="currentColor" /> Tocar
       </button>
-      <div className="relative">
-        <button onClick={() => setMenuOpen((v) => !v)}
+      <div>
+        <button
+          ref={btnMenuRef}
+          onClick={() => setMenuOpen((v) => !v)}
           className="w-8 h-8 rounded-md flex items-center justify-center text-body hover:text-heading hover:bg-white/[0.05] cursor-pointer"
-          aria-label="Mais ações">
+          aria-label="Mais ações"
+        >
           <MoreHorizontal size={15} />
         </button>
-        {menuOpen && (
-          <div role="menu" className="absolute right-0 top-9 min-w-[180px] rounded-xl py-1.5 z-30"
-            style={{ background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)' }}>
+        {menuOpen && createPortal(
+          <div
+            role="menu"
+            className="fixed min-w-[180px] rounded-xl py-1.5"
+            style={{
+              top: menuPos.top,
+              right: menuPos.right,
+              zIndex: 9999,
+              background: 'rgba(19,19,31,0.95)',
+              backdropFilter: 'blur(20px) saturate(180%)',
+              WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)',
+            }}
+          >
             {confirmingDelete ? (
               <div className="px-3 py-2.5 flex flex-col gap-2">
                 <div className="flex items-start gap-2 text-xs text-red-300">
@@ -767,7 +815,8 @@ function SectionHeader({
                 </button>
               </>
             )}
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </div>
@@ -785,17 +834,66 @@ function PlaylistMenu({
   onCancelDelete: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+
   useEffect(() => { if (confirmingDelete) setOpen(true) }, [confirmingDelete])
+
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return
+    function update() {
+      const rect = btnRef.current!.getBoundingClientRect()
+      setPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (btnRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
+
   return (
-    <div className="relative">
-      <button onClick={() => setOpen((v) => !v)}
+    <div>
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((v) => !v)}
         className="w-9 h-9 rounded-full flex items-center justify-center text-body hover:text-heading bg-white/[0.04] border border-hairline cursor-pointer"
-        aria-label="Mais ações">
+        aria-label="Mais ações"
+      >
         <MoreHorizontal size={15} />
       </button>
-      {open && (
-        <div role="menu" className="absolute right-0 top-11 min-w-[200px] rounded-xl py-1.5 z-30"
-          style={{ background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)' }}>
+      {open && createPortal(
+        <div
+          role="menu"
+          className="fixed min-w-[200px] rounded-xl py-1.5"
+          style={{
+            top: pos.top,
+            right: pos.right,
+            zIndex: 9999,
+            background: 'rgba(19,19,31,0.95)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)',
+          }}
+        >
           {confirmingDelete ? (
             <div className="px-3 py-2.5 flex flex-col gap-2.5">
               <div className="flex items-start gap-2 text-xs text-red-300">
@@ -825,7 +923,8 @@ function PlaylistMenu({
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

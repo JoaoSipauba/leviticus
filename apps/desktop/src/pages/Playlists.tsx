@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
@@ -278,7 +279,40 @@ function ActionsMenu({ onEdit, onDelete, dark }: {
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
+
   useEffect(() => { if (!open) { setConfirming(false); setError(null) } }, [open])
+
+  useLayoutEffect(() => {
+    if (!open || !btnRef.current) return
+    function update() {
+      const rect = btnRef.current!.getBoundingClientRect()
+      setPos({ top: rect.bottom + 6, right: window.innerWidth - rect.right })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function onDocClick(e: MouseEvent) {
+      if (btnRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
 
   async function doDelete(e: React.MouseEvent) {
     e.stopPropagation()
@@ -295,8 +329,9 @@ function ActionsMenu({ onEdit, onDelete, dark }: {
   }
 
   return (
-    <div className="relative" onClick={(e) => e.stopPropagation()}>
+    <div onClick={(e) => e.stopPropagation()}>
       <button
+        ref={btnRef}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
         className={`w-9 h-9 rounded-full flex items-center justify-center cursor-pointer transition-opacity ${
           open ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -306,13 +341,17 @@ function ActionsMenu({ onEdit, onDelete, dark }: {
       >
         <MoreHorizontal size={15} className={dark ? 'text-white' : 'text-body'} strokeWidth={2} />
       </button>
-      {open && (
+      {open && createPortal(
         <div
           role="menu"
-          className="absolute right-0 top-11 min-w-[200px] rounded-xl py-1.5 z-30"
+          className="fixed min-w-[200px] rounded-xl py-1.5"
           style={{
+            top: pos.top,
+            right: pos.right,
+            zIndex: 9999,
             background: 'rgba(19,19,31,0.95)',
             backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             border: '1px solid rgba(255,255,255,0.08)',
             boxShadow: '0 12px 40px -12px rgba(0,0,0,0.7)',
           }}
@@ -349,7 +388,8 @@ function ActionsMenu({ onEdit, onDelete, dark }: {
               </button>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
