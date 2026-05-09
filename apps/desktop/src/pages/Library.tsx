@@ -4,6 +4,7 @@ import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 
 export function Library() {
@@ -15,6 +16,7 @@ export function Library() {
   const [loading, setLoading] = useState(true)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const { openAddSong, librarySeed, openEditSong } = useUIStore()
+  const online = useOnlineStatus()
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -107,13 +109,17 @@ export function Library() {
           </h2>
         </div>
         <button
-          onClick={openAddSong}
-          className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand cursor-pointer"
+          onClick={online ? openAddSong : undefined}
+          disabled={!online}
+          title={online ? undefined : 'Sem conexão'}
+          className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand"
           style={{
             borderRadius: 10,
             padding: '8px 14px', fontSize: 13,
             border: 'none',
-            boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)',
+            boxShadow: online ? '0 8px 24px -8px rgba(37,99,235,0.5)' : 'none',
+            opacity: online ? 1 : 0.35,
+            cursor: online ? 'pointer' : 'not-allowed',
           }}
         >
           <Plus size={13} strokeWidth={2.5} />
@@ -168,13 +174,15 @@ export function Library() {
               <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
                 Nenhuma música encontrada
               </p>
-              <button
-                onClick={openAddSong}
-                className="text-sm mt-1"
-                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-              >
-                Adicionar primeira música
-              </button>
+              {online && (
+                <button
+                  onClick={openAddSong}
+                  className="text-sm mt-1"
+                  style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                >
+                  Adicionar primeira música
+                </button>
+              )}
             </div>
           </div>
         )}

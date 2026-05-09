@@ -1,10 +1,13 @@
 import { useEffect, type ReactNode } from 'react'
+import { WifiOff } from 'lucide-react'
 import { Sidebar } from './Sidebar.js'
 import { PlayerMini } from './PlayerMini.js'
 import { AddSongModal } from './AddSongModal.js'
 import { EditSongModal } from './EditSongModal.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 export function Layout({ children }: { children: ReactNode }) {
+  const online = useOnlineStatus()
   // Scrollbar custom: WebKit não anima ::-webkit-scrollbar, então criamos um thumb
   // <div> real para cada .styled-scroll. Usa MutationObserver para pegar containers
   // que aparecem dinamicamente (ex: AddSongModal abrindo).
@@ -214,6 +217,30 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
       <AddSongModal />
       <EditSongModal />
+      {!online && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 14,
+            right: 14,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 10px 5px 8px',
+            background: 'rgba(10,6,0,0.94)',
+            border: '1px solid rgba(245,158,11,0.32)',
+            borderRadius: 99,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 12px rgba(245,158,11,0.08)',
+            zIndex: 50,
+            pointerEvents: 'none',
+          }}
+        >
+          <WifiOff size={11} color="#d97706" strokeWidth={2.5} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#d97706', letterSpacing: '0.04em' }}>
+            Offline
+          </span>
+        </div>
+      )}
     </div>
   )
 }

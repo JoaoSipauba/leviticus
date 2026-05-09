@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
   Pencil, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
@@ -39,6 +40,7 @@ export function Playlists() {
   const [editing, setEditing] = useState<Playlist | null>(null)
   const [showPast, setShowPast] = useState(false)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+  const online = useOnlineStatus()
 
   async function loadServices() {
     const db = await getDb()
@@ -106,9 +108,16 @@ export function Playlists() {
           <h1 className="text-h1 text-heading">Sua agenda</h1>
         </div>
         <button
-          onClick={() => { setEditing(null); setShowModal(true) }}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer"
-          style={{ background: '#2563eb', color: '#fff' }}
+          onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
+          disabled={!online}
+          title={online ? undefined : 'Sem conexão'}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
+          style={{
+            background: '#2563eb',
+            color: '#fff',
+            opacity: online ? 1 : 0.35,
+            cursor: online ? 'pointer' : 'not-allowed',
+          }}
         >
           <Plus size={16} /> Novo culto
         </button>
@@ -120,7 +129,7 @@ export function Playlists() {
           <div className="space-y-3">
             {today.map((s) => (
               <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
             ))}
           </div>
         </section>
@@ -132,14 +141,14 @@ export function Playlists() {
           <div className="space-y-2">
             {upcoming.map((s) => (
               <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
             ))}
           </div>
         </section>
       )}
 
       {today.length === 0 && upcoming.length === 0 && (
-        <EmptyState onCreate={() => { setEditing(null); setShowModal(true) }} />
+        <EmptyState onCreate={online ? () => { setEditing(null); setShowModal(true) } : undefined} />
       )}
 
       {past.length > 0 && (
@@ -155,7 +164,7 @@ export function Playlists() {
             <div className="space-y-2" style={{ opacity: 0.55 }}>
               {past.map((s) => (
                 <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} />
+                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
               ))}
             </div>
           )}
@@ -172,26 +181,29 @@ export function Playlists() {
   )
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate }: { onCreate?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center py-16">
       <CalendarDays size={48} className="text-muted mb-4" strokeWidth={1.5} />
       <p className="text-body mb-1">Nenhum culto agendado.</p>
-      <button onClick={onCreate}
-        className="text-brand font-semibold cursor-pointer"
-        style={{ background: 'none', border: 'none' }}
-      >
-        Criar primeiro culto
-      </button>
+      {onCreate && (
+        <button onClick={onCreate}
+          className="text-brand font-semibold cursor-pointer"
+          style={{ background: 'none', border: 'none' }}
+        >
+          Criar primeiro culto
+        </button>
+      )}
     </div>
   )
 }
 
-function TodayCard({ service, onClick, onEdit, onDelete }: {
+function TodayCard({ service, onClick, onEdit, onDelete, online }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
   onDelete: () => Promise<void>
+  online: boolean
 }) {
   const color = getServiceColor(service.id)
   const status = formatPlaylistStatus(service.scheduled_at, service.scheduled_end)
@@ -226,16 +238,17 @@ function TodayCard({ service, onClick, onEdit, onDelete }: {
           )}
         </div>
       </div>
-      <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark />
+      <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark online={online} />
     </div>
   )
 }
 
-function CompactCard({ service, onClick, onEdit, onDelete }: {
+function CompactCard({ service, onClick, onEdit, onDelete, online }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
   onDelete: () => Promise<void>
+  online: boolean
 }) {
   const color = getServiceColor(service.id)
   return (
@@ -265,15 +278,16 @@ function CompactCard({ service, onClick, onEdit, onDelete }: {
           )}
         </div>
       </div>
-      <ActionsMenu onEdit={onEdit} onDelete={onDelete} />
+      <ActionsMenu onEdit={onEdit} onDelete={onDelete} online={online} />
     </div>
   )
 }
 
-function ActionsMenu({ onEdit, onDelete, dark }: {
+function ActionsMenu({ onEdit, onDelete, dark, online }: {
   onEdit: () => void
   onDelete: () => Promise<void>
   dark?: boolean
+  online: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -378,12 +392,22 @@ function ActionsMenu({ onEdit, onDelete, dark }: {
             </div>
           ) : (
             <>
-              <button onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit() }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] text-left cursor-pointer">
+              <button
+                onClick={online ? (e) => { e.stopPropagation(); setOpen(false); onEdit() } : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão'}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading text-left"
+                style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
+              >
                 <Pencil size={14} className="text-body" strokeWidth={2} /> Editar
               </button>
-              <button onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/[0.08] text-left cursor-pointer">
+              <button
+                onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão'}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 text-left"
+                style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
+              >
                 <Trash2 size={14} strokeWidth={2} /> Excluir
               </button>
             </>
