@@ -1,9 +1,29 @@
-import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { Music, LayoutGrid, CalendarDays, Users, LogOut, Home } from 'lucide-react'
+import type { Playlist } from '@leviticus/core'
 import { useAuthStore } from '../store/auth.js'
 import { supabase } from '../lib/supabase.js'
+import { getDb } from '../lib/db.js'
+import { formatPlaylistTimeRange, formatTime } from '../lib/playlist.js'
 import { Logo } from './brand/Logo.js'
+
+type CultoState = 'live' | 'soon'
+type ActiveCulto = { playlist: Playlist; state: CultoState; minutesLeft?: number }
+
+function detectCulto(rows: Playlist[]): ActiveCulto | null {
+  const now = Date.now()
+  const ONE_HOUR = 60 * 60 * 1000
+  for (const p of rows) {
+    const start = new Date(p.scheduled_at).getTime()
+    const end = new Date(p.scheduled_end).getTime()
+    if (now >= start && now < end) return { playlist: p, state: 'live' }
+    if (start > now && start - now <= ONE_HOUR) {
+      return { playlist: p, state: 'soon', minutesLeft: Math.ceil((start - now) / 60000) }
+    }
+  }
+  return null
+}
 
 const links = [
   { to: '/library', label: 'Biblioteca', Icon: Music },
@@ -14,8 +34,11 @@ const links = [
 
 export function Sidebar() {
   const { signOut } = useAuthStore()
+  const navigate = useNavigate()
   const [orgName, setOrgName] = useState<string | null>(null)
+  const [activeCulto, setActiveCulto] = useState<ActiveCulto | null>(null)
   const orgId = localStorage.getItem('leviticus_org_id')
+  const intervalRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!orgId) return
@@ -25,6 +48,21 @@ export function Sidebar() {
       .eq('id', orgId)
       .single()
       .then(({ data }) => { if (data) setOrgName(data.name) })
+  }, [orgId])
+
+  useEffect(() => {
+    if (!orgId) return
+    async function check() {
+      const db = await getDb()
+      const rows = await db.select<Playlist[]>(
+        `SELECT * FROM playlists WHERE org_id = ? ORDER BY scheduled_at ASC`,
+        [orgId]
+      )
+      setActiveCulto(detectCulto(rows))
+    }
+    void check()
+    intervalRef.current = window.setInterval(() => { void check() }, 60_000)
+    return () => { if (intervalRef.current !== null) window.clearInterval(intervalRef.current) }
   }, [orgId])
 
   return (
@@ -74,6 +112,70 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {activeCulto && (
+        <div className="px-2 mb-1">
+          {activeCulto.state === 'live' ? (
+            <button
+              onClick={() => navigate(`/services/${activeCulto.playlist.id}`)}
+              className="w-full text-left cursor-pointer rounded-[10px] px-[10px] py-[9px] pr-6 relative overflow-hidden transition-all"
+              style={{
+                background: 'rgba(5,20,10,0.9)',
+                border: '1px solid rgba(34,197,94,0.45)',
+                boxShadow: '0 0 0 1px rgba(34,197,94,0.06), inset 0 1px 0 rgba(255,255,255,0.04)',
+              }}
+            >
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 30% 0%, rgba(34,197,94,0.16) 0%, transparent 65%)' }}
+              />
+              <div className="flex items-center gap-[5px] mb-1">
+                {/* sonar */}
+                <div className="relative w-[9px] h-[9px] flex-shrink-0">
+                  <div className="absolute inset-[2px] rounded-full" style={{ background: '#22c55e', boxShadow: '0 0 4px rgba(34,197,94,0.7)' }} />
+                  <div className="absolute inset-0 rounded-full animate-sonar-ring" style={{ border: '1.5px solid rgba(34,197,94,0.6)' }} />
+                </div>
+                <span className="text-[8px] font-extrabold tracking-[0.14em] uppercase" style={{ color: '#4ade80' }}>Ao vivo</span>
+              </div>
+              <div className="text-[11px] font-bold leading-snug truncate" style={{ color: '#f0fff4' }}>
+                {activeCulto.playlist.name}
+              </div>
+              <div className="text-[9px] mt-0.5" style={{ color: 'rgba(134,239,172,0.5)' }}>
+                {formatPlaylistTimeRange(activeCulto.playlist.scheduled_at, activeCulto.playlist.scheduled_end)}
+              </div>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px]" style={{ color: 'rgba(34,197,94,0.35)' }}>›</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate(`/services/${activeCulto.playlist.id}`)}
+              className="w-full text-left cursor-pointer rounded-[10px] px-[10px] py-[9px] pr-6 relative overflow-hidden transition-all"
+              style={{
+                background: 'rgba(5,10,25,0.8)',
+                border: '1.5px dashed rgba(59,130,246,0.3)',
+              }}
+            >
+              <div
+                className="absolute inset-0 pointer-events-none"
+                style={{ background: 'radial-gradient(ellipse at 30% 0%, rgba(59,130,246,0.10) 0%, transparent 60%)' }}
+              />
+              <div className="flex items-center gap-[5px] mb-1">
+                <div className="w-[5px] h-[5px] rounded-full flex-shrink-0 animate-badge-flicker" style={{ background: '#60a5fa' }} />
+                <span className="text-[8px] font-bold tracking-[0.12em] uppercase" style={{ color: '#60a5fa' }}>Em breve</span>
+              </div>
+              <div className="text-[11px] font-semibold leading-snug truncate" style={{ color: '#bfdbfe' }}>
+                {activeCulto.playlist.name}
+              </div>
+              <div className="flex items-baseline gap-[3px] mt-0.5">
+                <span className="text-[13px] font-bold leading-none" style={{ color: '#93c5fd' }}>{activeCulto.minutesLeft}</span>
+                <span className="text-[8px] font-semibold" style={{ color: '#1d4ed8' }}>min</span>
+                <span className="text-[8px] opacity-40 mx-0.5">·</span>
+                <span className="text-[8px]" style={{ color: '#1e40af' }}>às {formatTime(activeCulto.playlist.scheduled_at)}</span>
+              </div>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px]" style={{ color: 'rgba(59,130,246,0.3)' }}>›</span>
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="px-2 mt-2 space-y-1">
         {orgName && (

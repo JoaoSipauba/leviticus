@@ -69,6 +69,18 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   border-radius: 4px;
 }
 
+/* Badge de culto em andamento na sidebar */
+@keyframes sonar-ring {
+  0%   { transform: scale(0.6); opacity: 0.9; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+@keyframes badge-flicker {
+  0%, 100% { opacity: 0.9; }
+  50%       { opacity: 0.4; }
+}
+.animate-sonar-ring { animation: sonar-ring 1.6s ease-out infinite; }
+.animate-badge-flicker { animation: badge-flicker 3s ease-in-out infinite; }
+
 /* Scrollbar custom — WebKit pseudo-scrollbars não suportam transition (bug 104412).
    Solução: esconder a nativa e renderizar um thumb real via JS (Layout.tsx).
    O thumb é um div normal, então opacity transitions funcionam perfeitamente. */
