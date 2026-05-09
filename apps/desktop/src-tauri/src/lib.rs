@@ -1,3 +1,4 @@
+use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -47,21 +48,35 @@ pub fn run() {
             let next_track = Shortcut::new(None, Code::MediaTrackNext);
             let prev_track = Shortcut::new(None, Code::MediaTrackPrevious);
 
+            // Um AtomicBool por tecla para filtrar key-repeat do macOS.
+            // swap(true) retorna o valor anterior: se já era true, a tecla
+            // estava pressionada — é um repeat, ignora. Released limpa o flag.
+            let pp_held = Arc::new(AtomicBool::new(false));
+            let nx_held = Arc::new(AtomicBool::new(false));
+            let pv_held = Arc::new(AtomicBool::new(false));
+
             // Registrar teclas de mídia pode falhar se o sistema não der permissão
             // (ex: macOS sem Acessibilidade) — não deixar isso derrubar o app
             let _ = app.global_shortcut().on_shortcuts(
                 [play_pause, next_track, prev_track],
                 move |_app, shortcut, event| {
-                    if event.state != ShortcutState::Pressed {
-                        return;
+                    let held = match shortcut.key {
+                        Code::MediaPlayPause    => &pp_held,
+                        Code::MediaTrackNext    => &nx_held,
+                        Code::MediaTrackPrevious => &pv_held,
+                        _ => return,
+                    };
+                    match event.state {
+                        ShortcutState::Released => { held.store(false, Ordering::Relaxed); return; }
+                        ShortcutState::Pressed  => { if held.swap(true, Ordering::Relaxed) { return; } }
                     }
-                    let event = match shortcut.key {
-                        Code::MediaPlayPause => "media-play-pause",
-                        Code::MediaTrackNext => "media-next",
+                    let event_name = match shortcut.key {
+                        Code::MediaPlayPause    => "media-play-pause",
+                        Code::MediaTrackNext    => "media-next",
                         Code::MediaTrackPrevious => "media-prev",
                         _ => return,
                     };
-                    let _ = handle.emit(event, ());
+                    let _ = handle.emit(event_name, ());
                 },
             );
 
