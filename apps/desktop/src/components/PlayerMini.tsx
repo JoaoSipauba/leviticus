@@ -113,6 +113,7 @@ export function PlayerMini() {
   // durante o culto quando o app está em segundo plano.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.repeat) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
