@@ -1,5 +1,5 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
-import { appLocalDataDir, join } from '@tauri-apps/api/path'
+import { appLocalDataDir, join, homeDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
 
 export const DOWNLOAD_CANCELED = 'canceled'
@@ -255,6 +255,33 @@ export function startDownload(
   }
 }
 
+// Converte o arquivo de áudio local para MP3 e salva em ~/Downloads.
+// Requer ffmpeg instalado via Homebrew. Lança se o arquivo não existir ou
+// se o ffmpeg falhar. Retorna o caminho do arquivo gerado.
+export async function exportSongToMp3(songId: string, title: string): Promise<string> {
+  const inputPath = await findSongFile(songId)
+  if (!inputPath) throw new Error('Arquivo de áudio não encontrado. Baixe a música primeiro.')
+
+  const home = await homeDir()
+  const safeName = title.replace(/[/\\:*?"<>|]/g, '_').trim() || songId
+  const outputPath = await join(home, 'Downloads', `${safeName}.mp3`)
+
+  const command = Command.create('ffmpeg', [
+    '-i', inputPath,
+    '-codec:a', 'libmp3lame',
+    '-qscale:a', '2',
+    '-y',
+    outputPath,
+  ])
+
+  const result = await command.execute()
+  if (result.code !== 0) {
+    console.error('[exportSongToMp3] ffmpeg failed:', result.stderr)
+    throw new Error('Falha ao exportar. Verifique se o ffmpeg está instalado (brew install ffmpeg).')
+  }
+  return outputPath
+}
+
 // Compatibilidade: AddSongModal e RemoteControl usam o fluxo direto (sem fila).
 export async function downloadSong(
   songId: string,
@@ -294,12 +321,13 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
   }
   const url = normalized
 
+  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
   const command = Command.create('yt-dlp', [
     '--no-playlist',
     '--no-download',
     '--print', '%(title)s|||%(uploader)s|||%(duration)s',
     url,
-  ])
+  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
   const result = await command.execute()
   if (result.code !== 0) {
@@ -329,11 +357,12 @@ export type YTSearchResult = {
 export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   if (!query.trim()) return []
 
+  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
   const command = Command.create('yt-dlp', [
     '--dump-json',
     '--no-playlist',
     `ytsearch5:${query}`,
-  ])
+  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
   const result = await command.execute()
   if (result.code !== 0) {

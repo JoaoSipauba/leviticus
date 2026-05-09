@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, Check, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, X } from 'lucide-react'
-import { isDownloaded, getSongFilename, deleteSongFile } from '../lib/ytdlp.js'
+import { AlertTriangle, Check, FileDown, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, X } from 'lucide-react'
+import { isDownloaded, getSongFilename, deleteSongFile, exportSongToMp3 } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { usePlayerStore } from '../store/player.js'
@@ -89,11 +89,12 @@ function ThumbPlayOverlay({
 }
 
 function ActionsMenu({
-  onEdit, onDelete, onDeleteFromDevice, isDownloadedOnDevice, onRemoveFromPlaylist,
+  onEdit, onDelete, onDeleteFromDevice, onExportMp3, isDownloadedOnDevice, onRemoveFromPlaylist,
 }: {
   onEdit?: () => void
   onDelete: () => Promise<void> | void
   onDeleteFromDevice?: () => Promise<void> | void
+  onExportMp3?: () => Promise<void> | void
   isDownloadedOnDevice: boolean
   // Quando preenchido, a row está num culto e o menu mostra "Remover do culto"
   // antes de "Excluir da biblioteca" (que continua disponível pra quem tem permissão).
@@ -228,6 +229,21 @@ function ActionsMenu({
                 >
                   <Pencil size={14} className="text-body" strokeWidth={2} />
                   Editar
+                </button>
+              )}
+
+              {/* Exportar MP3 — só aparece quando há arquivo local. */}
+              {isDownloadedOnDevice && onExportMp3 && (
+                <button
+                  role="menuitem"
+                  onClick={(e) => { e.stopPropagation(); setOpen(false); void onExportMp3() }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] transition-colors text-left cursor-pointer"
+                >
+                  <FileDown size={14} className="text-body" strokeWidth={2} />
+                  <div className="flex-1">
+                    <div>Exportar como MP3</div>
+                    <div className="text-xs text-muted font-normal mt-0.5">Salva em ~/Downloads</div>
+                  </div>
                 </button>
               )}
 
@@ -561,6 +577,16 @@ export function SongCard({
         onEdit={onEdit}
         onDelete={handleDelete}
         onDeleteFromDevice={handleDeleteFromDevice}
+        onExportMp3={downloaded ? async () => {
+          try {
+            const path = await exportSongToMp3(song.id, song.title)
+            console.log('[SongCard] exportado:', path)
+            window.alert(`MP3 salvo em:\n${path}`)
+          } catch (e) {
+            console.error('[SongCard] export mp3 error:', e)
+            window.alert(`Erro ao exportar:\n${e instanceof Error ? e.message : String(e)}`)
+          }
+        } : undefined}
         isDownloadedOnDevice={downloaded}
         onRemoveFromPlaylist={playlistContext?.onRemoveFromPlaylist}
       />
