@@ -702,6 +702,8 @@ export function PlaylistDetail() {
 
 // ─────────────────────────────────────────────────────────────────────────
 
+const DROP_ZONE_REACH = 20 // px acima e abaixo da linha
+
 function DropZone({ show, active, onMouseEnter, onMouseLeave }: {
   show: boolean
   active: boolean
@@ -709,30 +711,32 @@ function DropZone({ show, active, onMouseEnter, onMouseLeave }: {
   onMouseLeave?: () => void
 }) {
   return (
-    <div
-      style={{
-        position: 'relative',
-        height: 28,
-        marginTop: -14,
-        marginBottom: -14,
-        zIndex: active ? 2 : 0,
-        pointerEvents: active ? 'auto' : 'none',
-      }}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <div style={{ position: 'relative', height: 0 }}>
       <div
         style={{
           position: 'absolute',
           left: 0, right: 0,
-          top: '50%',
-          transform: 'translateY(-50%)',
-          height: 3,
-          background: show ? '#3b82f6' : 'transparent',
-          borderRadius: 2,
-          opacity: show ? 1 : 0,
+          top: -DROP_ZONE_REACH,
+          height: DROP_ZONE_REACH * 2,
+          zIndex: active ? 10 : -1,
+          pointerEvents: active ? 'auto' : 'none',
         }}
-      />
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+      >
+        <div
+          style={{
+            position: 'absolute',
+            left: 0, right: 0,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            height: 3,
+            background: show ? '#3b82f6' : 'transparent',
+            borderRadius: 2,
+            opacity: show ? 1 : 0,
+          }}
+        />
+      </div>
     </div>
   )
 }
