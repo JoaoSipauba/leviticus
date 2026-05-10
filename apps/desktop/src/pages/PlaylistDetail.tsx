@@ -793,7 +793,7 @@ function PlaylistSection({
       </div>
       <button
         onClick={onAddSong}
-        className="text-xs text-muted hover:text-body flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
+        className="text-xs text-muted flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
       >
         <Plus size={12} /> Adicionar música
       </button>
