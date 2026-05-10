@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.3](https://github.com/JoaoSipauba/leviticus/compare/v0.1.2...v0.1.3) (2026-05-10)
+
+### Correções
+
+* **release:** injetar VITE_SUPABASE_URL/ANON_KEY no build via secrets ([415a05a](https://github.com/JoaoSipauba/leviticus/commit/415a05a3804c29070237805c9317bb1d4a92f989))
+
 ## [0.1.2](https://github.com/JoaoSipauba/leviticus/compare/v0.1.1...v0.1.2) (2026-05-10)
 
 ### Correções
