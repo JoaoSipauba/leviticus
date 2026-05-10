@@ -461,6 +461,7 @@ export function AddSongModal() {
   const [searchError, setSearchError] = useState<string | null>(null)
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const searchTokenRef = useRef(0)
+  const lastSearchedQueryRef = useRef('')
 
   // fake download progress
   const downloadStartRef = useRef(0)
@@ -539,6 +540,7 @@ export function AddSongModal() {
   useEffect(() => {
     if (tab !== 'search') return
     if (query.trim().length < 2) { setSearchResults([]); setSearchError(null); return }
+    if (query === lastSearchedQueryRef.current) return
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => doSearch(query), 500)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
@@ -768,6 +770,7 @@ export function AddSongModal() {
     setSearching(false)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTokenRef.current++
+    lastSearchedQueryRef.current = ''
     previewUrlCacheRef.current.clear()
   }
 
@@ -780,10 +783,12 @@ export function AddSongModal() {
     setSearchError(null)
     setError(null)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    lastSearchedQueryRef.current = ''
   }
 
   async function doSearch(q: string) {
     if (q.trim().length < 2) { setSearchResults([]); return }
+    lastSearchedQueryRef.current = q
     const token = ++searchTokenRef.current
     setSearching(true)
     setSearchError(null)
