@@ -294,6 +294,7 @@ function ActionsMenu({ onEdit, onDelete, dark, online }: {
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
 
   useEffect(() => { if (!open) { setConfirming(false); setError(null) } }, [open])
@@ -316,7 +317,11 @@ function ActionsMenu({ onEdit, onDelete, dark, online }: {
   useEffect(() => {
     if (!open) return
     function onDocClick(e: MouseEvent) {
-      if (btnRef.current?.contains(e.target as Node)) return
+      const t = e.target as Node
+      if (btnRef.current?.contains(t)) return
+      // Click dentro do dropdown (portal) também não fecha — sem isso o
+      // mousedown reseta open antes do onClick do item rodar.
+      if (menuRef.current?.contains(t)) return
       setOpen(false)
     }
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
@@ -357,6 +362,7 @@ function ActionsMenu({ onEdit, onDelete, dark, online }: {
       </button>
       {open && createPortal(
         <div
+          ref={menuRef}
           role="menu"
           className="fixed min-w-[200px] rounded-xl py-1.5"
           style={{
