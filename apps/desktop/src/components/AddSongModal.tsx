@@ -288,7 +288,11 @@ async function streamWithMSE(
   url: string,
   mediaSource: MediaSource,
   signal: AbortSignal,
-  opts: { onBuffered?: (sec: number) => void } = {},
+  opts: {
+    onBuffered?: (sec: number) => void
+    /** Tempo atual do audio em segundos. Usado pra liberar buffer já tocado quando dá QuotaExceededError. */
+    getCurrentTime?: () => number
+  } = {},
 ): Promise<void> {
   // Aguarda MediaSource ficar pronto pra receber buffers
   if (mediaSource.readyState !== 'open') {
@@ -307,7 +311,8 @@ async function streamWithMSE(
 
   const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
 
-  const appendChunk = (chunk: Uint8Array) => new Promise<void>((resolve, reject) => {
+  // Espera o sourceBuffer terminar a operação atual (updateend) ou rejeita em erro.
+  const waitForUpdate = () => new Promise<void>((resolve, reject) => {
     const onEnd = () => { cleanup(); resolve() }
     const onErr = (e: Event) => { cleanup(); reject(e) }
     const cleanup = () => {
@@ -316,13 +321,35 @@ async function streamWithMSE(
     }
     sourceBuffer.addEventListener('updateend', onEnd, { once: true })
     sourceBuffer.addEventListener('error', onErr, { once: true })
-    try {
-      sourceBuffer.appendBuffer(chunk as BufferSource)
-    } catch (e) {
-      cleanup()
-      reject(e)
-    }
   })
+
+  // appendBuffer pode lançar QuotaExceededError pra músicas longas (cota
+  // do SourceBuffer ~30-50MB no WebKit). Quando isso acontece, removemos
+  // a parte já tocada (mantendo um colchão antes do currentTime) e
+  // tentamos de novo.
+  const appendChunk = async (chunk: Uint8Array): Promise<void> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const promise = waitForUpdate()
+        sourceBuffer.appendBuffer(chunk as BufferSource)
+        await promise
+        return
+      } catch (e) {
+        const isQuota = e instanceof DOMException && e.name === 'QuotaExceededError'
+        if (!isQuota || attempt === 2) throw e
+        // Libera espaço removendo do início do buffer até pouco antes do
+        // currentTime. Mantém 10s de colchão pra permitir seek pra trás.
+        const currentTime = opts.getCurrentTime?.() ?? 0
+        if (sourceBuffer.buffered.length === 0) throw e
+        const start = sourceBuffer.buffered.start(0)
+        const end = Math.max(start + 0.1, currentTime - 10)
+        if (end <= start) throw e
+        const removePromise = waitForUpdate()
+        sourceBuffer.remove(start, end)
+        await removePromise
+      }
+    }
+  }
 
   // Cada Range pode falhar transitoriamente (conexão TCP reciclada,
   // resource handle invalidado pelo plugin HTTP, etc). Retry com backoff
@@ -863,6 +890,7 @@ export function AddSongModal() {
         // o retry caso nada tenha tocado.
         void streamWithMSE(url, mediaSource, abortController.signal, {
           onBuffered: (sec) => setPreviewBuffered(sec),
+          getCurrentTime: () => audio.currentTime,
         }).catch((e) => {
           if (abortController.signal.aborted) return
           console.warn('[preview] MSE stream error:', e)
