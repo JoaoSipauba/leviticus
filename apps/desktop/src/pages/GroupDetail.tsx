@@ -151,7 +151,7 @@ export function GroupDetail() {
   const count = songs.length
 
   return (
-    <div className="p-6 flex flex-col h-full">
+    <div className="px-6 pt-6 flex flex-col h-full">
       {/* Back button */}
       <button
         onClick={() => navigate('/ministries')}

@@ -90,7 +90,7 @@ export function Groups() {
   }
 
   return (
-    <div className="p-6 flex flex-col h-full">
+    <div className="px-6 pt-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

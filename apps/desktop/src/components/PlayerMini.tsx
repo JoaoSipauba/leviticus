@@ -222,11 +222,9 @@ export function PlayerMini() {
   } as const)
   const iconBtnClass = 'hover:bg-white/[0.08] hover:opacity-100'
 
-  if (!currentSong) {
-    return (
-      <div style={{ height: 72, background: '#0a0a14', borderTop: '1px solid rgba(255,255,255,0.06)' }} />
-    )
-  }
+  // Sem música tocando: não renderiza nada — o main da Layout ocupa
+  // toda a altura, evitando uma faixa preta inútil no rodapé.
+  if (!currentSong) return null
 
 
   return (

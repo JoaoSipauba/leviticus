@@ -101,7 +101,7 @@ export function Playlists() {
   }
 
   return (
-    <div className="px-8 py-6 max-w-[1100px] mx-auto">
+    <div className="px-8 pt-6 max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-caps text-brand">CULTOS</p>

@@ -100,7 +100,7 @@ export function Library() {
   }
 
   return (
-    <div className="p-6 flex flex-col h-full">
+    <div className="px-6 pt-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex flex-col gap-0.5">
           <p className="text-caps text-brand">BIBLIOTECA</p>
