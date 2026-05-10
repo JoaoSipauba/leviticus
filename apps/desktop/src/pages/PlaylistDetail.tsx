@@ -23,6 +23,7 @@ import { usePlayedStore } from '../store/played.js'
 import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 type DraftSection = {
   sectionId: string
@@ -63,6 +64,7 @@ export function PlaylistDetail() {
   const [editingPlaylist, setEditingPlaylist] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deletingPlaylist, setDeletingPlaylist] = useState(false)
+  const online = useOnlineStatus()
 
   const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [addingSongTo, setAddingSongTo] = useState<{
@@ -180,6 +182,7 @@ export function PlaylistDetail() {
   }
 
   async function handleRemoveSong(ps: PlaylistSong) {
+    if (!online) return
     const { data, error: e } = await supabase.rpc('remove_song_from_playlist', {
       p_playlist_id: ps.playlist_id, p_section_id: ps.section_id, p_song_id: ps.song_id,
     })
@@ -191,7 +194,7 @@ export function PlaylistDetail() {
   }
 
   async function handleRenameSection(sectionId: string, newLabel: string) {
-    if (!id) return
+    if (!id || !online) return
     const { data, error: e } = await supabase.rpc('rename_playlist_section', {
       p_playlist_id: id, p_section_id: sectionId, p_new_label: newLabel,
     })
@@ -207,7 +210,7 @@ export function PlaylistDetail() {
       setDraftSections((prev) => prev.filter((d) => d.sectionId !== sectionId))
       return
     }
-    if (!id) return
+    if (!id || !online) return
     const { data, error: e } = await supabase.rpc('delete_playlist_section', {
       p_playlist_id: id, p_section_id: sectionId,
     })
@@ -219,7 +222,7 @@ export function PlaylistDetail() {
   }
 
   async function handleDeletePlaylist() {
-    if (!playlist) return
+    if (!playlist || !online) return
     setDeletingPlaylist(true)
     try {
       const { data, error: e } = await supabase.rpc('delete_playlist', { p_id: playlist.id })
@@ -264,6 +267,7 @@ export function PlaylistDetail() {
     setDropTarget(null)
 
     if (!state || !target || !id) return
+    if (!online) return // sem conexão não tem como persistir reorder
 
     if (state.kind === 'song' && target.kind === 'song') {
       // p_to_position é o RANK 1-indexed da música movida no array final
@@ -388,7 +392,7 @@ export function PlaylistDetail() {
 
   async function confirmMerge() {
     const m = pendingMerge
-    if (!m || !id) return
+    if (!m || !id || !online) return
     setPendingMerge(null)
     const { error: e } = await supabase.rpc('move_playlist_section', {
       p_playlist_id: id,
@@ -432,9 +436,17 @@ export function PlaylistDetail() {
                 </button>
               )}
               <button
-                onClick={() => setAddSectionOpen(true)}
-                className="px-4 py-2.5 rounded-full font-semibold text-sm flex items-center gap-2 text-body hover:text-heading cursor-pointer transition-colors"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                onClick={online ? () => setAddSectionOpen(true) : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão'}
+                className="px-4 py-2.5 rounded-full font-semibold text-sm flex items-center gap-2 transition-colors disabled:cursor-not-allowed"
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: online ? undefined : '#6b7280',
+                  cursor: online ? 'pointer' : 'not-allowed',
+                  opacity: online ? 1 : 0.5,
+                }}>
                 <Plus size={14} /> Adicionar seção
               </button>
               <PlaylistMenu
@@ -491,9 +503,16 @@ export function PlaylistDetail() {
         ))}
 
         <button
-          onClick={() => setAddSectionOpen(true)}
-          className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold text-body hover:text-heading hover:bg-white/[0.04] transition-colors cursor-pointer"
-          style={{ border: '1px dashed rgba(255,255,255,0.1)' }}
+          onClick={online ? () => setAddSectionOpen(true) : undefined}
+          disabled={!online}
+          title={online ? undefined : 'Sem conexão'}
+          className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
+          style={{
+            border: '1px dashed rgba(255,255,255,0.1)',
+            color: online ? undefined : '#6b7280',
+            cursor: online ? 'pointer' : 'not-allowed',
+            opacity: online ? 1 : 0.5,
+          }}
         >
           <Plus size={16} /> Adicionar seção
         </button>

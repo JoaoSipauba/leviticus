@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { supabase } from '../lib/supabase.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
@@ -91,7 +92,7 @@ function ThumbPlayOverlay({
 }
 
 function ActionsMenu({
-  onEdit, onDelete, onDeleteFromDevice, onExportMp3, isDownloadedOnDevice, onRemoveFromPlaylist,
+  onEdit, onDelete, onDeleteFromDevice, onExportMp3, isDownloadedOnDevice, onRemoveFromPlaylist, online,
 }: {
   onEdit?: () => void
   onDelete: () => Promise<void> | void
@@ -101,6 +102,9 @@ function ActionsMenu({
   // Quando preenchido, a row está num culto e o menu mostra "Remover do culto"
   // antes de "Excluir da biblioteca" (que continua disponível pra quem tem permissão).
   onRemoveFromPlaylist?: () => Promise<void> | void
+  /** Online status. Edit/Delete da biblioteca + Remover do culto fazem write
+   * no Supabase, então ficam disabled offline. */
+  online: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -226,10 +230,14 @@ function ActionsMenu({
               {onEdit && (
                 <button
                   role="menuitem"
-                  onClick={(e) => { e.stopPropagation(); setOpen(false); onEdit() }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] transition-colors text-left cursor-pointer"
+                  onClick={online ? (e) => { e.stopPropagation(); setOpen(false); onEdit() } : undefined}
+                  disabled={!online}
+                  title={online ? undefined : 'Sem conexão'}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left ${
+                    online ? 'text-heading hover:bg-white/[0.06] cursor-pointer' : 'text-muted cursor-not-allowed'
+                  }`}
                 >
-                  <Pencil size={14} className="text-body" strokeWidth={2} />
+                  <Pencil size={14} strokeWidth={2} />
                   Editar
                 </button>
               )}
@@ -267,18 +275,26 @@ function ActionsMenu({
               {onRemoveFromPlaylist && (
                 <button
                   role="menuitem"
-                  onClick={(e) => { e.stopPropagation(); setOpen(false); void onRemoveFromPlaylist() }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] transition-colors text-left cursor-pointer"
+                  onClick={online ? (e) => { e.stopPropagation(); setOpen(false); void onRemoveFromPlaylist() } : undefined}
+                  disabled={!online}
+                  title={online ? undefined : 'Sem conexão'}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left ${
+                    online ? 'text-heading hover:bg-white/[0.06] cursor-pointer' : 'text-muted cursor-not-allowed'
+                  }`}
                 >
-                  <X size={14} className="text-body" strokeWidth={2} />
+                  <X size={14} strokeWidth={2} />
                   Remover deste culto
                 </button>
               )}
 
               <button
                 role="menuitem"
-                onClick={(e) => { e.stopPropagation(); setConfirming(true) }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/[0.08] transition-colors text-left cursor-pointer"
+                onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão'}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left ${
+                  online ? 'text-red-400 hover:bg-red-500/[0.08] cursor-pointer' : 'text-muted cursor-not-allowed'
+                }`}
               >
                 <Trash2 size={14} strokeWidth={2} />
                 Excluir da biblioteca
@@ -338,6 +354,7 @@ export function SongCard({
   const cancelDownload = useDownloadsStore((s) => s.cancel)
   const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
   const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
+  const online = useOnlineStatus()
   const isCurrentlyPlaying = currentSong?.id === song.id && isPlaying
   const songType = song.song_type ?? 'normal'
   const typeColor = TYPE_CONFIG[songType].hex
@@ -398,6 +415,7 @@ export function SongCard({
   }
 
   async function handleDelete() {
+    if (!online) throw new Error('Sem conexão. Conecte-se à internet pra excluir.')
     // Pausa o áudio se for a música tocando
     if (currentSong?.id === song.id) {
       pauseAudio()
@@ -538,6 +556,7 @@ export function SongCard({
         ) : (
           <DownloadBadge
             state="not_downloaded"
+            online={online}
             onDownload={() => enqueueDownload(song.id, song.youtube_url)}
           />
         )}
@@ -576,6 +595,7 @@ export function SongCard({
       )}
 
       <ActionsMenu
+        online={online}
         onEdit={onEdit}
         onDelete={handleDelete}
         onDeleteFromDevice={handleDeleteFromDevice}

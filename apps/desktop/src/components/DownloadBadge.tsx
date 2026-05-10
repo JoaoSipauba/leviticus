@@ -24,6 +24,9 @@ type Props = {
   progress?: number
   onDownload?: () => void
   onCancel?: () => void
+  /** Quando false, o badge "not_downloaded" fica acinzentado e não é clicável.
+   * yt-dlp precisa de internet, então não tem motivo pra deixar clicar offline. */
+  online?: boolean
 }
 
 // Botão overlay sobre a thumb (assumida 56px — mesma do SongCard e do preview).
@@ -32,16 +35,20 @@ type Props = {
 // Todos os 4 visuais são renderizados sempre — apenas a opacity controla qual
 // está visível. Isso permite crossfade suave entre estados (ex: clock → ring).
 // O click handler é único e age conforme o state ativo.
-export function DownloadBadge({ state, progress = 0, onDownload, onCancel }: Props) {
+export function DownloadBadge({ state, progress = 0, onDownload, onCancel, online = true }: Props) {
+  const downloadDisabled = state === 'not_downloaded' && !online
+
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (downloadDisabled) return
     if (state === 'not_downloaded') onDownload?.()
     else if (state === 'queued' || state === 'downloading') onCancel?.()
     // completed: não-interativo, button fica disabled
   }
 
   const ariaLabel =
-    state === 'not_downloaded' ? 'Baixar pro dispositivo'
+    state === 'not_downloaded'
+      ? (downloadDisabled ? 'Sem conexão — não é possível baixar' : 'Baixar pro dispositivo')
     : state === 'queued' ? 'Remover da fila'
     : state === 'downloading' ? 'Cancelar download'
     : 'Download concluído'
@@ -49,28 +56,34 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel }: Pro
   return (
     <button
       onClick={handleClick}
-      disabled={state === 'completed'}
-      className="absolute inset-0 rounded-lg cursor-pointer"
+      disabled={state === 'completed' || downloadDisabled}
+      className={`absolute inset-0 rounded-lg ${downloadDisabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
       style={{ background: 'transparent', border: 'none', padding: 0 }}
       aria-label={ariaLabel}
+      title={downloadDisabled ? 'Sem conexão' : undefined}
       type="button"
     >
       {/* Backdrop escuro só no hover, oculto durante completed (não-interativo). */}
       <span
         aria-hidden="true"
         className={`absolute inset-0 rounded-lg transition-opacity pointer-events-none ${
-          state === 'completed' ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
+          state === 'completed' || downloadDisabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
         }`}
         style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.55))' }}
       />
 
-      {/* not_downloaded — badge azul cloud-download */}
+      {/* not_downloaded — badge azul cloud-download (cinza quando offline) */}
       <Layer visible={state === 'not_downloaded'}>
         <span
           className="download-badge absolute rounded-full flex items-center justify-center pointer-events-none"
-          style={{ top: '50%', left: '50%', background: '#3b82f6', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.6)' }}
+          style={{
+            top: '50%', left: '50%',
+            background: downloadDisabled ? 'rgba(75,85,99,0.7)' : '#3b82f6',
+            boxShadow: downloadDisabled ? 'none' : '0 2px 8px -2px rgba(0,0,0,0.6)',
+            opacity: downloadDisabled ? 0.6 : 1,
+          }}
         >
-          <CloudDownload size={14} color="white" strokeWidth={2.5} />
+          <CloudDownload size={14} color={downloadDisabled ? '#9ca3af' : 'white'} strokeWidth={2.5} />
         </span>
       </Layer>
 

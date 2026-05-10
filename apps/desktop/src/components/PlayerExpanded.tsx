@@ -151,6 +151,10 @@ export function PlayerExpanded({
   // Persiste ordem nova no Supabase via RPC.
   async function persistOrder(orderedSongs: Song[]) {
     if (!currentPlaylist) return
+    if (!navigator.onLine) {
+      console.warn('[PlayerExpanded] reorder cancelado — sem conexão')
+      return
+    }
     const ids = orderedSongs.map((s) => s.id)
     const { error } = await supabase.rpc('reorder_playlist_songs', {
       p_playlist_id: currentPlaylist.id,

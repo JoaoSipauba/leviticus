@@ -4,6 +4,7 @@ import type { Song } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 type Props = {
   open: boolean
@@ -31,6 +32,7 @@ export function AddSongToPlaylistModal({
   const [adding, setAdding] = useState<string | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  const online = useOnlineStatus()
 
   useEffect(() => {
     if (!open) return
@@ -72,6 +74,10 @@ export function AddSongToPlaylistModal({
   }, [allSongs, filterToGroup, groupId, query])
 
   async function handleAdd(song: Song) {
+    if (!online) {
+      setError('Sem conexão. Conecte-se à internet pra adicionar músicas ao culto.')
+      return
+    }
     setAdding(song.id)
     setError(null)
     try {
@@ -158,9 +164,12 @@ export function AddSongToPlaylistModal({
               return (
                 <button
                   key={s.id}
-                  onClick={() => !added && handleAdd(s)}
-                  disabled={added || adding !== null}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.04] cursor-pointer disabled:cursor-default text-left"
+                  onClick={() => !added && online && handleAdd(s)}
+                  disabled={added || adding !== null || !online}
+                  title={!online ? 'Sem conexão' : undefined}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left ${
+                    online ? 'hover:bg-white/[0.04] cursor-pointer disabled:cursor-default' : 'cursor-not-allowed opacity-50'
+                  }`}
                 >
                   <div className="w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] flex items-center justify-center overflow-hidden">
                     {s.thumbnail_url ? (

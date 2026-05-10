@@ -4,6 +4,7 @@ import { LayoutGrid } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -31,6 +32,7 @@ export function Groups() {
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+  const online = useOnlineStatus()
 
   async function loadGroups() {
     const db = await getDb()
@@ -53,6 +55,7 @@ export function Groups() {
 
   async function handleCreate() {
     if (!newName.trim()) return
+    if (!online) { setError('Sem conexão. Conecte-se à internet pra criar.'); return }
     setSaving(true)
     setError(null)
 
@@ -102,12 +105,17 @@ export function Groups() {
           </p>
         </div>
         <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 font-semibold text-white"
+          onClick={online ? () => setShowModal(true) : undefined}
+          disabled={!online}
+          title={online ? undefined : 'Sem conexão'}
+          className="flex items-center gap-1.5 font-semibold text-white disabled:cursor-not-allowed"
           style={{
-            background: '#2563eb', border: 'none',
+            background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
+            color: online ? '#fff' : '#9ca3af',
+            border: 'none',
             borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, cursor: 'pointer',
+            fontSize: 13, cursor: online ? 'pointer' : 'not-allowed',
+            opacity: online ? 1 : 0.6,
           }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -246,10 +254,11 @@ export function Groups() {
               </button>
               <button
                 onClick={handleCreate}
-                disabled={saving || !newName.trim()}
+                disabled={saving || !newName.trim() || !online}
+                title={online ? undefined : 'Sem conexão'}
                 style={{
                   flex: 1,
-                  background: (saving || !newName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
+                  background: (saving || !newName.trim() || !online) ? 'rgba(37,99,235,0.4)' : '#2563eb',
                   border: 'none', borderRadius: 10, padding: 9,
                   fontSize: 13, fontWeight: 600,
                   color: '#fff', cursor: (saving || !newName.trim()) ? 'default' : 'pointer',

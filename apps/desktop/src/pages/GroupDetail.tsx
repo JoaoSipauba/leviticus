@@ -5,6 +5,7 @@ import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
 
@@ -55,6 +56,8 @@ export function GroupDetail() {
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  const online = useOnlineStatus()
+
   async function loadData() {
     if (!id) return
     const db = await getDb()
@@ -91,6 +94,7 @@ export function GroupDetail() {
 
   async function handleSaveEdit() {
     if (!group || !editName.trim()) return
+    if (!online) { setEditError('Sem conexão. Conecte-se à internet pra salvar.'); return }
     setSaving(true)
     setEditError(null)
     const { error } = await supabase
@@ -111,6 +115,7 @@ export function GroupDetail() {
 
   async function handleDelete() {
     if (!group) return
+    if (!online) { setDeleteError('Sem conexão. Conecte-se à internet pra excluir.'); return }
     setDeleting(true)
     setDeleteError(null)
     const { error } = await supabase.from('groups').delete().eq('id', group.id)
@@ -185,26 +190,32 @@ export function GroupDetail() {
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => { setEditName(group.name); setEditColorIdx(group.color_index); setShowEdit(true) }}
-            className="flex items-center gap-1.5 transition-colors hover:bg-white/10"
+            onClick={online ? () => { setEditName(group.name); setEditColorIdx(group.color_index); setShowEdit(true) } : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+            className="flex items-center gap-1.5 transition-colors hover:bg-white/10 disabled:cursor-not-allowed"
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.08)',
               borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#9ca3af', cursor: 'pointer',
+              fontSize: 13, color: '#9ca3af', cursor: online ? 'pointer' : 'not-allowed',
+              opacity: online ? 1 : 0.5,
             }}
           >
             <Pencil size={13} strokeWidth={2} />
             Editar
           </button>
           <button
-            onClick={() => setShowDelete(true)}
-            className="flex items-center gap-1.5 transition-colors hover:bg-red-950/60"
+            onClick={online ? () => setShowDelete(true) : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+            className="flex items-center gap-1.5 transition-colors hover:bg-red-950/60 disabled:cursor-not-allowed"
             style={{
               background: 'rgba(239,68,68,0.08)',
               border: '1px solid rgba(239,68,68,0.18)',
               borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#f87171', cursor: 'pointer',
+              fontSize: 13, color: '#f87171', cursor: online ? 'pointer' : 'not-allowed',
+              opacity: online ? 1 : 0.5,
             }}
           >
             <Trash2 size={13} strokeWidth={2} />

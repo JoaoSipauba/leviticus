@@ -3,6 +3,7 @@ import { Calendar, Clock, X, Loader2 } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 
 type Props = {
   open: boolean
@@ -27,6 +28,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
   const [endTime, setEndTime] = useState('11:00')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const online = useOnlineStatus()
 
   useEffect(() => {
     if (!open) return
@@ -48,6 +50,10 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
   }, [open, editing])
 
   async function handleSave() {
+    if (!online) {
+      setError('Sem conexão. Conecte-se à internet pra salvar.')
+      return
+    }
     if (!name.trim()) {
       setError('Dê um nome ao culto.')
       return
@@ -215,9 +221,14 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
             </button>
             <button
               onClick={handleSave}
-              disabled={saving}
-              className="flex-1 px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:cursor-default"
-              style={{ background: '#2563eb', color: '#fff' }}
+              disabled={saving || !online}
+              title={online ? undefined : 'Sem conexão'}
+              className="flex-1 px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              style={{
+                background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
+                color: online ? '#fff' : '#9ca3af',
+                opacity: online ? 1 : 0.7,
+              }}
             >
               {saving ? <Loader2 size={14} className="animate-spin-smooth" /> : null}
               {saving ? 'Salvando…' : editing ? 'Salvar' : 'Criar'}

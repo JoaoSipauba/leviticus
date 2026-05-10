@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useUIStore } from '../store/ui.js'
+import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import type { SongType } from '@leviticus/core'
 
 type GroupRow = { id: string; name: string }
@@ -180,6 +181,7 @@ export function EditSongModal() {
   const [songType, setSongType] = useState<SongType>('normal')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const online = useOnlineStatus()
 
   const overlayRef = useRef<HTMLDivElement>(null)
 
@@ -229,6 +231,10 @@ export function EditSongModal() {
 
   async function handleSave() {
     if (!songToEdit) return
+    if (!online) {
+      setError('Sem conexão. Conecte-se à internet pra salvar.')
+      return
+    }
     if (!title.trim()) {
       setError('O título não pode estar vazio.')
       return
@@ -458,7 +464,8 @@ export function EditSongModal() {
           <div style={{ marginTop: 2 }}>
             <button
               onClick={handleSave}
-              disabled={busy}
+              disabled={busy || !online}
+              title={online ? undefined : 'Sem conexão'}
               style={{
                 width: '100%',
                 display: 'flex',
@@ -467,12 +474,12 @@ export function EditSongModal() {
                 gap: 6,
                 padding: '10px 0',
                 borderRadius: 10,
-                background: busy ? 'rgba(37,99,235,0.45)' : '#2563eb',
+                background: !online ? 'rgba(75,85,99,0.4)' : (busy ? 'rgba(37,99,235,0.45)' : '#2563eb'),
                 border: 'none',
-                color: 'white',
+                color: !online ? '#9ca3af' : 'white',
+                cursor: (busy || !online) ? 'not-allowed' : 'pointer',
                 fontSize: 13,
                 fontWeight: 600,
-                cursor: busy ? 'default' : 'pointer',
                 transition: 'background 0.15s, box-shadow 0.15s',
               }}
               onMouseEnter={(e) => {
