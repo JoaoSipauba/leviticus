@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Trash2,
-  Loader2, AlertTriangle, GripVertical,
+  Loader2, AlertTriangle, GripVertical, CloudDownload,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
@@ -24,6 +24,7 @@ import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useDownloadsStore } from '../store/downloads.js'
 
 type DraftSection = {
   sectionId: string
@@ -65,6 +66,13 @@ export function PlaylistDetail() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deletingPlaylist, setDeletingPlaylist] = useState(false)
   const online = useOnlineStatus()
+  const enqueueDownload = useDownloadsStore((s) => s.enqueue)
+  const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
+  const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
+  const downloadsById = useDownloadsStore((s) => s.byId)
+  // IDs das músicas do culto que NÃO têm áudio local. Recalculado quando
+  // a lista muda ou quando um download conclui/cancela (via subscribers).
+  const [missingDownloads, setMissingDownloads] = useState<Set<string>>(new Set())
 
   const [addSectionOpen, setAddSectionOpen] = useState(false)
   const [addingSongTo, setAddingSongTo] = useState<{
@@ -132,6 +140,45 @@ export function PlaylistDetail() {
     const unplayed = sorted.filter((s) => !playedIds.has(s.song_id))
     return [...played, ...unplayed]
   }, [sections, playedIds])
+
+  // Recalcula músicas faltantes sempre que a lista do culto muda OU quando
+  // um download conclui/cancela. Sem isso o banner desatualiza.
+  const recomputeMissing = useCallback(async () => {
+    const missing = new Set<string>()
+    for (const ps of allSongsFlat) {
+      if (!(await isDownloaded(ps.song_id))) missing.add(ps.song_id)
+    }
+    setMissingDownloads(missing)
+  }, [allSongsFlat])
+
+  useEffect(() => { void recomputeMissing() }, [recomputeMissing])
+  useEffect(() => {
+    const unsubA = subscribeCompleted(() => void recomputeMissing())
+    const unsubB = subscribeCanceled(() => void recomputeMissing())
+    return () => { unsubA(); unsubB() }
+  }, [recomputeMissing, subscribeCompleted, subscribeCanceled])
+
+  // Quantidade de músicas em alerta = não baixada E não está na fila / baixando.
+  // Se já está sendo baixada, não conta no banner — usuário já agiu sobre ela.
+  const alertCount = useMemo(() => {
+    let n = 0
+    for (const id of missingDownloads) {
+      const status = downloadsById[id]
+      if (!status || status.state === 'error') n++
+    }
+    return n
+  }, [missingDownloads, downloadsById])
+
+  function downloadAllMissing() {
+    for (const ps of allSongsFlat) {
+      if (missingDownloads.has(ps.song_id)) {
+        const status = downloadsById[ps.song_id]
+        if (!status || status.state === 'error') {
+          enqueueDownload(ps.song_id, ps.song.youtube_url)
+        }
+      }
+    }
+  }
 
   // Une seções reais e drafts pra render. Drafts vão pro fim.
   const allSections = useMemo(() => {
@@ -463,6 +510,77 @@ export function PlaylistDetail() {
 
       {/* Lista única — seções viram dividers sticky */}
       <div className="px-8 max-w-[900px] mx-auto pb-12">
+        {/* Banner agregado: aparece só quando há músicas faltando baixar.
+            Combina com a borda vermelha das rows pra deixar o estado óbvio. */}
+        {alertCount > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              padding: '14px 16px',
+              marginBottom: 14,
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, rgba(239,68,68,0.14), rgba(239,68,68,0.04))',
+              border: '1px solid rgba(239,68,68,0.28)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute pointer-events-none"
+              style={{
+                inset: 0,
+                background: 'radial-gradient(circle at 80% 50%, rgba(239,68,68,0.12), transparent 60%)',
+              }}
+            />
+            <div
+              className="flex items-center justify-center flex-shrink-0"
+              style={{
+                width: 36, height: 36, borderRadius: 10,
+                background: 'rgba(239,68,68,0.22)',
+                border: '1px solid rgba(239,68,68,0.4)',
+                color: '#fca5a5',
+                position: 'relative',
+              }}
+            >
+              <AlertTriangle size={18} strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0" style={{ position: 'relative' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.005em', color: '#fca5a5', margin: '0 0 2px' }}>
+                {alertCount === 1 ? '1 música precisa ser baixada' : `${alertCount} músicas precisam ser baixadas`}
+              </p>
+              <p style={{ fontSize: 11, color: 'rgba(252,165,165,0.7)', margin: 0 }}>
+                Sem o áudio local elas não podem tocar no culto
+              </p>
+            </div>
+            <button
+              onClick={online ? downloadAllMissing : undefined}
+              disabled={!online}
+              title={online ? undefined : 'Sem conexão'}
+              style={{
+                position: 'relative',
+                fontSize: 12, fontWeight: 700,
+                padding: '8px 14px',
+                borderRadius: 999,
+                background: online ? '#ef4444' : 'rgba(75,85,99,0.5)',
+                color: online ? 'white' : '#9ca3af',
+                border: 'none',
+                cursor: online ? 'pointer' : 'not-allowed',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                flexShrink: 0,
+                boxShadow: online ? '0 4px 14px -2px rgba(239,68,68,0.5)' : 'none',
+                transition: 'all 0.15s',
+              }}
+            >
+              <CloudDownload size={14} strokeWidth={2.5} />
+              Baixar {alertCount === 1 ? 'música' : 'todas'}
+            </button>
+          </div>
+        )}
         {allSections.map((section, idx) => (
           <div key={section.sectionId}>
             <SectionDropIndicator

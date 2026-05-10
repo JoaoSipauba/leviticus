@@ -487,6 +487,13 @@ export function SongCard({
 
   const isList = variant === 'list'
   const isPlayed = playlistContext?.played === true
+  // Modo alerta de download: dentro de culto E música não baixada E não está
+  // sendo baixada agora. Aplica borda vermelha + tint pra destacar a row.
+  const showDownloadAlert = !!playlistContext
+    && !downloaded
+    && !justCompleted
+    && downloadStatus.state !== 'downloading'
+    && downloadStatus.state !== 'queued'
   return (
     <div
       draggable={draggable && !isPlayed}
@@ -497,9 +504,12 @@ export function SongCard({
         isList ? 'gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.04]' : 'px-4 py-3.5 rounded-2xl'
       }`}
       style={isList ? {
-        background: isCurrentlyPlaying ? `${typeColor}1a` : undefined,
+        background: showDownloadAlert
+          ? 'rgba(239,68,68,0.05)'
+          : (isCurrentlyPlaying ? `${typeColor}1a` : undefined),
         cursor: draggable && !isPlayed ? 'grab' : undefined,
         opacity: isPlayed ? 0.55 : 1,
+        ...(showDownloadAlert ? { paddingLeft: 14 } : {}),
       } : {
         background: isCurrentlyPlaying
           ? `linear-gradient(135deg, ${typeColor}22, rgba(19,19,31,0.7))`
@@ -513,6 +523,21 @@ export function SongCard({
         opacity: isPlayed ? 0.55 : 1,
       }}
     >
+      {/* Listra vermelha vertical pra row em alerta de download */}
+      {showDownloadAlert && (
+        <span
+          aria-hidden="true"
+          className="absolute pointer-events-none"
+          style={{
+            left: 0,
+            top: 4,
+            bottom: 4,
+            width: 3,
+            background: '#ef4444',
+            borderRadius: 99,
+          }}
+        />
+      )}
       {/* Posição na fila do culto — vira check verde quando played */}
       {playlistContext?.indexInList != null && (
         <span className="w-6 flex items-center justify-center flex-shrink-0">
@@ -523,7 +548,10 @@ export function SongCard({
       )}
 
       {/* Thumbnail com play/pause overlay */}
-      <div className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}>
+      <div
+        className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
+        style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
+      >
         {song.thumbnail_url ? (
           <img src={song.thumbnail_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -559,6 +587,7 @@ export function SongCard({
             state="not_downloaded"
             online={online}
             compact={isList}
+            alert={!!playlistContext}
             onDownload={() => enqueueDownload(song.id, song.youtube_url)}
           />
         )}

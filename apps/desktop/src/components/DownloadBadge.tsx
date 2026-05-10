@@ -31,6 +31,10 @@ type Props = {
    * 'list' do SongCard). Sem isso, o badge 22px com offset 21px do centro
    * vaza pra fora do thumb e fica cortado pelo overflow:hidden do container. */
   compact?: boolean
+  /** Quando true E state='not_downloaded', cobre a thumb inteira com overlay
+   * escuro + ícone vermelho centralizado. Usado no contexto de culto pra
+   * sinalizar fortemente que a música precisa ser baixada antes da apresentação. */
+  alert?: boolean
 }
 
 // Botão overlay sobre a thumb (assumida 56px — mesma do SongCard e do preview).
@@ -39,8 +43,9 @@ type Props = {
 // Todos os 4 visuais são renderizados sempre — apenas a opacity controla qual
 // está visível. Isso permite crossfade suave entre estados (ex: clock → ring).
 // O click handler é único e age conforme o state ativo.
-export function DownloadBadge({ state, progress = 0, onDownload, onCancel, online = true, compact = false }: Props) {
+export function DownloadBadge({ state, progress = 0, onDownload, onCancel, online = true, compact = false, alert = false }: Props) {
   const downloadDisabled = state === 'not_downloaded' && !online
+  const showAlert = alert && state === 'not_downloaded'
   // Override do tamanho/posição quando compact pra caber em thumb 40x40.
   // Sem isso o badge default (22px @ offset 21 do centro) vaza do thumb.
   const compactStyle = compact ? {
@@ -85,8 +90,30 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
         style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.55))' }}
       />
 
-      {/* not_downloaded — badge azul cloud-download (cinza quando offline) */}
-      <Layer visible={state === 'not_downloaded'}>
+      {/* not_downloaded em modo alerta (culto) — overlay escuro cobre toda
+          a thumb com ícone vermelho centralizado. Combinado com a borda
+          vermelha da row no SongCard, deixa o estado impossível de ignorar. */}
+      {showAlert && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 rounded-lg flex items-center justify-center pointer-events-none"
+          style={{
+            background: 'rgba(15,15,25,0.55)',
+            backdropFilter: 'blur(1px)',
+          }}
+        >
+          <CloudDownload
+            size={compact ? 18 : 22}
+            color={downloadDisabled ? '#9ca3af' : '#fca5a5'}
+            strokeWidth={2.5}
+            style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }}
+          />
+        </span>
+      )}
+
+      {/* not_downloaded — badge azul cloud-download (cinza quando offline).
+          Escondido em modo alerta porque o overlay acima já comunica. */}
+      <Layer visible={state === 'not_downloaded' && !showAlert}>
         <span
           className="download-badge absolute rounded-full flex items-center justify-center pointer-events-none"
           style={{
@@ -135,11 +162,13 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
         </span>
       </Layer>
 
-      {/* completed — check verde com pop-in/fade-out animado */}
+      {/* completed — check verde com pop-in/fade-out animado.
+          A classe `compact` aciona keyframe alternativa com offset menor
+          (11px em vez de 21px) pra animação caber dentro do thumb 40x40. */}
       <Layer visible={state === 'completed'}>
         <span
-          className="completed-badge absolute rounded-full flex items-center justify-center pointer-events-none"
-          style={{ top: '50%', left: '50%', background: '#22c55e', boxShadow: '0 4px 14px -2px rgba(34,197,94,0.6)', ...compactStyle }}
+          className={`completed-badge absolute rounded-full flex items-center justify-center pointer-events-none${compact ? ' compact' : ''}`}
+          style={{ top: '50%', left: '50%', background: '#22c55e', boxShadow: '0 4px 14px -2px rgba(34,197,94,0.6)' }}
         >
           <Check size={iconSize} color="white" strokeWidth={3} />
         </span>
