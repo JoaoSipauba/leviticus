@@ -308,6 +308,7 @@ export function PlaylistDetail() {
 
   function setDragOver(target: DropTarget) {
     if (!dragRef.current) return
+    if (target?.kind !== dragRef.current.kind) return
     dropTargetRef.current = target
     setDropTarget(target)
   }
