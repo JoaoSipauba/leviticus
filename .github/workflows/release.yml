@@ -41,6 +41,12 @@ jobs:
       - name: Build @leviticus/core
         run: pnpm --filter @leviticus/core build
 
+      - name: Typecheck (todos os pacotes)
+        run: pnpm typecheck
+
+      - name: Tests (todos os pacotes)
+        run: pnpm test
+
       - name: Build Tauri app and publish release
         uses: tauri-apps/tauri-action@v0
         env:
