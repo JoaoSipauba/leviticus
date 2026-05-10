@@ -279,11 +279,16 @@ function isMSEAvailable(): boolean {
     && MediaSource.isTypeSupported(MSE_PREVIEW_MIME)
 }
 
+// Tamanho de cada Range request. Maior = menos overhead de IPC entre o
+// Rust do plugin HTTP do Tauri e o JS. 2MB equilibra start rápido (primeiro
+// chunk vem em 1-2s) com download eficiente (30 chunks pra um arquivo de 60MB).
+const PREVIEW_CHUNK_BYTES = 2 * 1024 * 1024
+
 async function streamWithMSE(
   url: string,
   mediaSource: MediaSource,
   signal: AbortSignal,
-  opts: { totalDurationSec?: number; onBuffered?: (sec: number) => void } = {},
+  opts: { onBuffered?: (sec: number) => void } = {},
 ): Promise<void> {
   // Aguarda MediaSource ficar pronto pra receber buffers
   if (mediaSource.readyState !== 'open') {
@@ -302,16 +307,6 @@ async function streamWithMSE(
 
   const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
 
-  // Usa Tauri HTTP plugin pra bypassar CORS — googlevideo CDN não envia
-  // Access-Control-Allow-Origin, então o fetch nativo do WebKit é bloqueado.
-  const response = await tauriFetch(url, { signal })
-  if (!response.ok) throw new Error(`HTTP ${response.status}`)
-  if (!response.body) throw new Error('Resposta sem body')
-
-  const reader = response.body.getReader()
-
-  // Promise que resolve quando o último appendBuffer termina (updateend) ou
-  // rejeita em erro. Sem isso, chamadas concorrentes ao appendBuffer quebram.
   const appendChunk = (chunk: Uint8Array) => new Promise<void>((resolve, reject) => {
     const onEnd = () => { cleanup(); resolve() }
     const onErr = (e: Event) => { cleanup(); reject(e) }
@@ -329,24 +324,43 @@ async function streamWithMSE(
     }
   })
 
+  // Buscamos em pedaços via HTTP Range. Cada pedaço chega ao JS em um
+  // único arrayBuffer() — muito mais rápido que streaming chunk-a-chunk
+  // (cada chunk pequeno paga overhead de IPC Rust→JS).
+  let offset = 0
+  let totalSize = 0
   try {
     while (true) {
-      if (signal.aborted) {
-        await reader.cancel().catch(() => {})
-        return
+      if (signal.aborted) return
+      const rangeEnd = totalSize > 0
+        ? Math.min(offset + PREVIEW_CHUNK_BYTES - 1, totalSize - 1)
+        : offset + PREVIEW_CHUNK_BYTES - 1
+      const response = await tauriFetch(url, {
+        signal,
+        headers: { Range: `bytes=${offset}-${rangeEnd}` },
+      })
+      if (!response.ok && response.status !== 206) throw new Error(`HTTP ${response.status}`)
+
+      // Content-Range: "bytes 0-2097151/59982324" → extrai tamanho total
+      if (totalSize === 0) {
+        const cr = response.headers.get('content-range')
+        const m = cr?.match(/\/(\d+)$/)
+        if (m) totalSize = Number(m[1])
       }
-      const { done, value } = await reader.read()
-      if (done) {
-        try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
-        if (opts.onBuffered && opts.totalDurationSec) opts.onBuffered(opts.totalDurationSec)
-        return
-      }
-      await appendChunk(value)
-      // sourceBuffer.buffered já está em segundos da timeline e é
-      // calculado pelo próprio MSE a partir dos timestamps do MP4 —
-      // mais confiável que estimar via bytes/content-length.
+
+      const buf = new Uint8Array(await response.arrayBuffer())
+      if (signal.aborted) return
+      await appendChunk(buf)
+
       if (opts.onBuffered && sourceBuffer.buffered.length > 0) {
         opts.onBuffered(sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1))
+      }
+
+      offset += buf.byteLength
+      // Servidor não respeitou Range (status 200) ou já chegamos no fim
+      if (response.status === 200 || (totalSize > 0 && offset >= totalSize)) {
+        try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
+        return
       }
     }
   } catch (e) {
@@ -819,7 +833,6 @@ export function AddSongModal() {
         // Stream em background. Erro é só logado — onerror do audio dispara
         // o retry caso nada tenha tocado.
         void streamWithMSE(url, mediaSource, abortController.signal, {
-          totalDurationSec: result.duration > 0 ? result.duration : undefined,
           onBuffered: (sec) => setPreviewBuffered(sec),
         }).catch((e) => {
           if (abortController.signal.aborted) return
