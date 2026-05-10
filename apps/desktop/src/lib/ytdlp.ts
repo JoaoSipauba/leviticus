@@ -380,7 +380,9 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
     .flatMap((line) => {
       try {
         const v = JSON.parse(line)
-        if (!v.id || !v.title) return []
+        // ie_key !== 'Youtube' indica canal ou playlist (YoutubeTab, YoutubePlaylist…)
+        if (!v.id || !v.title || v.ie_key !== 'Youtube') return []
+        if (!v.duration || Number(v.duration) <= 0) return []
         return [{
           id:          String(v.id),
           title:       String(v.title),
