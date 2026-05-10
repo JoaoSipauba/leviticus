@@ -82,12 +82,14 @@ export function PlaylistDetail() {
   } | null>(null)
 
   // Drag state. dragRef e dropTargetRef são ref síncronas usadas no endDrag
-  // pra evitar race condition: dragend pode disparar antes do React processar
-  // o setDropTarget agendado pelo último dragover. State paralelo é só pra UI.
+  // pra evitar race condition com mouse events. State paralelo é só pra UI.
   const dragRef = useRef<DragState>(null)
   const dropTargetRef = useRef<DropTarget>(null)
   const [drag, setDrag] = useState<DragState>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
+  // Ref que aponta para o endDrag mais recente — atualizado a cada render
+  // para que o mouseup global sempre use a versão com sections atualizado.
+  const endDragRef = useRef<() => Promise<void>>(async () => {})
   const [pendingMerge, setPendingMerge] = useState<{
     sourceSection: SectionView
     targetSection: SectionView
@@ -207,19 +209,17 @@ export function PlaylistDetail() {
     return [...real, ...drafts]
   }, [sections, draftSections, groups])
 
-  // Limpa drag em mouseup global (caso o user solte fora de um alvo).
+  // Commit do drag em mouseup global. Re-registra quando dropTarget muda para
+  // que endDrag na closure sempre veja o alvo mais recente (mesmo padrão
+  // do PlayerExpanded com [dragOverIdx]).
   useEffect(() => {
     function up() {
-      if (dragRef.current) {
-        dragRef.current = null
-        dropTargetRef.current = null
-        setDrag(null)
-        setDropTarget(null)
-      }
+      if (dragRef.current) void endDragRef.current()
     }
     window.addEventListener('mouseup', up)
     return () => window.removeEventListener('mouseup', up)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropTarget])
 
   if (!playlist) return null
 
@@ -400,6 +400,9 @@ export function PlaylistDetail() {
       await load()
     }
   }
+  // Mantém o ref sempre apontando para a versão mais recente de endDrag
+  // (com seções atualizadas) sem adicionar deps no useEffect do mouseup.
+  endDragRef.current = endDrag
 
   // ─── Play helpers ──────────────────────────────────────────────────────
 
@@ -769,9 +772,13 @@ function PlaylistSection({
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
           return (
-            <div key={`${ps.section_id}-${ps.song_id}`} style={{ opacity: isBeingDragged ? 0.4 : 1 }}>
+            <div
+              key={`${ps.section_id}-${ps.song_id}`}
+              style={{ opacity: isBeingDragged ? 0.4 : 1 }}
+              onMouseEnter={() => onSongDragOver(ps.song_id)}
+            >
               <div
-                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
+                onMouseEnter={() => onSongDragOver(ps.song_id)}
                 style={{
                   height: showDropBefore ? 4 : 2,
                   background: showDropBefore ? '#3b82f6' : 'transparent',
@@ -783,13 +790,16 @@ function PlaylistSection({
                 song={ps.song}
                 playlistContext={ctx}
                 variant="list"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  onStartDragSong(ps.song_id)
-                }}
-                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
-                onDragEnd={onEndDrag}
+                dragHandle={!isPlayed ? (
+                  <button
+                    className="w-5 h-8 flex items-center justify-center text-muted opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity flex-shrink-0"
+                    onMouseDown={(e) => { e.preventDefault(); onStartDragSong(ps.song_id) }}
+                    onMouseUp={onEndDrag}
+                    aria-label="Arrastar para reordenar"
+                  >
+                    <GripVertical size={14} strokeWidth={2} />
+                  </button>
+                ) : <span className="w-5 flex-shrink-0" />}
               />
             </div>
           )
@@ -798,6 +808,7 @@ function PlaylistSection({
         {section.songs.length > 0 && dragState?.kind === 'song' && (
           <div
             onDragOver={(e) => { e.preventDefault(); onSongDragOver(null) }}
+            onMouseEnter={() => onSongDragOver(null)}
             style={{
               height: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? 6 : 8,
               background: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? '#3b82f6' : 'transparent',
@@ -881,6 +892,7 @@ function SectionHeader({
         draggable={!section.isDraft}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', section.sectionId)
           onStartDragSection()
         }}
         onDragEnd={onEndDrag}
