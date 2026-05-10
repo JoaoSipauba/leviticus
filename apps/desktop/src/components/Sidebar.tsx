@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Music, LayoutGrid, CalendarDays, Users, LogOut, Home } from 'lucide-react'
+import { getVersion } from '@tauri-apps/api/app'
 import type { Playlist } from '@leviticus/core'
 import { useAuthStore } from '../store/auth.js'
 import { supabase } from '../lib/supabase.js'
@@ -37,8 +38,13 @@ export function Sidebar() {
   const navigate = useNavigate()
   const [orgName, setOrgName] = useState<string | null>(null)
   const [activeCulto, setActiveCulto] = useState<ActiveCulto | null>(null)
+  const [appVersion, setAppVersion] = useState<string | null>(null)
   const orgId = localStorage.getItem('leviticus_org_id')
   const intervalRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {})
+  }, [])
 
   useEffect(() => {
     if (!orgId) return
@@ -212,6 +218,14 @@ export function Sidebar() {
           <LogOut size={15} strokeWidth={2} />
           Sair
         </button>
+
+        {appVersion && (
+          <div className="px-3 pb-1 text-right">
+            <span style={{ fontSize: 10, color: '#374151', fontVariantNumeric: 'tabular-nums' }}>
+              v{appVersion}
+            </span>
+          </div>
+        )}
       </div>
     </aside>
   )

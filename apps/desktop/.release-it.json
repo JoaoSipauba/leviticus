@@ -1,0 +1,35 @@
+{
+  "$schema": "https://unpkg.com/release-it/schema/release-it.json",
+  "git": {
+    "commitMessage": "chore(release): v${version}",
+    "tagName": "v${version}",
+    "tagAnnotation": "Release v${version}",
+    "requireCleanWorkingDir": true,
+    "requireBranch": "main"
+  },
+  "github": {
+    "release": false
+  },
+  "npm": {
+    "publish": false
+  },
+  "hooks": {
+    "after:bump": "sed -i '' 's/^version = \".*\"/version = \"${version}\"/' src-tauri/Cargo.toml"
+  },
+  "plugins": {
+    "@release-it/conventional-changelog": {
+      "preset": {
+        "name": "conventionalcommits",
+        "types": [
+          { "type": "feat",     "section": "Funcionalidades" },
+          { "type": "fix",      "section": "Correções" },
+          { "type": "perf",     "section": "Performance" },
+          { "type": "refactor", "section": "Refatoração", "hidden": true },
+          { "type": "chore",    "section": "Manutenção",  "hidden": true }
+        ]
+      },
+      "infile": "CHANGELOG.md",
+      "header": "# Changelog"
+    }
+  }
+}
