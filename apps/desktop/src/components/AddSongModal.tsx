@@ -308,9 +308,7 @@ async function streamWithMSE(
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   if (!response.body) throw new Error('Resposta sem body')
 
-  const contentLength = Number(response.headers.get('content-length') ?? 0)
   const reader = response.body.getReader()
-  let totalBytes = 0
 
   // Promise que resolve quando o último appendBuffer termina (updateend) ou
   // rejeita em erro. Sem isso, chamadas concorrentes ao appendBuffer quebram.
@@ -343,13 +341,12 @@ async function streamWithMSE(
         if (opts.onBuffered && opts.totalDurationSec) opts.onBuffered(opts.totalDurationSec)
         return
       }
-      totalBytes += value.length
       await appendChunk(value)
-      // Reporta o quanto da timeline já está no SourceBuffer, baseado em
-      // bytes ÷ content-length × duração total. Mais confiável que
-      // audio.buffered porque vem direto do progresso do download.
-      if (opts.onBuffered && opts.totalDurationSec && contentLength > 0) {
-        opts.onBuffered((totalBytes / contentLength) * opts.totalDurationSec)
+      // sourceBuffer.buffered já está em segundos da timeline e é
+      // calculado pelo próprio MSE a partir dos timestamps do MP4 —
+      // mais confiável que estimar via bytes/content-length.
+      if (opts.onBuffered && sourceBuffer.buffered.length > 0) {
+        opts.onBuffered(sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1))
       }
     }
   } catch (e) {
