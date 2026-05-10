@@ -354,6 +354,8 @@ export type YTSearchResult = {
   webpage_url: string
 }
 
+const SEARCH_TIMEOUT_MS = 15_000
+
 export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   if (!query.trim()) return []
 
@@ -366,15 +368,35 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
     `ytsearch5:${query}`,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
-  const result = await command.execute()
-  if (result.code !== 0) {
-    console.error('[searchYoutube] yt-dlp error:', result.stderr)
-    return []
-  }
+  const stdout = await new Promise<string>((resolve, reject) => {
+    let out = ''
+    let err = ''
+    let child: Child | null = null
+
+    const timer = setTimeout(() => {
+      child?.kill().catch(() => {})
+      reject(new Error('timeout'))
+    }, SEARCH_TIMEOUT_MS)
+
+    command.stdout.on('data', (line: string) => { out += line + '\n' })
+    command.stderr.on('data', (line: string) => { err += line + '\n' })
+    command.on('close', ({ code }) => {
+      clearTimeout(timer)
+      if (code !== 0) {
+        console.error('[searchYoutube] yt-dlp error:', err)
+        reject(new Error('yt-dlp failed'))
+      } else {
+        resolve(out)
+      }
+    })
+    command.on('error', (e) => { clearTimeout(timer); reject(e) })
+    command.spawn()
+      .then((c) => { child = c })
+      .catch((e) => { clearTimeout(timer); reject(e) })
+  })
 
   // yt-dlp outputs NDJSON: one JSON object per line
-  const output = result.stdout
-  return output
+  return stdout
     .split('\n')
     .filter(Boolean)
     .flatMap((line) => {

@@ -12,6 +12,7 @@ import {
   Pause,
   Play,
   Plus,
+  RotateCcw,
   Search,
   Square,
   Volume2,
@@ -792,18 +793,26 @@ export function AddSongModal() {
     const token = ++searchTokenRef.current
     setSearching(true)
     setSearchError(null)
-    try {
-      const results = await searchYoutube(q)
-      if (token !== searchTokenRef.current) return  // resultado de busca antiga — ignorar
-      setSearchResults(results)
-      if (results.length === 0) setSearchError('Nenhum resultado encontrado.')
-    } catch {
+    setSearchResults([])
+
+    const MAX_ATTEMPTS = 2
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       if (token !== searchTokenRef.current) return
-      setSearchError('Erro ao buscar. Tente novamente.')
-      setSearchResults([])
-    } finally {
-      if (token === searchTokenRef.current) setSearching(false)
+      try {
+        const results = await searchYoutube(q)
+        if (token !== searchTokenRef.current) return
+        setSearchResults(results)
+        setSearchError(results.length === 0 ? 'empty' : null)
+        setSearching(false)
+        return
+      } catch (err) {
+        console.error(`[doSearch] tentativa ${attempt}/${MAX_ATTEMPTS}:`, err)
+        if (token !== searchTokenRef.current) return
+      }
     }
+
+    setSearchError('failed')
+    setSearching(false)
   }
 
   async function handleSelectResult(r: YTSearchResult) {
@@ -1166,9 +1175,52 @@ export function AddSongModal() {
                     </p>
                   )}
 
-                  {/* Search error */}
-                  {!searching && searchError && (
-                    <p style={{ fontSize: 12, color: '#f87171', margin: 0 }}>{searchError}</p>
+                  {/* Search error — sem resultados */}
+                  {!searching && searchError === 'empty' && (
+                    <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
+                      Nenhum resultado encontrado.
+                    </p>
+                  )}
+
+                  {/* Search error — falha após retries */}
+                  {!searching && searchError === 'failed' && (
+                    <div style={{
+                      borderRadius: 10,
+                      background: 'rgba(239,68,68,0.06)',
+                      border: '1px solid rgba(239,68,68,0.18)',
+                      padding: '14px 16px 12px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      gap: 8, textAlign: 'center',
+                    }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: '50%',
+                        background: 'rgba(239,68,68,0.12)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <AlertTriangle size={16} color="#ef4444" strokeWidth={2} />
+                      </div>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: '#f3f4f6', margin: 0 }}>
+                        Busca indisponível
+                      </p>
+                      <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
+                        Não conseguimos conectar ao YouTube.<br />
+                        Verifique sua internet e tente de novo.
+                      </p>
+                      <button
+                        onClick={() => doSearch(query)}
+                        style={{
+                          marginTop: 2,
+                          background: 'rgba(255,255,255,0.07)',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          color: '#e5e7eb', fontSize: 12, fontWeight: 600,
+                          borderRadius: 8, padding: '6px 16px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 6,
+                        }}
+                      >
+                        <RotateCcw size={12} strokeWidth={2.5} />
+                        Tentar novamente
+                      </button>
+                    </div>
                   )}
 
                   {/* Results */}
