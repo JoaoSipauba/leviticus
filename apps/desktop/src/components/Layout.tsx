@@ -40,7 +40,6 @@ export function Layout({ children }: { children: ReactNode }) {
       document.body.appendChild(thumb)
 
       let hideTimer: number | null = null
-      let removeActiveTimer: number | null = null
       let isDragging = false
       let dragStartY = 0
       let dragStartScroll = 0
@@ -74,26 +73,13 @@ export function Layout({ children }: { children: ReactNode }) {
           if (isDragging) return
           thumb.classList.remove('visible')
           thumb.classList.add('fading')
-          // Remove scrollbar-active só depois que o thumb sumiu completamente
-          // (0.6s delay + 0.9s fade = 1.5s), para os cards nunca ficarem sobrepostos
-          if (removeActiveTimer !== null) window.clearTimeout(removeActiveTimer)
-          removeActiveTimer = window.setTimeout(() => {
-            container.classList.remove('scrollbar-active')
-            removeActiveTimer = null
-          }, 1500)
         }, HIDE_DELAY)
       }
 
       const showThumb = () => {
         updateThumb()
-        // Cancela remoção pendente e garante que a classe está ativa
-        if (removeActiveTimer !== null) {
-          window.clearTimeout(removeActiveTimer)
-          removeActiveTimer = null
-        }
         thumb.classList.remove('fading')
         thumb.classList.add('visible')
-        container.classList.add('scrollbar-active')
         startHideTimer()
       }
 
@@ -183,7 +169,6 @@ export function Layout({ children }: { children: ReactNode }) {
           mo.disconnect()
           cleanupObserver.disconnect()
           if (hideTimer !== null) window.clearTimeout(hideTimer)
-          if (removeActiveTimer !== null) window.clearTimeout(removeActiveTimer)
           // Remove o thumb (que agora vive no body)
           if (thumb.parentNode) thumb.parentNode.removeChild(thumb)
         }

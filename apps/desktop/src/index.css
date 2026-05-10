@@ -88,11 +88,6 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   scrollbar-width: none;        /* Firefox */
   overscroll-behavior: contain; /* desabilita rubber-band/overscroll do WebKit no macOS */
   position: relative;
-  padding-right: 0;
-  transition: padding-right 0.2s ease;
-}
-.styled-scroll.scrollbar-active {
-  padding-right: 14px;
 }
 
 /* Estado base dos badges (canto inferior-direito do thumb).
