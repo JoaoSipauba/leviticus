@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
@@ -607,6 +607,7 @@ export function PlaylistDetail() {
           <div key={section.sectionId}>
             <SectionDropIndicator
               show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === section.sectionId}
+              active={drag?.kind === 'section'}
               onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: section.sectionId })}
               onDragLeave={clearDragOver}
             />
@@ -638,6 +639,7 @@ export function PlaylistDetail() {
             {idx === allSections.length - 1 && (
               <SectionDropIndicator
                 show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === null}
+                active={drag?.kind === 'section'}
                 onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: null })}
                 onDragLeave={clearDragOver}
               />
@@ -700,19 +702,48 @@ export function PlaylistDetail() {
 
 // ─────────────────────────────────────────────────────────────────────────
 
-function SectionDropIndicator({ show, onDragEnter, onDragLeave }: { show: boolean; onDragEnter: () => void; onDragLeave: () => void }) {
+function DropZone({ show, active, onMouseEnter, onMouseLeave }: {
+  show: boolean
+  active: boolean
+  onMouseEnter?: () => void
+  onMouseLeave?: () => void
+}) {
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); onDragEnter() }}
+      style={{
+        position: 'relative',
+        height: 28,
+        marginTop: -14,
+        marginBottom: -14,
+        zIndex: active ? 2 : 0,
+        pointerEvents: active ? 'auto' : 'none',
+      }}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
+      <div
+        style={{
+          position: 'absolute',
+          left: 0, right: 0,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          height: 3,
+          background: show ? '#3b82f6' : 'transparent',
+          borderRadius: 2,
+          opacity: show ? 1 : 0,
+        }}
+      />
+    </div>
+  )
+}
+
+function SectionDropIndicator({ show, active, onDragEnter, onDragLeave }: { show: boolean; active: boolean; onDragEnter: () => void; onDragLeave: () => void }) {
+  return (
+    <DropZone
+      show={show}
+      active={active}
       onMouseEnter={onDragEnter}
       onMouseLeave={onDragLeave}
-      className="h-2"
-      style={{
-        marginTop: -2, marginBottom: -2,
-        background: show ? '#3b82f6' : 'transparent',
-        borderRadius: 2,
-        opacity: show ? 1 : 0,
-      }}
     />
   )
 }
@@ -783,51 +814,37 @@ function PlaylistSection({
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
           return (
-            <div
-              key={`${ps.section_id}-${ps.song_id}`}
-              style={{ opacity: isBeingDragged ? 0.4 : 1 }}
-              onMouseEnter={() => onSongDragOver(ps.song_id)}
-            >
-              <div
+            <Fragment key={`${ps.section_id}-${ps.song_id}`}>
+              <DropZone
+                show={showDropBefore}
+                active={dragState?.kind === 'song'}
                 onMouseEnter={() => onSongDragOver(ps.song_id)}
-                style={{
-                  height: showDropBefore ? 4 : 2,
-                  background: showDropBefore ? '#3b82f6' : 'transparent',
-                  borderRadius: 2,
-                  transition: 'all 0.08s',
-                }}
               />
-              <SongCard
-                song={ps.song}
-                playlistContext={ctx}
-                variant="list"
-                dragHandle={!isPlayed ? (
-                  <button
-                    className="w-5 h-8 flex items-center justify-center text-muted opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity flex-shrink-0"
-                    onMouseDown={(e) => { e.preventDefault(); onStartDragSong(ps.song_id) }}
-                    onMouseUp={onEndDrag}
-                    aria-label="Arrastar para reordenar"
-                  >
-                    <GripVertical size={14} strokeWidth={2} />
-                  </button>
-                ) : <span className="w-5 flex-shrink-0" />}
-              />
-            </div>
+              <div style={{ opacity: isBeingDragged ? 0.4 : 1 }}>
+                <SongCard
+                  song={ps.song}
+                  playlistContext={ctx}
+                  variant="list"
+                  dragHandle={!isPlayed ? (
+                    <button
+                      className="w-5 h-8 flex items-center justify-center text-muted opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity flex-shrink-0"
+                      onMouseDown={(e) => { e.preventDefault(); onStartDragSong(ps.song_id) }}
+                      onMouseUp={onEndDrag}
+                      aria-label="Arrastar para reordenar"
+                    >
+                      <GripVertical size={14} strokeWidth={2} />
+                    </button>
+                  ) : <span className="w-5 flex-shrink-0" />}
+                />
+              </div>
+            </Fragment>
           )
         })}
-        {/* Drop zone explícita pra "fim da seção" — só aparece quando dragging */}
-        {section.songs.length > 0 && dragState?.kind === 'song' && (
-          <div
-            onDragOver={(e) => { e.preventDefault(); onSongDragOver(null) }}
-            onMouseEnter={() => onSongDragOver(null)}
-            style={{
-              height: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? 6 : 8,
-              background: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? '#3b82f6' : 'transparent',
-              borderRadius: 2,
-              transition: 'all 0.08s',
-            }}
-          />
-        )}
+        <DropZone
+          show={dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null}
+          active={dragState?.kind === 'song'}
+          onMouseEnter={() => onSongDragOver(null)}
+        />
       </div>
       <button
         onClick={onAddSong}
