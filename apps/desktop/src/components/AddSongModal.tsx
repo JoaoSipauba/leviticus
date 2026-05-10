@@ -488,7 +488,6 @@ export function AddSongModal() {
   const [previewVolDragging, setPreviewVolDragging] = useState(false)
   // Resultado pendente de confirmação quando o player principal está tocando
   const [confirmStop, setConfirmStop] = useState<YTSearchResult | null>(null)
-  const [previewSeeking, setPreviewSeeking] = useState(false)
   const seekResetRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // sync volume com o audio element atual + persist
@@ -541,7 +540,7 @@ export function AddSongModal() {
     if (tab !== 'search') return
     if (query.trim().length < 2) { setSearchResults([]); setSearchError(null); return }
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
-    searchTimerRef.current = setTimeout(() => doSearch(query), 900)
+    searchTimerRef.current = setTimeout(() => doSearch(query), 500)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [query, tab])
 
@@ -593,6 +592,7 @@ export function AddSongModal() {
     }
     if (seekResetRef.current) { clearTimeout(seekResetRef.current); seekResetRef.current = null }
     setConfirmStop(null)
+
     setPreviewId(null)
     setPreviewLoading(false)
     setPreviewTime(0)
@@ -600,7 +600,6 @@ export function AddSongModal() {
     setPreviewPlaying(false)
     setPreviewError(false)
     setPreviewBuffered(0)
-    setPreviewSeeking(false)
   }
 
   // Toggle local: se já é a música em preview, alterna play/pause sem mexer no player principal
@@ -1277,9 +1276,8 @@ export function AddSongModal() {
                                         if (!audioRef.current || previewDuration <= 0) return
                                         audioRef.current.currentTime = v
                                         setPreviewTime(v)
-                                        setPreviewSeeking(true)
                                         if (seekResetRef.current) clearTimeout(seekResetRef.current)
-                                        seekResetRef.current = setTimeout(() => setPreviewSeeking(false), 150)
+                                        seekResetRef.current = setTimeout(() => { seekResetRef.current = null }, 150)
                                       }}
                                       formatTooltip={(v) => fmtDuration(Math.floor(v))}
                                     />

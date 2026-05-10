@@ -358,9 +358,11 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   if (!query.trim()) return []
 
   const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
+  // --flat-playlist: usa apenas os dados da página de resultados, sem fazer
+  // uma requisição extra por vídeo. Reduz de ~6 requests para 1.
   const command = Command.create('yt-dlp', [
+    '--flat-playlist',
     '--dump-json',
-    '--no-playlist',
     `ytsearch5:${query}`,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
@@ -382,9 +384,9 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
         return [{
           id:          String(v.id),
           title:       String(v.title),
-          channel:     String(v.uploader ?? v.channel ?? ''),
+          channel:     String(v.uploader ?? v.channel ?? v.channel_id ?? ''),
           duration:    Math.floor(Number(v.duration) || 0),
-          webpage_url: String(v.webpage_url ?? `https://www.youtube.com/watch?v=${v.id}`),
+          webpage_url: String(v.url ?? v.webpage_url ?? `https://www.youtube.com/watch?v=${v.id}`),
         }]
       } catch {
         return []
