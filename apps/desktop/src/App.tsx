@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import { useAuthStore } from './store/auth.js'
 import { Layout } from './components/Layout.js'
+import { UpdateNotification } from './components/UpdateNotification.js'
 import { syncOrg } from './lib/sync.js'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
@@ -60,6 +61,7 @@ export function App() {
   return (
     <Layout>
       <Outlet />
+      <UpdateNotification />
     </Layout>
   )
 }

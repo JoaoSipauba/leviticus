@@ -112,6 +112,77 @@ Always show clear, friendly error messages in Portuguese. Rules:
 - Log the raw error to `console.error` before showing the friendly version so it remains debuggable.
 - Pattern used throughout the app: `setError(insertError?.message ?? 'Fallback amigável')` — replace raw `.message` exposure with a curated message whenever the error originates from Supabase or Tauri internals.
 
+## Migrations checklist
+
+Toda alteração de schema no Supabase precisa ser **retrocompatível com a versão do app que está em produção**. Apps antigos continuam rodando até o usuário aceitar o auto-update — não podem quebrar enquanto isso.
+
+### Regras
+
+1. **Aditivo por padrão.** Colunas novas devem ser `NULL` ou ter `DEFAULT`. Tabelas novas e índices são livres. Nunca adicione `NOT NULL` sem default em coluna nova numa tabela com dados.
+2. **Nunca dropar/renomear numa única migration.** Renomear ou remover coluna que o app em campo ainda usa quebra writes/reads. Faça em duas releases (expand-and-contract):
+   - **Release N (expand)**: adiciona coluna nova, copia dados, mantém a antiga. Trigger ou app v2 espelha entre as duas.
+   - Lança app v2 (que usa só a nova) e espera o auto-update propagar.
+   - **Release N+1 (contract)**: dropa a coluna antiga. Só depois que telemetria confirmar que ~todos estão na v2.
+3. **Nunca mude tipo de coluna existente** (`text → int`, etc.) — vira expand-and-contract com coluna nova.
+4. **Nunca adicione FK obrigatória** em coluna nova com NOT NULL — vira nullable, backfill, e só depois (numa release futura) NOT NULL.
+5. **Inserts/Updates do app sempre listam colunas explicitamente.** Nunca confiar em `select('*')` pra montar payload de write — listar apenas os campos que o app conhece. Isso já é o padrão; manter.
+6. **Selects do sync listam colunas explicitamente.** [sync.ts](apps/desktop/src/lib/sync.ts) deve usar `.select('id, org_id, ...')` ao invés de `.select('*')` — torna o contrato explícito e previne surpresas com colunas novas.
+7. **Migrations Supabase e SQLite local andam juntas.** Toda mudança em [supabase/migrations/](supabase/migrations/) que afete tabelas sincronizadas precisa de migration espelho em [apps/desktop/src-tauri/migrations/](apps/desktop/src-tauri/migrations/), aplicada em release de app subsequente.
+8. **Quebra inevitável → version gate.** Se uma mudança *não pode* ser retrocompatível (raro), use a tabela `app_config.min_supported_version`. App checa no boot e mostra tela bloqueante "Atualize pra continuar". Reservar pra emergências.
+
+### Antes de aprovar uma migration de schema
+
+- [ ] É aditiva (nova coluna nullable/com default, nova tabela, novo índice)? Se não, ela está numa release "expand" com a "contract" planejada pra release futura?
+- [ ] Existe migration espelho em `apps/desktop/src-tauri/migrations/` se a tabela é sincronizada?
+- [ ] Algum `.select()`/`.insert()`/`.update()` no app vai quebrar? (`grep` pelo nome da coluna que mudou)
+- [ ] App da versão atual em produção continua funcionando contra o schema novo? (testar manualmente: rodar binário antigo contra Supabase com migration aplicada)
+
+## Releasing
+
+Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda em runner macOS Apple Silicon, gera `.dmg` (e bundle assinado pra updater) e cria a GitHub Release automaticamente.
+
+### Fluxo de release
+
+```bash
+# Em apps/desktop, com working dir limpo, na branch main:
+pnpm release
+# → release-it bumpa versão (package.json + Cargo.toml), gera CHANGELOG.md,
+#   commita, cria tag vX.Y.Z e dá push.
+# Push da tag dispara o workflow. ~10-12 min até .dmg + latest.json estarem
+# em https://github.com/JoaoSipauba/leviticus/releases.
+```
+
+### Auto-updater — setup inicial (uma vez só)
+
+O updater verifica assinatura criptográfica dos bundles antes de instalar. Sem a chave configurada, o app builda mas o updater não funciona.
+
+1. **Gerar keypair Tauri localmente:**
+   ```bash
+   pnpm --filter appsdesktop tauri signer generate -w ~/.tauri/leviticus.key
+   ```
+   Cria `~/.tauri/leviticus.key` (privada) e `~/.tauri/leviticus.key.pub` (pública). Define uma senha forte — vai ser a `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+2. **Colocar pubkey em [tauri.conf.json](apps/desktop/src-tauri/tauri.conf.json):**
+   Copiar o conteúdo de `~/.tauri/leviticus.key.pub` (uma única linha em base64) pro campo `plugins.updater.pubkey`. Commitar e fazer push.
+
+3. **Adicionar secrets ao GitHub** (Settings → Secrets and variables → Actions):
+   - `TAURI_SIGNING_PRIVATE_KEY`: conteúdo completo de `~/.tauri/leviticus.key` (multi-linhas, incluindo headers).
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: a senha definida no passo 1.
+
+4. **Backup da privada.** Guarde `~/.tauri/leviticus.key` em local seguro (1Password, etc.). Se perder, **nenhum app antigo aceita updates futuros** — todo mundo precisaria reinstalar manualmente.
+
+A partir daí, toda release lança bundle assinado e os apps em campo se atualizam automaticamente quando detectam nova versão.
+
+### UX do updater
+
+[UpdateNotification.tsx](apps/desktop/src/components/UpdateNotification.tsx) mostra um toast no canto inferior direito quando há nova versão. Comportamento:
+
+- Check inicial 5s após boot, depois a cada 6h.
+- **Nunca atualiza durante reprodução**: se `usePlayerStore.getState().isPlaying === true`, o check é adiado por 5 minutos. Evita interromper culto.
+- Botões: **Atualizar agora** (download + instala em background) ou **Mais tarde** (silencia até a próxima versão).
+- Após instalar, modal pede pra reiniciar — usuário pode adiar e o update aplica no próximo restart natural.
+- Falhas no check (offline, pubkey inválida, endpoint fora do ar) são silenciosas — não incomodam o usuário.
+
 ## Key constraints
 
 - `tsconfig.json` has `noUnusedLocals: true` — unused variables cause build failures.

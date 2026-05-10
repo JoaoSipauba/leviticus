@@ -33,8 +33,13 @@
         { "url": "http://127.0.0.1:54321/**" },
         { "url": "https://*.supabase.co/**" },
         { "url": "https://*.supabase.io/**" },
-        { "url": "https://*.googlevideo.com/**" }
+        { "url": "https://*.googlevideo.com/**" },
+        { "url": "https://github.com/**" },
+        { "url": "https://objects.githubusercontent.com/**" }
       ]
-    }
+    },
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
   ]
 }

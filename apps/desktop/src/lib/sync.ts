@@ -5,21 +5,24 @@ export async function syncOrg(orgId: string): Promise<void> {
   const db = await getDb()
   const since = (await getLastSync(orgId)) ?? '1970-01-01T00:00:00Z'
 
+  // Listar colunas explicitamente (não usar '*'). Ver "Migrations checklist"
+  // em CLAUDE.md — o contrato fica visível e colunas novas no Supabase não
+  // chegam silenciosamente até a release de app que as suporta.
   const [songs, groups, playlists, songGroups, playlistSongs] =
     await Promise.all([
       supabase
         .from('songs')
-        .select('*')
+        .select('id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, created_at, updated_at')
         .eq('org_id', orgId)
         .gte('updated_at', since),
       supabase
         .from('groups')
-        .select('*')
+        .select('id, org_id, name, color_index, updated_at')
         .eq('org_id', orgId)
         .gte('updated_at', since),
       supabase
         .from('playlists')
-        .select('*')
+        .select('id, org_id, name, scheduled_at, scheduled_end, created_at, updated_at')
         .eq('org_id', orgId)
         .gte('updated_at', since),
       // Junction tables lack updated_at — full fetch scoped to org on every sync
