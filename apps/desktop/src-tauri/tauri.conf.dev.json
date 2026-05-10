@@ -2,6 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Leviticus Dev",
   "identifier": "com.leviticus.app.dev",
+  "build": {
+    "beforeDevCommand": "pnpm dev:local"
+  },
   "app": {
     "windows": [
       {
