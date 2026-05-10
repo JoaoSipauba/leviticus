@@ -889,13 +889,8 @@ function SectionHeader({
       style={{ background: 'rgba(13,13,22,0.85)' }}
     >
       <button
-        draggable={!section.isDraft}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = 'move'
-          e.dataTransfer.setData('text/plain', section.sectionId)
-          onStartDragSection()
-        }}
-        onDragEnd={onEndDrag}
+        onMouseDown={(e) => { e.preventDefault(); onStartDragSection() }}
+        onMouseUp={onEndDrag}
         className="text-muted hover:text-body cursor-grab disabled:cursor-not-allowed disabled:opacity-30"
         disabled={section.isDraft}
         aria-label="Mover seção"
