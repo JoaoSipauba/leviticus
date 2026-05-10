@@ -402,16 +402,20 @@ function ActionsMenu({ onEdit, onDelete, dark, online }: {
                 onClick={online ? (e) => { e.stopPropagation(); setOpen(false); onEdit() } : undefined}
                 disabled={!online}
                 title={online ? undefined : 'Sem conexão'}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading text-left"
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading text-left transition-colors ${
+                  online ? 'hover:bg-white/[0.06]' : ''
+                }`}
                 style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
               >
-                <Pencil size={14} className="text-body" strokeWidth={2} /> Editar
+                <Pencil size={14} strokeWidth={2} /> Editar
               </button>
               <button
                 onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
                 disabled={!online}
                 title={online ? undefined : 'Sem conexão'}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 text-left"
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 text-left transition-colors ${
+                  online ? 'hover:bg-red-500/[0.08]' : ''
+                }`}
                 style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
               >
                 <Trash2 size={14} strokeWidth={2} /> Excluir
