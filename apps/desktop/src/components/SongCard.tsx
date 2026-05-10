@@ -287,18 +287,24 @@ function ActionsMenu({
                 </button>
               )}
 
-              <button
-                role="menuitem"
-                onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
-                disabled={!online}
-                title={online ? undefined : 'Sem conexão'}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left ${
-                  online ? 'text-red-400 hover:bg-red-500/[0.08] cursor-pointer' : 'text-muted cursor-not-allowed'
-                }`}
-              >
-                <Trash2 size={14} strokeWidth={2} />
-                Excluir da biblioteca
-              </button>
+              {/* "Excluir da biblioteca" só aparece fora do contexto de culto.
+                  Dentro do culto, "Remover deste culto" já cobre a intenção
+                  imediata, e excluir da biblioteca é destrutivo demais pra
+                  estar próximo dele. Pra apagar de vez, vai pela biblioteca. */}
+              {!onRemoveFromPlaylist && (
+                <button
+                  role="menuitem"
+                  onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
+                  disabled={!online}
+                  title={online ? undefined : 'Sem conexão'}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-left ${
+                    online ? 'text-red-400 hover:bg-red-500/[0.08] cursor-pointer' : 'text-muted cursor-not-allowed'
+                  }`}
+                >
+                  <Trash2 size={14} strokeWidth={2} />
+                  Excluir da biblioteca
+                </button>
+              )}
             </>
           )}
         </div>,
