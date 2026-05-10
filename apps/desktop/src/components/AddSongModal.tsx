@@ -284,136 +284,174 @@ function isMSEAvailable(): boolean {
 // chunk vem em 1-2s) com download eficiente (30 chunks pra um arquivo de 60MB).
 const PREVIEW_CHUNK_BYTES = 2 * 1024 * 1024
 
-async function streamWithMSE(
+type MSEStreamHandle = {
+  /** Aborta tudo (fetches em curso + loop principal) */
+  abort: () => void
+  /** Pula a leitura pra um byte offset específico. Aborta o fetch atual
+   * (se houver) e a próxima iteração do loop começa no novo offset.
+   * Use pra responder a seeks da timeline pra fora do buffered. */
+  jumpToByte: (byteOffset: number) => void
+  /** Tamanho total do arquivo em bytes, descoberto após o primeiro Range
+   * via header Content-Range. 0 enquanto não sabemos. */
+  getTotalSize: () => number
+}
+
+function startMSEStream(
   url: string,
   mediaSource: MediaSource,
-  signal: AbortSignal,
   opts: {
     onBuffered?: (sec: number) => void
-    /** Tempo atual do audio em segundos. Usado pra liberar buffer já tocado quando dá QuotaExceededError. */
     getCurrentTime?: () => number
+    onError?: (err: unknown) => void
   } = {},
-): Promise<void> {
-  // Aguarda MediaSource ficar pronto pra receber buffers
-  if (mediaSource.readyState !== 'open') {
-    await new Promise<void>((resolve, reject) => {
-      const onOpen = () => { cleanup(); resolve() }
-      const onAbort = () => { cleanup(); reject(new DOMException('aborted', 'AbortError')) }
-      const cleanup = () => {
-        mediaSource.removeEventListener('sourceopen', onOpen)
-        signal.removeEventListener('abort', onAbort)
-      }
-      mediaSource.addEventListener('sourceopen', onOpen, { once: true })
-      signal.addEventListener('abort', onAbort, { once: true })
-    })
-  }
-  if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+): MSEStreamHandle {
+  const mainAbort = new AbortController()
+  let currentFetchAbort: AbortController | null = null
+  let pendingJump: number | null = null
+  let totalSize = 0
 
-  const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
-
-  // Espera o sourceBuffer terminar a operação atual (updateend) ou rejeita em erro.
-  const waitForUpdate = () => new Promise<void>((resolve, reject) => {
-    const onEnd = () => { cleanup(); resolve() }
-    const onErr = (e: Event) => { cleanup(); reject(e) }
-    const cleanup = () => {
-      sourceBuffer.removeEventListener('updateend', onEnd)
-      sourceBuffer.removeEventListener('error', onErr)
-    }
-    sourceBuffer.addEventListener('updateend', onEnd, { once: true })
-    sourceBuffer.addEventListener('error', onErr, { once: true })
+  // Quando alguém aborta o stream inteiro, também precisamos abortar o fetch
+  // em curso pra ele soltar o socket e o resource handle do Tauri.
+  mainAbort.signal.addEventListener('abort', () => {
+    currentFetchAbort?.abort()
   })
 
-  // appendBuffer pode lançar QuotaExceededError pra músicas longas (cota
-  // do SourceBuffer ~30-50MB no WebKit). Quando isso acontece, removemos
-  // a parte já tocada (mantendo um colchão antes do currentTime) e
-  // tentamos de novo.
-  const appendChunk = async (chunk: Uint8Array): Promise<void> => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const promise = waitForUpdate()
-        sourceBuffer.appendBuffer(chunk as BufferSource)
-        await promise
-        return
-      } catch (e) {
-        const isQuota = e instanceof DOMException && e.name === 'QuotaExceededError'
-        if (!isQuota || attempt === 2) throw e
-        // Libera espaço removendo do início do buffer até pouco antes do
-        // currentTime. Mantém 10s de colchão pra permitir seek pra trás.
-        const currentTime = opts.getCurrentTime?.() ?? 0
-        if (sourceBuffer.buffered.length === 0) throw e
-        const start = sourceBuffer.buffered.start(0)
-        const end = Math.max(start + 0.1, currentTime - 10)
-        if (end <= start) throw e
-        const removePromise = waitForUpdate()
-        sourceBuffer.remove(start, end)
-        await removePromise
-      }
-    }
+  const handle: MSEStreamHandle = {
+    abort: () => mainAbort.abort(),
+    jumpToByte: (byteOffset) => {
+      pendingJump = Math.max(0, Math.floor(byteOffset))
+      // Interrompe o fetch atual pra que o próximo já parta do novo offset.
+      currentFetchAbort?.abort()
+    },
+    getTotalSize: () => totalSize,
   }
 
-  // Cada Range pode falhar transitoriamente (conexão TCP reciclada,
-  // resource handle invalidado pelo plugin HTTP, etc). Retry com backoff
-  // pequeno antes de desistir do stream inteiro.
-  const fetchRange = async (start: number, end: number): Promise<Response> => {
-    let lastErr: unknown
-    for (let i = 0; i < 3; i++) {
-      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
-      try {
-        const r = await tauriFetch(url, {
-          signal,
-          headers: { Range: `bytes=${start}-${end}` },
+  void (async () => {
+    try {
+      if (mediaSource.readyState !== 'open') {
+        await new Promise<void>((resolve, reject) => {
+          const onOpen = () => { cleanup(); resolve() }
+          const onAbort = () => { cleanup(); reject(new DOMException('aborted', 'AbortError')) }
+          const cleanup = () => {
+            mediaSource.removeEventListener('sourceopen', onOpen)
+            mainAbort.signal.removeEventListener('abort', onAbort)
+          }
+          mediaSource.addEventListener('sourceopen', onOpen, { once: true })
+          mainAbort.signal.addEventListener('abort', onAbort, { once: true })
         })
-        if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
-        return r
-      } catch (e) {
-        if (signal.aborted) throw e
-        lastErr = e
-        console.warn(`[MSE] Range ${start}-${end} falhou (tentativa ${i + 1}/3):`, e)
-        await new Promise((r) => setTimeout(r, 300 * (i + 1)))
       }
+      if (mainAbort.signal.aborted) return
+
+      const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
+
+      const waitForUpdate = () => new Promise<void>((resolve, reject) => {
+        const onEnd = () => { cleanup(); resolve() }
+        const onErr = (e: Event) => { cleanup(); reject(e) }
+        const cleanup = () => {
+          sourceBuffer.removeEventListener('updateend', onEnd)
+          sourceBuffer.removeEventListener('error', onErr)
+        }
+        sourceBuffer.addEventListener('updateend', onEnd, { once: true })
+        sourceBuffer.addEventListener('error', onErr, { once: true })
+      })
+
+      // Trata QuotaExceededError liberando o trecho já tocado (mantém 10s
+      // antes do currentTime pra permitir seek pra trás recente).
+      const appendChunk = async (chunk: Uint8Array): Promise<void> => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const promise = waitForUpdate()
+            sourceBuffer.appendBuffer(chunk as BufferSource)
+            await promise
+            return
+          } catch (e) {
+            const isQuota = e instanceof DOMException && e.name === 'QuotaExceededError'
+            if (!isQuota || attempt === 2) throw e
+            const currentTime = opts.getCurrentTime?.() ?? 0
+            if (sourceBuffer.buffered.length === 0) throw e
+            const start = sourceBuffer.buffered.start(0)
+            const end = Math.max(start + 0.1, currentTime - 10)
+            if (end <= start) throw e
+            const removePromise = waitForUpdate()
+            sourceBuffer.remove(start, end)
+            await removePromise
+          }
+        }
+      }
+
+      const fetchRange = async (start: number, end: number, fetchSignal: AbortSignal): Promise<Response> => {
+        let lastErr: unknown
+        for (let i = 0; i < 3; i++) {
+          if (fetchSignal.aborted) throw new DOMException('aborted', 'AbortError')
+          try {
+            const r = await tauriFetch(url, {
+              signal: fetchSignal,
+              headers: { Range: `bytes=${start}-${end}` },
+            })
+            if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
+            return r
+          } catch (e) {
+            if (fetchSignal.aborted) throw e
+            lastErr = e
+            console.warn(`[MSE] Range ${start}-${end} falhou (tentativa ${i + 1}/3):`, e)
+            await new Promise((r) => setTimeout(r, 300 * (i + 1)))
+          }
+        }
+        throw lastErr
+      }
+
+      let offset = 0
+      while (!mainAbort.signal.aborted) {
+        if (pendingJump !== null) {
+          offset = pendingJump
+          pendingJump = null
+        }
+
+        currentFetchAbort = new AbortController()
+        const fetchSignal = currentFetchAbort.signal
+        const rangeEnd = totalSize > 0
+          ? Math.min(offset + PREVIEW_CHUNK_BYTES - 1, totalSize - 1)
+          : offset + PREVIEW_CHUNK_BYTES - 1
+
+        try {
+          const response = await fetchRange(offset, rangeEnd, fetchSignal)
+
+          if (totalSize === 0) {
+            const cr = response.headers.get('content-range')
+            const m = cr?.match(/\/(\d+)$/)
+            if (m) totalSize = Number(m[1])
+          }
+
+          const buf = new Uint8Array(await response.arrayBuffer())
+          if (mainAbort.signal.aborted) return
+          // Se o usuário pulou enquanto estávamos baixando, descarta esse
+          // chunk e refaz a próxima iteração com o novo offset.
+          if (pendingJump !== null) continue
+
+          await appendChunk(buf)
+
+          if (opts.onBuffered && sourceBuffer.buffered.length > 0) {
+            opts.onBuffered(sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1))
+          }
+
+          offset += buf.byteLength
+          if (response.status === 200 || (totalSize > 0 && offset >= totalSize)) {
+            try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
+            return
+          }
+        } catch (e) {
+          if (mainAbort.signal.aborted) return
+          // Fetch foi abortado por causa de um jump — refaz com o novo offset.
+          if (pendingJump !== null) continue
+          throw e
+        }
+      }
+    } catch (e) {
+      if (!mainAbort.signal.aborted) opts.onError?.(e)
     }
-    throw lastErr
-  }
+  })()
 
-  // Buscamos em pedaços via HTTP Range. Cada pedaço chega ao JS em um
-  // único arrayBuffer() — muito mais rápido que streaming chunk-a-chunk
-  // (cada chunk pequeno paga overhead de IPC Rust→JS).
-  let offset = 0
-  let totalSize = 0
-  try {
-    while (true) {
-      if (signal.aborted) return
-      const rangeEnd = totalSize > 0
-        ? Math.min(offset + PREVIEW_CHUNK_BYTES - 1, totalSize - 1)
-        : offset + PREVIEW_CHUNK_BYTES - 1
-      const response = await fetchRange(offset, rangeEnd)
-
-      // Content-Range: "bytes 0-2097151/59982324" → extrai tamanho total
-      if (totalSize === 0) {
-        const cr = response.headers.get('content-range')
-        const m = cr?.match(/\/(\d+)$/)
-        if (m) totalSize = Number(m[1])
-      }
-
-      const buf = new Uint8Array(await response.arrayBuffer())
-      if (signal.aborted) return
-      await appendChunk(buf)
-
-      if (opts.onBuffered && sourceBuffer.buffered.length > 0) {
-        opts.onBuffered(sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1))
-      }
-
-      offset += buf.byteLength
-      // Servidor não respeitou Range (status 200) ou já chegamos no fim
-      if (response.status === 200 || (totalSize > 0 && offset >= totalSize)) {
-        try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
-        return
-      }
-    }
-  } catch (e) {
-    if (signal.aborted) return
-    throw e
-  }
+  return handle
 }
 
 function SearchResultCard({
@@ -633,9 +671,10 @@ export function AddSongModal() {
   // preview
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const previewAbortRef = useRef(0)
-  // Abort controller + blob URL do MediaSource em uso. stopPreview aborta o
-  // streaming e revoga o blob URL pra não vazar memória.
-  const previewStreamRef = useRef<{ abort: AbortController; blobUrl?: string } | null>(null)
+  // Handle do MSE stream em uso + blob URL do MediaSource. stopPreview
+  // aborta o streaming e revoga o blob URL pra não vazar memória. O handle
+  // expõe jumpToByte() pra responder a seeks da timeline.
+  const previewStreamRef = useRef<{ handle: MSEStreamHandle; blobUrl: string } | null>(null)
   const previewUrlCacheRef = useRef<Map<string, string>>(new Map())
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -749,10 +788,8 @@ export function AddSongModal() {
     previewAbortRef.current++
     // Aborta streaming MSE em curso e revoga o blob URL
     if (previewStreamRef.current) {
-      previewStreamRef.current.abort.abort()
-      if (previewStreamRef.current.blobUrl) {
-        URL.revokeObjectURL(previewStreamRef.current.blobUrl)
-      }
+      previewStreamRef.current.handle.abort()
+      URL.revokeObjectURL(previewStreamRef.current.blobUrl)
       previewStreamRef.current = null
     }
     // Nulificar antes de pausar evita que callbacks pendentes de play()
@@ -831,10 +868,8 @@ export function AddSongModal() {
       // Aborta MSE/Range fetches em curso antes de tentar de novo —
       // sem isso o stream antigo continua e disputa recursos com o novo.
       if (previewStreamRef.current) {
-        previewStreamRef.current.abort.abort()
-        if (previewStreamRef.current.blobUrl) {
-          URL.revokeObjectURL(previewStreamRef.current.blobUrl)
-        }
+        previewStreamRef.current.handle.abort()
+        URL.revokeObjectURL(previewStreamRef.current.blobUrl)
         previewStreamRef.current = null
       }
       // limpar audio atual
@@ -883,18 +918,30 @@ export function AddSongModal() {
       try {
         const mediaSource = new MediaSource()
         const blobUrl = URL.createObjectURL(mediaSource)
-        const abortController = new AbortController()
-        previewStreamRef.current = { abort: abortController, blobUrl }
         audio.src = blobUrl
-        // Stream em background. Erro é só logado — onerror do audio dispara
-        // o retry caso nada tenha tocado.
-        void streamWithMSE(url, mediaSource, abortController.signal, {
+        const handle = startMSEStream(url, mediaSource, {
           onBuffered: (sec) => setPreviewBuffered(sec),
           getCurrentTime: () => audio.currentTime,
-        }).catch((e) => {
-          if (abortController.signal.aborted) return
-          console.warn('[preview] MSE stream error:', e)
+          onError: (e) => console.warn('[preview] MSE stream error:', e),
         })
+        previewStreamRef.current = { handle, blobUrl }
+
+        // Seek pra fora do buffered: pula o stream pro byte estimado pelo
+        // tempo. Premisses: bitrate constante (140 = AAC-LC CBR 128kbps),
+        // então tempo↔byte é linear. Erro de byte ~mid-fragment é OK porque
+        // o MSE pula até o próximo moof.
+        const onSeeking = () => {
+          const t = audio.currentTime
+          const total = handle.getTotalSize()
+          const dur = result.duration > 0 ? result.duration : audio.duration
+          if (total <= 0 || !isFinite(dur) || dur <= 0) return
+          // Já temos esse pedaço carregado? Não precisa pular.
+          for (let i = 0; i < audio.buffered.length; i++) {
+            if (t >= audio.buffered.start(i) && t <= audio.buffered.end(i)) return
+          }
+          handle.jumpToByte((t / dur) * total)
+        }
+        audio.addEventListener('seeking', onSeeking)
       } catch (e) {
         console.warn('[preview] MSE setup falhou, usando URL direta:', e)
         audio.src = url
