@@ -11,14 +11,17 @@ type Status =
   | { kind: 'installed'; version: string }
   | { kind: 'error'; message: string }
 
-const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000 // 6h
+const CHECK_INTERVAL_MS = 1 * 60 * 60 * 1000 // 1h
 const PLAYBACK_RETRY_MS = 5 * 60 * 1000      // 5min
 const BOOT_DELAY_MS = 5 * 1000               // 5s pós-boot
-const DISMISS_KEY = 'leviticus_update_dismissed_version'
 
 export function UpdateNotification() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const checkingRef = useRef(false)
+  // Dismissal só na sessão atual: clicar "Mais tarde" / X esconde o toast
+  // mas o próximo boot do app verifica de novo e mostra. Sem persistir em
+  // localStorage — assim updates importantes não somem permanentemente.
+  const dismissedRef = useRef(false)
 
   // Acessar isPlaying via getState() pra não disparar checks a cada play/pause —
   // o estado é lido só no momento da verificação periódica.
@@ -27,6 +30,7 @@ export function UpdateNotification() {
 
     async function runCheck() {
       if (checkingRef.current || cancelled) return
+      if (dismissedRef.current) return
       // Não interromper culto: se está tocando, adia 5 min.
       if (usePlayerStore.getState().isPlaying) {
         scheduleNext(PLAYBACK_RETRY_MS)
@@ -37,12 +41,6 @@ export function UpdateNotification() {
         const update = await check()
         if (cancelled) return
         if (update) {
-          // Respeita dismissal por versão: usuário clicou "mais tarde" pra essa versão.
-          const dismissed = localStorage.getItem(DISMISS_KEY)
-          if (dismissed === update.version) {
-            scheduleNext(CHECK_INTERVAL_MS)
-            return
-          }
           setStatus({ kind: 'available', update })
         } else {
           scheduleNext(CHECK_INTERVAL_MS)
@@ -102,7 +100,7 @@ export function UpdateNotification() {
 
   function handleDismiss() {
     if (status.kind !== 'available') return
-    localStorage.setItem(DISMISS_KEY, status.update.version)
+    dismissedRef.current = true
     setStatus({ kind: 'idle' })
   }
 
