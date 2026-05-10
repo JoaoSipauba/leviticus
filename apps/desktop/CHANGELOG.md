@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.2](https://github.com/JoaoSipauba/leviticus/compare/v0.1.1...v0.1.2) (2026-05-10)
+
+### Correções
+
+* **macos:** ad-hoc signing + release notes com comando xattr ([b456dbf](https://github.com/JoaoSipauba/leviticus/commit/b456dbf7f514d980b2893398d8cd9c6f079ed2bd))
+
 ## [0.1.1](https://github.com/JoaoSipauba/leviticus/compare/v0.1.0...v0.1.1) (2026-05-10)
 
 ### Funcionalidades
