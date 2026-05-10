@@ -90,6 +90,10 @@ function ModalInput({
       placeholder={placeholder}
       autoFocus={autoFocus}
       onKeyDown={onKeyDown}
+      autoComplete="off"
+      autoCorrect="off"
+      autoCapitalize="off"
+      spellCheck={false}
       style={{
         width: '100%',
         background: 'rgba(255,255,255,0.04)',
