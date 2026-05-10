@@ -152,12 +152,14 @@ export function startDownload(
       '--no-playlist',
       '-f', 'bestaudio[ext=m4a]/bestaudio',
       '--newline',
+      '--socket-timeout', '10',
       '-o', outputTemplate,
       youtubeUrl,
     ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
     return new Promise<string>((resolve, reject) => {
-      let stderrBuf = ''
+      // yt-dlp envia TODO output (inclusive erros) para stdout, não stderr.
+      let outputBuf = ''
 
       // Animação assintótica de progresso. Pra m4a sem reencoding, o
       // download é tão rápido (~1-2s pra músicas de 4 min) que o yt-dlp
@@ -178,17 +180,38 @@ export function startDownload(
       const animationTimer = window.setInterval(() => reportProgress(), 150)
       const stopAnimation = () => window.clearInterval(animationTimer)
 
+      let settled = false
+      let killProcess: (() => void) | null = null
+
+      const settle = (fn: () => void) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        stopAnimation()
+        fn()
+      }
+
+      // Timeout de 3 minutos: se o yt-dlp travar, desbloqueamos a fila.
+      const DOWNLOAD_TIMEOUT_MS = 3 * 60 * 1000
+      const timer = setTimeout(() => {
+        void (async () => {
+          killProcess?.()
+          await cleanupOutput(songId)
+          settle(() => reject(new Error('O download demorou demais. Verifique sua conexão e tente novamente.')))
+        })()
+      }, DOWNLOAD_TIMEOUT_MS)
+
       command.stdout.on('data', (line: string) => {
+        outputBuf += line + '\n'
         const match = line.match(/(\d+\.?\d*)%/)
         if (match) reportProgress(parseFloat(match[1]) / 100)
       })
 
       command.stderr.on('data', (line: string) => {
-        stderrBuf += line + '\n'
+        outputBuf += line + '\n'
       })
 
       command.on('close', ({ code }) => {
-        stopAnimation()
         void (async () => {
           if (canceled) {
             // child.kill() é assíncrono e o yt-dlp pode ter completado o
@@ -196,15 +219,15 @@ export function startDownload(
             // foi gerado mesmo após o usuário clicar cancelar. Remove
             // qualquer arquivo (em qualquer extensão) que tenha ficado.
             await cleanupOutput(songId)
-            reject(new Error(DOWNLOAD_CANCELED))
+            settle(() => reject(new Error(DOWNLOAD_CANCELED)))
             return
           }
           if (code !== 0) {
-            console.error(`[startDownload] yt-dlp saiu com código ${code}:`, stderrBuf)
+            console.error(`[startDownload] yt-dlp saiu com código ${code}:`, outputBuf)
             // Falha real: também remove arquivo parcial pra não confundir
             // isDownloaded() em retentativas.
             await cleanupOutput(songId)
-            reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+            settle(() => reject(new Error('Falha ao baixar o áudio. Tente novamente.')))
             return
           }
           onProgress(1)
@@ -212,36 +235,35 @@ export function startDownload(
           const finalPath = await findSongFile(songId)
           if (!finalPath) {
             console.error('[startDownload] arquivo final não encontrado após download bem-sucedido')
-            reject(new Error('Falha ao baixar o áudio. Tente novamente.'))
+            settle(() => reject(new Error('Falha ao baixar o áudio. Tente novamente.')))
             return
           }
-          resolve(finalPath)
+          settle(() => resolve(finalPath))
         })()
       })
 
       command.on('error', (err) => {
-        stopAnimation()
         if (canceled) {
           void cleanupOutput(songId)
-          reject(new Error(DOWNLOAD_CANCELED))
+          settle(() => reject(new Error(DOWNLOAD_CANCELED)))
           return
         }
         console.error('[startDownload] erro ao iniciar processo:', err)
-        reject(new Error(`Não foi possível iniciar o download: ${err}`))
+        settle(() => reject(new Error(`Não foi possível iniciar o download: ${err}`)))
       })
 
       command.spawn()
         .then((c) => {
           child = c
+          killProcess = () => c.kill().catch(() => {})
           // Se cancelaram entre o spawn() e o resolve, mata imediatamente.
           if (canceled) {
             c.kill().catch(() => {})
           }
         })
         .catch((err: unknown) => {
-          stopAnimation()
           console.error('[startDownload] spawn() rejeitado:', err)
-          reject(new Error(`Não foi possível iniciar o download: ${String(err)}`))
+          settle(() => reject(new Error(`Não foi possível iniciar o download: ${String(err)}`)))
         })
     })
   })()
