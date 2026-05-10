@@ -816,6 +816,7 @@ function SectionHeader({
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const btnMenuRef = useRef<HTMLButtonElement>(null)
+  const sectionMenuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
 
   useEffect(() => { setNewLabel(section.label) }, [section.label])
@@ -839,7 +840,11 @@ function SectionHeader({
   useEffect(() => {
     if (!menuOpen) return
     function onDocClick(e: MouseEvent) {
-      if (btnMenuRef.current?.contains(e.target as Node)) return
+      const t = e.target as Node
+      if (btnMenuRef.current?.contains(t)) return
+      // Click dentro do dropdown (portal) também não fecha — sem isso a
+      // ação do item não dispara porque mousedown reseta menuOpen antes.
+      if (sectionMenuRef.current?.contains(t)) return
       setMenuOpen(false)
     }
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setMenuOpen(false) }
@@ -911,6 +916,7 @@ function SectionHeader({
         </button>
         {menuOpen && createPortal(
           <div
+            ref={sectionMenuRef}
             role="menu"
             className="fixed min-w-[180px] rounded-xl py-1.5"
             style={{
@@ -971,6 +977,7 @@ function PlaylistMenu({
 }) {
   const [open, setOpen] = useState(false)
   const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
 
   useEffect(() => { if (confirmingDelete) setOpen(true) }, [confirmingDelete])
@@ -993,7 +1000,12 @@ function PlaylistMenu({
   useEffect(() => {
     if (!open) return
     function onDocClick(e: MouseEvent) {
-      if (btnRef.current?.contains(e.target as Node)) return
+      const t = e.target as Node
+      // Sem o menuRef: clicar dentro do dropdown (que está num portal, fora
+      // do btnRef) fecha o menu via mousedown ANTES do onClick do item rodar,
+      // e a ação não dispara — só some a UI.
+      if (btnRef.current?.contains(t)) return
+      if (menuRef.current?.contains(t)) return
       setOpen(false)
     }
     function onEsc(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
@@ -1017,6 +1029,7 @@ function PlaylistMenu({
       </button>
       {open && createPortal(
         <div
+          ref={menuRef}
           role="menu"
           className="fixed min-w-[200px] rounded-xl py-1.5"
           style={{
