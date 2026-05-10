@@ -610,6 +610,7 @@ export function PlaylistDetail() {
               onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: section.sectionId })}
               onDragLeave={clearDragOver}
             />
+            <div onMouseEnter={() => { if (dragRef.current?.kind === 'section') clearDragOver() }}>
             <PlaylistSection
               section={section}
               playlist={playlist}
@@ -633,6 +634,7 @@ export function PlaylistDetail() {
                 : undefined}
               onDelete={() => handleDeleteSection(section.sectionId, section.isDraft)}
             />
+            </div>
             {idx === allSections.length - 1 && (
               <SectionDropIndicator
                 show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === null}
@@ -710,7 +712,6 @@ function SectionDropIndicator({ show, onDragEnter, onDragLeave }: { show: boolea
         background: show ? '#3b82f6' : 'transparent',
         borderRadius: 2,
         opacity: show ? 1 : 0,
-        transition: 'opacity 0.1s',
       }}
     />
   )
