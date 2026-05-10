@@ -313,6 +313,12 @@ export function PlaylistDetail() {
     setDropTarget(target)
   }
 
+  function clearDragOver() {
+    if (!dragRef.current) return
+    dropTargetRef.current = null
+    setDropTarget(null)
+  }
+
   async function endDrag() {
     const state = dragRef.current
     const target = dropTargetRef.current
@@ -602,6 +608,7 @@ export function PlaylistDetail() {
             <SectionDropIndicator
               show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === section.sectionId}
               onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: section.sectionId })}
+              onDragLeave={clearDragOver}
             />
             <PlaylistSection
               section={section}
@@ -630,6 +637,7 @@ export function PlaylistDetail() {
               <SectionDropIndicator
                 show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === null}
                 onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: null })}
+                onDragLeave={clearDragOver}
               />
             )}
           </div>
@@ -690,11 +698,12 @@ export function PlaylistDetail() {
 
 // ─────────────────────────────────────────────────────────────────────────
 
-function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnter: () => void }) {
+function SectionDropIndicator({ show, onDragEnter, onDragLeave }: { show: boolean; onDragEnter: () => void; onDragLeave: () => void }) {
   return (
     <div
       onDragOver={(e) => { e.preventDefault(); onDragEnter() }}
       onMouseEnter={onDragEnter}
+      onMouseLeave={onDragLeave}
       className="h-2"
       style={{
         marginTop: -2, marginBottom: -2,
