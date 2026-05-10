@@ -365,34 +365,42 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   const command = Command.create('yt-dlp', [
     '--flat-playlist',
     '--dump-json',
+    '--socket-timeout', '10', // timeout de rede no próprio yt-dlp — causa raiz de travamento
     `ytsearch5:${query}`,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
 
   const stdout = await new Promise<string>((resolve, reject) => {
     let out = ''
     let err = ''
-    let child: Child | null = null
+    let killProcess: (() => void) | null = null
+    let settled = false
+
+    const settle = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
 
     const timer = setTimeout(() => {
-      child?.kill().catch(() => {})
-      reject(new Error('timeout'))
+      killProcess?.()
+      settle(() => reject(new Error('timeout')))
     }, SEARCH_TIMEOUT_MS)
 
     command.stdout.on('data', (line: string) => { out += line + '\n' })
     command.stderr.on('data', (line: string) => { err += line + '\n' })
     command.on('close', ({ code }) => {
-      clearTimeout(timer)
       if (code !== 0) {
         console.error('[searchYoutube] yt-dlp error:', err)
-        reject(new Error('yt-dlp failed'))
+        settle(() => reject(new Error('yt-dlp failed')))
       } else {
-        resolve(out)
+        settle(() => resolve(out))
       }
     })
-    command.on('error', (e) => { clearTimeout(timer); reject(e) })
+    command.on('error', (e) => settle(() => reject(e)))
     command.spawn()
-      .then((c) => { child = c })
-      .catch((e) => { clearTimeout(timer); reject(e) })
+      .then((c) => { killProcess = () => c.kill().catch(() => {}) })
+      .catch((e) => settle(() => reject(e)))
   })
 
   // yt-dlp outputs NDJSON: one JSON object per line
