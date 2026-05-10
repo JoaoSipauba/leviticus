@@ -255,9 +255,93 @@ function GroupChip({
 }
 
 function fmtDuration(s: number): string {
-  const m = Math.floor(s / 60)
-  const sec = s % 60
+  const h = Math.floor(s / 3600)
+  const rem = s % 3600
+  const m = Math.floor(rem / 60)
+  const sec = Math.floor(rem % 60)
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
   return `${m}:${sec.toString().padStart(2, '0')}`
+}
+
+// Streaming progressivo de verdade pro preview: fetch do áudio em chunks
+// (Range request), alimentando MediaSource → SourceBuffer. O audio element
+// começa a tocar com os primeiros KB enquanto o resto continua chegando,
+// independente do tamanho total do arquivo.
+//
+// Codec mp4a.40.2 = AAC-LC, que o WebKit aceita em audio/mp4 via MSE.
+// Combina com formato 140 do YouTube (m4a 128kbps AAC-LC).
+const MSE_PREVIEW_MIME = 'audio/mp4; codecs="mp4a.40.2"'
+
+function isMSEAvailable(): boolean {
+  return typeof window !== 'undefined'
+    && 'MediaSource' in window
+    && MediaSource.isTypeSupported(MSE_PREVIEW_MIME)
+}
+
+async function streamWithMSE(
+  url: string,
+  mediaSource: MediaSource,
+  signal: AbortSignal,
+): Promise<void> {
+  // Aguarda MediaSource ficar pronto pra receber buffers
+  if (mediaSource.readyState !== 'open') {
+    await new Promise<void>((resolve, reject) => {
+      const onOpen = () => { cleanup(); resolve() }
+      const onAbort = () => { cleanup(); reject(new DOMException('aborted', 'AbortError')) }
+      const cleanup = () => {
+        mediaSource.removeEventListener('sourceopen', onOpen)
+        signal.removeEventListener('abort', onAbort)
+      }
+      mediaSource.addEventListener('sourceopen', onOpen, { once: true })
+      signal.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+  if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+
+  const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
+
+  const response = await fetch(url, { signal })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  if (!response.body) throw new Error('Resposta sem body')
+
+  const reader = response.body.getReader()
+
+  // Promise que resolve quando o último appendBuffer termina (updateend) ou
+  // rejeita em erro. Sem isso, chamadas concorrentes ao appendBuffer quebram.
+  const appendChunk = (chunk: Uint8Array) => new Promise<void>((resolve, reject) => {
+    const onEnd = () => { cleanup(); resolve() }
+    const onErr = (e: Event) => { cleanup(); reject(e) }
+    const cleanup = () => {
+      sourceBuffer.removeEventListener('updateend', onEnd)
+      sourceBuffer.removeEventListener('error', onErr)
+    }
+    sourceBuffer.addEventListener('updateend', onEnd, { once: true })
+    sourceBuffer.addEventListener('error', onErr, { once: true })
+    try {
+      sourceBuffer.appendBuffer(chunk as BufferSource)
+    } catch (e) {
+      cleanup()
+      reject(e)
+    }
+  })
+
+  try {
+    while (true) {
+      if (signal.aborted) {
+        await reader.cancel().catch(() => {})
+        return
+      }
+      const { done, value } = await reader.read()
+      if (done) {
+        try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
+        return
+      }
+      await appendChunk(value)
+    }
+  } catch (e) {
+    if (signal.aborted) return
+    throw e
+  }
 }
 
 function SearchResultCard({
@@ -477,6 +561,9 @@ export function AddSongModal() {
   // preview
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const previewAbortRef = useRef(0)
+  // Abort controller + blob URL do MediaSource em uso. stopPreview aborta o
+  // streaming e revoga o blob URL pra não vazar memória.
+  const previewStreamRef = useRef<{ abort: AbortController; blobUrl?: string } | null>(null)
   const previewUrlCacheRef = useRef<Map<string, string>>(new Map())
   const [previewId, setPreviewId] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -588,6 +675,14 @@ export function AddSongModal() {
 
   function stopPreview() {
     previewAbortRef.current++
+    // Aborta streaming MSE em curso e revoga o blob URL
+    if (previewStreamRef.current) {
+      previewStreamRef.current.abort.abort()
+      if (previewStreamRef.current.blobUrl) {
+        URL.revokeObjectURL(previewStreamRef.current.blobUrl)
+      }
+      previewStreamRef.current = null
+    }
     // Nulificar antes de pausar evita que callbacks pendentes de play()
     // acessem o elemento via ref após o stop
     const audio = audioRef.current
@@ -694,12 +789,35 @@ export function AddSongModal() {
     }
 
     const audio = new Audio()
-    audio.preload = 'auto'      // streaming progressivo (browser baixa enquanto toca)
+    audio.preload = 'auto'
     // Sem crossOrigin: googlevideo não responde com headers CORS, e setando
     // 'anonymous' o áudio fica preso carregando sem disparar onplaying.
     audio.volume = previewMuted ? 0 : previewVolume
-    audio.src = url
     audioRef.current = audio
+
+    // Streaming progressivo via MSE: chunks chegam via fetch e tocam
+    // imediatamente, sem esperar download completo. Cai pra URL direta
+    // se MSE não suportar o codec ou se algo falhar no setup.
+    if (isMSEAvailable()) {
+      try {
+        const mediaSource = new MediaSource()
+        const blobUrl = URL.createObjectURL(mediaSource)
+        const abortController = new AbortController()
+        previewStreamRef.current = { abort: abortController, blobUrl }
+        audio.src = blobUrl
+        // Stream em background. Erro é só logado — onerror do audio dispara
+        // o retry caso nada tenha tocado.
+        void streamWithMSE(url, mediaSource, abortController.signal).catch((e) => {
+          if (abortController.signal.aborted) return
+          console.warn('[preview] MSE stream error:', e)
+        })
+      } catch (e) {
+        console.warn('[preview] MSE setup falhou, usando URL direta:', e)
+        audio.src = url
+      }
+    } else {
+      audio.src = url
+    }
     if (result.duration > 0) setPreviewDuration(result.duration)
     audio.ontimeupdate = () => {
       // Algumas fontes (HLS, streams sem duração definitiva) não disparam

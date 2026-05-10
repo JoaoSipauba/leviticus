@@ -450,8 +450,12 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
 
 export async function getPreviewUrl(videoId: string): Promise<string> {
   const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
+  // Pra prévia usamos formato 140 (m4a 128kbps AAC-LC, codec mp4a.40.2) —
+  // tamanho razoável e codec amplamente suportado pelo Media Source
+  // Extensions, que vai fazer streaming progressivo verdadeiro
+  // (chunks chegando e tocando ao mesmo tempo).
   const command = Command.create('yt-dlp', [
-    '-f', 'bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio',
+    '-f', '140/bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio',
     '--get-url',
     `https://youtube.com/watch?v=${videoId}`,
   ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
