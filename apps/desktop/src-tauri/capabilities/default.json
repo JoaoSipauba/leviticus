@@ -32,7 +32,8 @@
       "allow": [
         { "url": "http://127.0.0.1:54321/**" },
         { "url": "https://*.supabase.co/**" },
-        { "url": "https://*.supabase.io/**" }
+        { "url": "https://*.supabase.io/**" },
+        { "url": "https://*.googlevideo.com/**" }
       ]
     }
   ]

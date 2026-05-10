@@ -23,6 +23,7 @@ import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
 import { Slider } from './Slider.js'
 import { supabase } from '../lib/supabase.js'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 import { pauseAudio } from '../lib/audio.js'
@@ -282,6 +283,7 @@ async function streamWithMSE(
   url: string,
   mediaSource: MediaSource,
   signal: AbortSignal,
+  opts: { totalDurationSec?: number; onBuffered?: (sec: number) => void } = {},
 ): Promise<void> {
   // Aguarda MediaSource ficar pronto pra receber buffers
   if (mediaSource.readyState !== 'open') {
@@ -300,11 +302,15 @@ async function streamWithMSE(
 
   const sourceBuffer = mediaSource.addSourceBuffer(MSE_PREVIEW_MIME)
 
-  const response = await fetch(url, { signal })
+  // Usa Tauri HTTP plugin pra bypassar CORS — googlevideo CDN não envia
+  // Access-Control-Allow-Origin, então o fetch nativo do WebKit é bloqueado.
+  const response = await tauriFetch(url, { signal })
   if (!response.ok) throw new Error(`HTTP ${response.status}`)
   if (!response.body) throw new Error('Resposta sem body')
 
+  const contentLength = Number(response.headers.get('content-length') ?? 0)
   const reader = response.body.getReader()
+  let totalBytes = 0
 
   // Promise que resolve quando o último appendBuffer termina (updateend) ou
   // rejeita em erro. Sem isso, chamadas concorrentes ao appendBuffer quebram.
@@ -334,9 +340,17 @@ async function streamWithMSE(
       const { done, value } = await reader.read()
       if (done) {
         try { if (mediaSource.readyState === 'open') mediaSource.endOfStream() } catch {}
+        if (opts.onBuffered && opts.totalDurationSec) opts.onBuffered(opts.totalDurationSec)
         return
       }
+      totalBytes += value.length
       await appendChunk(value)
+      // Reporta o quanto da timeline já está no SourceBuffer, baseado em
+      // bytes ÷ content-length × duração total. Mais confiável que
+      // audio.buffered porque vem direto do progresso do download.
+      if (opts.onBuffered && opts.totalDurationSec && contentLength > 0) {
+        opts.onBuffered((totalBytes / contentLength) * opts.totalDurationSec)
+      }
     }
   } catch (e) {
     if (signal.aborted) return
@@ -807,7 +821,10 @@ export function AddSongModal() {
         audio.src = blobUrl
         // Stream em background. Erro é só logado — onerror do audio dispara
         // o retry caso nada tenha tocado.
-        void streamWithMSE(url, mediaSource, abortController.signal).catch((e) => {
+        void streamWithMSE(url, mediaSource, abortController.signal, {
+          totalDurationSec: result.duration > 0 ? result.duration : undefined,
+          onBuffered: (sec) => setPreviewBuffered(sec),
+        }).catch((e) => {
           if (abortController.signal.aborted) return
           console.warn('[preview] MSE stream error:', e)
         })
