@@ -324,6 +324,30 @@ async function streamWithMSE(
     }
   })
 
+  // Cada Range pode falhar transitoriamente (conexão TCP reciclada,
+  // resource handle invalidado pelo plugin HTTP, etc). Retry com backoff
+  // pequeno antes de desistir do stream inteiro.
+  const fetchRange = async (start: number, end: number): Promise<Response> => {
+    let lastErr: unknown
+    for (let i = 0; i < 3; i++) {
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+      try {
+        const r = await tauriFetch(url, {
+          signal,
+          headers: { Range: `bytes=${start}-${end}` },
+        })
+        if (!r.ok && r.status !== 206) throw new Error(`HTTP ${r.status}`)
+        return r
+      } catch (e) {
+        if (signal.aborted) throw e
+        lastErr = e
+        console.warn(`[MSE] Range ${start}-${end} falhou (tentativa ${i + 1}/3):`, e)
+        await new Promise((r) => setTimeout(r, 300 * (i + 1)))
+      }
+    }
+    throw lastErr
+  }
+
   // Buscamos em pedaços via HTTP Range. Cada pedaço chega ao JS em um
   // único arrayBuffer() — muito mais rápido que streaming chunk-a-chunk
   // (cada chunk pequeno paga overhead de IPC Rust→JS).
@@ -335,11 +359,7 @@ async function streamWithMSE(
       const rangeEnd = totalSize > 0
         ? Math.min(offset + PREVIEW_CHUNK_BYTES - 1, totalSize - 1)
         : offset + PREVIEW_CHUNK_BYTES - 1
-      const response = await tauriFetch(url, {
-        signal,
-        headers: { Range: `bytes=${offset}-${rangeEnd}` },
-      })
-      if (!response.ok && response.status !== 206) throw new Error(`HTTP ${response.status}`)
+      const response = await fetchRange(offset, rangeEnd)
 
       // Content-Range: "bytes 0-2097151/59982324" → extrai tamanho total
       if (totalSize === 0) {
@@ -781,6 +801,15 @@ export function AddSongModal() {
     const retry = (reason: unknown) => {
       console.warn(`[preview] tentativa ${attempt}/${MAX_PREVIEW_ATTEMPTS} falhou:`, reason)
       if (token !== previewAbortRef.current) return
+      // Aborta MSE/Range fetches em curso antes de tentar de novo —
+      // sem isso o stream antigo continua e disputa recursos com o novo.
+      if (previewStreamRef.current) {
+        previewStreamRef.current.abort.abort()
+        if (previewStreamRef.current.blobUrl) {
+          URL.revokeObjectURL(previewStreamRef.current.blobUrl)
+        }
+        previewStreamRef.current = null
+      }
       // limpar audio atual
       if (audioRef.current) {
         audioRef.current.pause()
