@@ -379,15 +379,14 @@ export function PlaylistDetail() {
   }
 
   function playAll() {
-    // Pula concluídas — toca a partir da próxima não tocada na ordem do banco.
+    // Toca tudo desde o começo, na ordem do banco. Não pula tocadas — usuário
+    // que clica "Tocar tudo" geralmente quer recomeçar do zero.
     const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
-    const remaining = all.filter((ps) => !playedIds.has(ps.song_id))
-    void playSongs(remaining.map((ps) => ps.song))
+    void playSongs(all.map((ps) => ps.song))
   }
 
   function playSection(section: SectionView) {
-    const remaining = section.songs.filter((ps) => !playedIds.has(ps.song_id))
-    void playSongs(remaining.map((ps) => ps.song))
+    void playSongs(section.songs.map((ps) => ps.song))
   }
 
   async function confirmMerge() {

@@ -27,6 +27,10 @@ type Props = {
   /** Quando false, o badge "not_downloaded" fica acinzentado e não é clicável.
    * yt-dlp precisa de internet, então não tem motivo pra deixar clicar offline. */
   online?: boolean
+  /** Quando true, badge usa visual reduzido pra caber em thumb 40x40 (variant
+   * 'list' do SongCard). Sem isso, o badge 22px com offset 21px do centro
+   * vaza pra fora do thumb e fica cortado pelo overflow:hidden do container. */
+  compact?: boolean
 }
 
 // Botão overlay sobre a thumb (assumida 56px — mesma do SongCard e do preview).
@@ -35,8 +39,17 @@ type Props = {
 // Todos os 4 visuais são renderizados sempre — apenas a opacity controla qual
 // está visível. Isso permite crossfade suave entre estados (ex: clock → ring).
 // O click handler é único e age conforme o state ativo.
-export function DownloadBadge({ state, progress = 0, onDownload, onCancel, online = true }: Props) {
+export function DownloadBadge({ state, progress = 0, onDownload, onCancel, online = true, compact = false }: Props) {
   const downloadDisabled = state === 'not_downloaded' && !online
+  // Override do tamanho/posição quando compact pra caber em thumb 40x40.
+  // Sem isso o badge default (22px @ offset 21 do centro) vaza do thumb.
+  const compactStyle = compact ? {
+    width: 16,
+    height: 16,
+    transform: 'translate(-50%, -50%) translate(11px, 11px)',
+  } : {}
+  const iconSize = compact ? 10 : 14
+  const ringSize = compact ? 16 : 22
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -81,9 +94,10 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
             background: downloadDisabled ? 'rgba(75,85,99,0.7)' : '#3b82f6',
             boxShadow: downloadDisabled ? 'none' : '0 2px 8px -2px rgba(0,0,0,0.6)',
             opacity: downloadDisabled ? 0.6 : 1,
+            ...compactStyle,
           }}
         >
-          <CloudDownload size={14} color={downloadDisabled ? '#9ca3af' : 'white'} strokeWidth={2.5} />
+          <CloudDownload size={iconSize} color={downloadDisabled ? '#9ca3af' : 'white'} strokeWidth={2.5} />
         </span>
       </Layer>
 
@@ -91,13 +105,13 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
       <Layer visible={state === 'queued'}>
         <span
           className="cancel-queue-badge absolute rounded-full flex items-center justify-center pointer-events-none"
-          style={{ top: '50%', left: '50%', background: 'rgba(75,85,99,0.95)', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.6)' }}
+          style={{ top: '50%', left: '50%', background: 'rgba(75,85,99,0.95)', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.6)', ...compactStyle }}
         >
           <span className="cancel-icon-default">
-            <Clock size={11} color="white" strokeWidth={2.5} />
+            <Clock size={compact ? 8 : 11} color="white" strokeWidth={2.5} />
           </span>
           <span className="cancel-icon-hover">
-            <X size={14} color="white" strokeWidth={2.5} />
+            <X size={iconSize} color="white" strokeWidth={2.5} />
           </span>
         </span>
       </Layer>
@@ -106,17 +120,17 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
       <Layer visible={state === 'downloading'}>
         <span
           className="downloading-badge absolute rounded-full flex items-center justify-center pointer-events-none"
-          style={{ top: '50%', left: '50%', background: 'rgba(13,13,22,0.85)', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.6)' }}
+          style={{ top: '50%', left: '50%', background: 'rgba(13,13,22,0.85)', boxShadow: '0 2px 8px -2px rgba(0,0,0,0.6)', ...compactStyle }}
         >
-          <ProgressRing progress={progress} />
+          <ProgressRing progress={progress} size={ringSize} />
           <span
             className="downloading-icon-default"
-            style={{ position: 'absolute', fontSize: 8, fontWeight: 700, color: '#3b82f6', fontVariantNumeric: 'tabular-nums' }}
+            style={{ position: 'absolute', fontSize: compact ? 6 : 8, fontWeight: 700, color: '#3b82f6', fontVariantNumeric: 'tabular-nums' }}
           >
             {Math.round(progress * 100)}
           </span>
           <span className="downloading-icon-hover" style={{ position: 'absolute' }}>
-            <X size={11} color="white" strokeWidth={2.5} />
+            <X size={compact ? 8 : 11} color="white" strokeWidth={2.5} />
           </span>
         </span>
       </Layer>
@@ -125,9 +139,9 @@ export function DownloadBadge({ state, progress = 0, onDownload, onCancel, onlin
       <Layer visible={state === 'completed'}>
         <span
           className="completed-badge absolute rounded-full flex items-center justify-center pointer-events-none"
-          style={{ top: '50%', left: '50%', background: '#22c55e', boxShadow: '0 4px 14px -2px rgba(34,197,94,0.6)' }}
+          style={{ top: '50%', left: '50%', background: '#22c55e', boxShadow: '0 4px 14px -2px rgba(34,197,94,0.6)', ...compactStyle }}
         >
-          <Check size={14} color="white" strokeWidth={3} />
+          <Check size={iconSize} color="white" strokeWidth={3} />
         </span>
       </Layer>
     </button>

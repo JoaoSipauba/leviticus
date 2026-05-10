@@ -53,23 +53,31 @@ export function PlayerMini() {
     usePlayerStore.getState().resume()
   }, [nextInPlaylist])
 
-  // Detector de ≥70% — marca como tocada uma vez por (playlist, song)
+  // Detector de ≥70% — marca como tocada uma vez por (playlist, song).
+  //
+  // Bug histórico: na transição A→B, o effect rodava com currentSong=B mas
+  // pos/duration ainda eram os valores velhos do A (ratio ~1.0), marcando
+  // B como tocada injustamente. A correção é detectar a troca DENTRO deste
+  // mesmo effect e descartar o tick stale antes do 70% ser checado pra nova
+  // música — sem isso o effect de reset rodava DEPOIS, tarde demais.
   const playedKeyRef = useRef<string | null>(null)
+  const lastSongKeyRef = useRef<string | null>(null)
   useEffect(() => {
-    if (!currentSong || !currentPlaylist || duration <= 0) return
+    if (!currentSong || !currentPlaylist) return
     const key = `${currentPlaylist.id}:${currentSong.id}`
+    if (lastSongKeyRef.current !== key) {
+      lastSongKeyRef.current = key
+      playedKeyRef.current = null
+      return // pos/duration ainda não foram atualizados pra essa música
+    }
     if (playedKeyRef.current === key) return
+    if (duration <= 0) return
     if (pos / duration >= 0.7) {
       usePlayedStore.getState().markPlayed(currentPlaylist.id, currentSong.id)
       playedKeyRef.current = key
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, duration, currentSong?.id, currentPlaylist?.id])
-
-  // Reset do flag quando muda música
-  useEffect(() => {
-    playedKeyRef.current = null
-  }, [currentSong?.id])
 
   // Referências estáveis para uso nos listeners de mídia
   const isPlayingRef = useRef(isPlaying)

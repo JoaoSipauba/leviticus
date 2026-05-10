@@ -542,21 +542,23 @@ export function SongCard({
             download conclui, o store remove a entry e setDownloaded vira true.
             Sem isso, a UI saltaria do ring direto pro play overlay. */}
         {justCompleted ? (
-          <DownloadBadge state="completed" />
+          <DownloadBadge state="completed" compact={isList} />
         ) : downloadStatus.state === 'downloading' ? (
           <DownloadBadge
             state="downloading"
             progress={downloadStatus.progress}
+            compact={isList}
             onCancel={() => cancelDownload(song.id)}
           />
         ) : downloadStatus.state === 'queued' ? (
-          <DownloadBadge state="queued" onCancel={() => cancelDownload(song.id)} />
+          <DownloadBadge state="queued" compact={isList} onCancel={() => cancelDownload(song.id)} />
         ) : downloaded ? (
           <ThumbPlayOverlay isCurrentlyPlaying={isCurrentlyPlaying} onClick={handlePlay} />
         ) : (
           <DownloadBadge
             state="not_downloaded"
             online={online}
+            compact={isList}
             onDownload={() => enqueueDownload(song.id, song.youtube_url)}
           />
         )}
