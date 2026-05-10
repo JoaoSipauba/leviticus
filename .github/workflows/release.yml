@@ -57,9 +57,16 @@ jobs:
             Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
 
             **Instalação (macOS Apple Silicon):**
-            1. Baixe o arquivo `.dmg` abaixo.
-            2. Abra o `.dmg` e arraste o app para a pasta Aplicativos.
-            3. Na primeira execução, o macOS vai exibir "desenvolvedor não identificado" — clique com o botão direito no app e escolha **Abrir**.
+            1. Baixe `Leviticus_X.Y.Z_aarch64.dmg` abaixo.
+            2. Abra o `.dmg` e arraste o **Leviticus** para a pasta **Aplicativos**.
+            3. **Antes da primeira execução**, abra o Terminal e rode:
+               ```
+               xattr -cr /Applications/Leviticus.app
+               ```
+               Esse comando remove a flag de quarentena do macOS (necessário porque o app não é assinado por um Developer ID Apple).
+            4. Abra o app pelo Launchpad ou pasta Aplicativos. O macOS pode pedir confirmação na primeira vez — clique em **Abrir**.
+
+            > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
           releaseDraft: false
           prerelease: false
           args: --target aarch64-apple-darwin
