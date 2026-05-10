@@ -921,7 +921,7 @@ export function AddSongModal() {
     setSaving(true)
     setError(null)
 
-    const { data: song, error: insertError } = await supabase
+    const { data: insertedRows, error: insertError } = await supabase
       .from('songs')
       .insert({
         org_id: orgId,
@@ -933,25 +933,46 @@ export function AddSongModal() {
         song_type: songType,
       })
       .select()
-      .single()
 
-    if (insertError || !song) {
-      console.error('[handleConfirm] songs insert error:', insertError)
-      setError('Algo deu errado. Tente novamente.')
+    if (insertError) {
+      const { data: userData } = await supabase.auth.getUser()
+      console.error('[handleConfirm] songs insert error:', insertError.code, insertError.message)
+      console.error('[handleConfirm] context:', {
+        sentOrgId: orgId,
+        loggedUserId: userData.user?.id,
+        loggedUserEmail: userData.user?.email,
+      })
+      if (insertError.code === '23505') {
+        setError('Essa música já existe na biblioteca.')
+      } else if (insertError.code === '42501') {
+        setError('Sem permissão para adicionar músicas.')
+      } else {
+        setError('Não foi possível salvar a música. Tente novamente.')
+      }
       setSaving(false)
       return
     }
 
-    const { error: sgError } = await supabase.from('song_groups').insert(
-      selectedGroups.map((gid) => ({ song_id: song.id, group_id: gid }))
-    )
-
-    if (sgError) {
-      await supabase.from('songs').delete().eq('id', song.id)
-      console.error('[handleConfirm] song_groups insert error:', sgError)
-      setError('Algo deu errado. Tente novamente.')
+    const song = insertedRows?.[0]
+    if (!song) {
+      console.error('[handleConfirm] songs insert retornou sem dados (possível bloqueio de RLS no SELECT)')
+      setError('Não foi possível salvar a música. Tente novamente.')
       setSaving(false)
       return
+    }
+
+    if (selectedGroups.length > 0) {
+      const { error: sgError } = await supabase.from('song_groups').insert(
+        selectedGroups.map((gid) => ({ song_id: song.id, group_id: gid }))
+      )
+
+      if (sgError) {
+        await supabase.from('songs').delete().eq('id', song.id)
+        console.error('[handleConfirm] song_groups insert error:', sgError.code, sgError.message)
+        setError('Não foi possível associar os ministérios. Tente novamente.')
+        setSaving(false)
+        return
+      }
     }
 
     // Move to download step before starting download
