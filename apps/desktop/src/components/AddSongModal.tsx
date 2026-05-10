@@ -331,7 +331,7 @@ function SearchResultCard({
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
           fontSize: 12, fontWeight: 600, color: '#f3f4f6',
-          margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          margin: 0, wordBreak: 'break-word',
         }}>
           {result.title}
         </p>
@@ -701,7 +701,20 @@ export function AddSongModal() {
     audio.src = url
     audioRef.current = audio
     if (result.duration > 0) setPreviewDuration(result.duration)
-    audio.ontimeupdate = () => setPreviewTime(audio.currentTime)
+    audio.ontimeupdate = () => {
+      // Algumas fontes (HLS, streams sem duração definitiva) não disparam
+      // onended de forma confiável. Quando o currentTime ultrapassa a duração
+      // conhecida, paramos manualmente pra não deixar o timer correndo além.
+      const dur = result.duration > 0 ? result.duration : audio.duration
+      if (dur > 0 && isFinite(dur) && audio.currentTime >= dur) {
+        audio.pause()
+        audio.currentTime = 0
+        setPreviewPlaying(false)
+        setPreviewTime(0)
+        return
+      }
+      setPreviewTime(audio.currentTime)
+    }
     audio.onprogress = () => {
       const dur = result.duration > 0 ? result.duration : audio.duration
       if (audio.buffered.length > 0 && dur > 0 && isFinite(dur)) {
