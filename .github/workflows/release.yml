@@ -48,7 +48,10 @@ jobs:
         run: pnpm test
 
       - name: Build Tauri app and publish release
-        uses: tauri-apps/tauri-action@v0
+        # Pinado na versão atual (não em @v0) porque o tag major v0 está
+        # desatualizado e o lookup do .sig do updater falha em versões antigas
+        # ("Signature not found for the updater JSON. Skipping upload...").
+        uses: tauri-apps/tauri-action@action-v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
