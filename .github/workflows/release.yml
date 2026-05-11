@@ -9,9 +9,19 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build macOS (Apple Silicon)
-    runs-on: macos-latest
+  build:
+    name: Build ${{ matrix.platform_key }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest
+            platform_key: darwin-aarch64
+            bundles: app,dmg,updater
+          - runner: windows-latest
+            platform_key: windows-x86_64
+            bundles: nsis,updater
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -27,8 +37,6 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable @ 2026-05
-        with:
-          targets: aarch64-apple-darwin
 
       - name: Cache cargo target
         uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
@@ -47,24 +55,21 @@ jobs:
       - name: Tests (todos os pacotes)
         run: pnpm test
 
-      # Build direto via Tauri CLI — abandonamos tauri-action porque ela
-      # re-empacota o tar.gz invalidando o .sig do updater, e mesmo passando
-      # --bundles app,dmg,updater não preserva os arquivos. Aqui controlamos
-      # tudo: build, signing (env vars), criação da release e upload.
-      - name: Build Tauri app
+      - name: Tauri build
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        run: pnpm tauri build --bundles app,dmg,updater
+        run: pnpm tauri build --bundles ${{ matrix.bundles }}
 
-      - name: Upload assets to Supabase Storage + latest.json
+      - name: Upload assets to Supabase + emit platform manifest
+        shell: bash
         env:
           SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLATFORM: ${{ matrix.platform_key }}
         run: |
           set -euo pipefail
           BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
@@ -72,78 +77,115 @@ jobs:
           TAG="v${VERSION}"
           BUCKET="app-releases"
 
-          # Confirma que tudo que precisamos existe antes de subir
-          DMG="${BUNDLE_DIR}/dmg/Leviticus_${VERSION}_aarch64.dmg"
-          TARGZ="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz"
-          SIGFILE="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz.sig"
-          for f in "$DMG" "$TARGZ" "$SIGFILE"; do
-            [ -f "$f" ] || { echo "ERRO: arquivo esperado faltando: $f"; ls -la "$(dirname "$f")"; exit 1; }
+          # Por plataforma: caminho local do installer/updater + nome remoto.
+          if [ "$PLATFORM" = "darwin-aarch64" ]; then
+            INSTALLER="${BUNDLE_DIR}/dmg/Leviticus_${VERSION}_aarch64.dmg"
+            INSTALLER_NAME="Leviticus_${VERSION}_aarch64.dmg"
+            UPDATER="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz"
+            UPDATER_SIG="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz.sig"
+            UPDATER_NAME="Leviticus_${VERSION}_aarch64.app.tar.gz"
+          elif [ "$PLATFORM" = "windows-x86_64" ]; then
+            INSTALLER="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.exe"
+            INSTALLER_NAME="Leviticus_${VERSION}_x64-setup.exe"
+            UPDATER="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.nsis.zip"
+            UPDATER_SIG="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.nsis.zip.sig"
+            UPDATER_NAME="Leviticus_${VERSION}_x64-setup.nsis.zip"
+          else
+            echo "Plataforma desconhecida: $PLATFORM"; exit 1
+          fi
+
+          # Sanidade: lista o que tem e falha cedo se faltar algum
+          for f in "$INSTALLER" "$UPDATER" "$UPDATER_SIG"; do
+            if [ ! -f "$f" ]; then
+              echo "ERRO: arquivo esperado faltando: $f"
+              find "$BUNDLE_DIR" -type f -maxdepth 3 2>/dev/null || true
+              exit 1
+            fi
           done
 
-          ASSET_TARGZ="Leviticus_${VERSION}_aarch64.app.tar.gz"
-          ASSET_DMG="Leviticus_${VERSION}_aarch64.dmg"
-          cp "$TARGZ" "$ASSET_TARGZ"
-          cp "$DMG" "./$ASSET_DMG"
-
-          # Helper: upload file pro bucket no path indicado.
-          # x-upsert: true permite sobrescrever (latest.json e re-runs de release).
-          # PUT com -T é mais robusto pro Supabase do que POST com --data-binary.
           upload() {
             local FILE="$1"
-            local DEST_PATH="$2"
-            local MIME="$3"
-            echo "Subindo $FILE → $BUCKET/$DEST_PATH ($(wc -c < "$FILE") bytes)"
-            HTTP_CODE=$(curl -sS -o /tmp/sb_response.txt -w "%{http_code}" -X POST \
+            local DEST="$2"
+            echo "Subindo $FILE → $BUCKET/$DEST ($(wc -c < "$FILE") bytes)"
+            HTTP=$(curl -sS -o /tmp/sb_response.txt -w "%{http_code}" -X POST \
               -H "Authorization: Bearer $SUPABASE_KEY" \
-              -H "Content-Type: $MIME" \
+              -H "Content-Type: application/octet-stream" \
               -H "x-upsert: true" \
               -T "$FILE" \
-              "$SUPABASE_URL/storage/v1/object/$BUCKET/$DEST_PATH")
-            if [ "$HTTP_CODE" -ge 300 ]; then
-              echo "ERRO upload (HTTP $HTTP_CODE):"
+              "$SUPABASE_URL/storage/v1/object/$BUCKET/$DEST")
+            if [ "$HTTP" -ge 300 ]; then
+              echo "ERRO upload (HTTP $HTTP):"
               cat /tmp/sb_response.txt
               echo
               exit 1
             fi
-            echo "OK (HTTP $HTTP_CODE)"
+            echo "OK"
           }
 
-          # Sobe binários versionados (preserva histórico de instaladores).
-          # octet-stream pra evitar Supabase rejeitar mime customizado.
-          upload "$ASSET_TARGZ" "${TAG}/${ASSET_TARGZ}" "application/octet-stream"
-          upload "$ASSET_DMG"   "${TAG}/${ASSET_DMG}"   "application/octet-stream"
+          # Sobe installer + updater bundle versionados
+          upload "$INSTALLER" "${TAG}/${INSTALLER_NAME}"
+          upload "$UPDATER"   "${TAG}/${UPDATER_NAME}"
 
-          # Monta latest.json apontando pro tar.gz versionado recém-subido
-          SIG=$(cat "$SIGFILE")
+          # Manifest parcial só dessa plataforma. O job de publish baixa, mescla e
+          # gera o latest.json final com todas as plataformas presentes.
+          SIG=$(cat "$UPDATER_SIG")
+          URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${UPDATER_NAME}"
+          jq -n --arg signature "$SIG" --arg url "$URL" \
+            '{signature:$signature, url:$url}' > "platform-${PLATFORM}.json"
+          upload "platform-${PLATFORM}.json" "${TAG}/platforms/${PLATFORM}.json"
+
+  publish:
+    name: Publish latest.json
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+
+      - name: Combine platform manifests and publish latest.json
+        env:
+          SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          TAG="v${VERSION}"
+          BUCKET="app-releases"
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          TARGZ_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${ASSET_TARGZ}"
+
+          MAC_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/platforms/darwin-aarch64.json"
+          WIN_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/platforms/windows-x86_64.json"
+
+          MAC_JSON=$(curl -sSfL "$MAC_URL")
+          WIN_JSON=$(curl -sSfL "$WIN_URL")
+
           jq -n \
             --arg version "$VERSION" \
             --arg pub_date "$PUB_DATE" \
-            --arg signature "$SIG" \
-            --arg url "$TARGZ_URL" \
-            '{version:$version, notes:"Veja o CHANGELOG", pub_date:$pub_date, platforms:{"darwin-aarch64":{signature:$signature, url:$url}}}' \
+            --argjson darwin "$MAC_JSON" \
+            --argjson windows "$WIN_JSON" \
+            '{version:$version, notes:"Veja o CHANGELOG", pub_date:$pub_date, platforms:{"darwin-aarch64":$darwin, "windows-x86_64":$windows}}' \
             > latest.json
+
           echo "=== latest.json ==="
           cat latest.json
 
-          # latest.json fica na raiz do bucket, sobrescrito a cada release —
+          # latest.json sempre na raiz, sobrescrito a cada release —
           # endpoint do updater no app aponta sempre pra esse path estável.
-          upload "latest.json" "latest.json" "application/json"
-
-          # Também cria GitHub Release pra arquivo + visibilidade interna —
-          # usuários externos baixam do Supabase (repo é privado).
-          cat > release-notes.md <<EOF
-          Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
-
-          **Download direto:** ${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${ASSET_DMG}
-
-          A partir desta versão o app se atualiza sozinho via Supabase Storage.
-          EOF
-
-          gh release create "$TAG" \
-            --title "Leviticus ${TAG}" \
-            --notes-file release-notes.md \
-            "$ASSET_DMG" \
-            "$ASSET_TARGZ" \
-            "latest.json"
+          HTTP=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            -T latest.json \
+            "$SUPABASE_URL/storage/v1/object/$BUCKET/latest.json")
+          if [ "$HTTP" -ge 300 ]; then
+            echo "ERRO upload latest.json (HTTP $HTTP):"
+            cat /tmp/resp.txt
+            exit 1
+          fi
+          echo "latest.json publicado: ${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/latest.json"
