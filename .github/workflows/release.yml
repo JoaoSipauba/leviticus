@@ -85,12 +85,16 @@ jobs:
             > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
           releaseDraft: false
           prerelease: false
+          # Pede ao Tauri CLI o bundle de updater nativamente — ele já produz
+          # tar.gz + .sig consistentes (signature confere com o tar.gz final).
+          # Sem isso a action re-empacotava o tar.gz invalidando a assinatura.
+          args: --bundles app,dmg,updater
 
       # Workaround: tauri-action v0.6.2 ainda tem bug que skipa upload do
       # latest.json em macOS ("Signature not found for the updater JSON.
       # Skipping upload..."). Renomeia bundle pra Leviticus_aarch64.app.tar.gz
       # mas procura .sig com o mesmo sufixo, que não existe. Montamos o
-      # manifest aqui na unha lendo o .sig real (Leviticus.app.tar.gz.sig).
+      # manifest aqui na unha lendo o .sig real.
       - name: Upload latest.json manualmente (workaround tauri-action)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
