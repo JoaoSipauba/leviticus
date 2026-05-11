@@ -97,7 +97,17 @@ jobs:
         run: |
           set -euo pipefail
           BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle/macos"
-          SIG=$(cat "$BUNDLE_DIR/Leviticus.app.tar.gz.sig")
+          echo "Conteúdo do bundle dir após tauri-action:"
+          ls -la "$BUNDLE_DIR" || true
+          # A action renomeia/move arquivos no upload — procuramos o .sig em
+          # qualquer um dos nomes possíveis (com ou sem sufixo _aarch64).
+          SIG_FILE=$(find "$BUNDLE_DIR" -maxdepth 1 -name "*.sig" -print -quit)
+          if [ -z "$SIG_FILE" ]; then
+            echo "ERROR: nenhum .sig encontrado em $BUNDLE_DIR"
+            exit 1
+          fi
+          echo "Usando .sig: $SIG_FILE"
+          SIG=$(cat "$SIG_FILE")
           VERSION=$(node -p "require('./apps/desktop/package.json').version")
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           DOWNLOAD_URL="https://github.com/JoaoSipauba/leviticus/releases/download/v${VERSION}/Leviticus_aarch64.app.tar.gz"
