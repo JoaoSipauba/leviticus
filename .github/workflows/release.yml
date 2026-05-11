@@ -60,16 +60,19 @@ jobs:
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
         run: pnpm tauri build --bundles app,dmg,updater
 
-      - name: Create release + upload assets + latest.json
+      - name: Upload assets to Supabase Storage + latest.json
         env:
+          SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
           VERSION=$(node -p "require('./apps/desktop/package.json').version")
           TAG="v${VERSION}"
+          BUCKET="app-releases"
 
-          # Confirma que tudo que precisamos existe antes de criar a release
+          # Confirma que tudo que precisamos existe antes de subir
           DMG="${BUNDLE_DIR}/dmg/Leviticus_${VERSION}_aarch64.dmg"
           TARGZ="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz"
           SIGFILE="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz.sig"
@@ -77,45 +80,62 @@ jobs:
             [ -f "$f" ] || { echo "ERRO: arquivo esperado faltando: $f"; ls -la "$(dirname "$f")"; exit 1; }
           done
 
-          # Renomeia tar.gz pro nome canônico (com versão+arch) usado no manifest
           ASSET_TARGZ="Leviticus_${VERSION}_aarch64.app.tar.gz"
+          ASSET_DMG="Leviticus_${VERSION}_aarch64.dmg"
           cp "$TARGZ" "$ASSET_TARGZ"
-          cp "$DMG" .
+          cp "$DMG" "./$ASSET_DMG"
 
-          # Monta latest.json com a signature do .sig real (mesmo build que o tar.gz)
+          # Helper: upload file pro bucket no path indicado (x-upsert=true permite
+          # sobrescrever; latest.json é sempre sobrescrito a cada release).
+          upload() {
+            local FILE="$1"
+            local DEST_PATH="$2"
+            local MIME="$3"
+            echo "Subindo $FILE → $BUCKET/$DEST_PATH"
+            curl -sS -fL -X POST \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: $MIME" \
+              -H "x-upsert: true" \
+              --data-binary "@$FILE" \
+              "$SUPABASE_URL/storage/v1/object/$BUCKET/$DEST_PATH"
+            echo
+          }
+
+          # Sobe binários versionados (preserva histórico de instaladores)
+          upload "$ASSET_TARGZ" "${TAG}/${ASSET_TARGZ}" "application/gzip"
+          upload "$ASSET_DMG"   "${TAG}/${ASSET_DMG}"   "application/x-apple-diskimage"
+
+          # Monta latest.json apontando pro tar.gz versionado recém-subido
           SIG=$(cat "$SIGFILE")
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          URL="https://github.com/JoaoSipauba/leviticus/releases/download/${TAG}/${ASSET_TARGZ}"
+          TARGZ_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${ASSET_TARGZ}"
           jq -n \
             --arg version "$VERSION" \
             --arg pub_date "$PUB_DATE" \
             --arg signature "$SIG" \
-            --arg url "$URL" \
+            --arg url "$TARGZ_URL" \
             '{version:$version, notes:"Veja o CHANGELOG", pub_date:$pub_date, platforms:{"darwin-aarch64":{signature:$signature, url:$url}}}' \
             > latest.json
           echo "=== latest.json ==="
           cat latest.json
 
-          # Release notes via heredoc num arquivo separado (--notes-file)
-          # pra evitar problemas de indentação YAML com markdown multilinha
+          # latest.json fica na raiz do bucket, sobrescrito a cada release —
+          # endpoint do updater no app aponta sempre pra esse path estável.
+          upload "latest.json" "latest.json" "application/json"
+
+          # Também cria GitHub Release pra arquivo + visibilidade interna —
+          # usuários externos baixam do Supabase (repo é privado).
           cat > release-notes.md <<EOF
           Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
 
-          **Instalação (macOS Apple Silicon):**
-          1. Baixe \`Leviticus_${VERSION}_aarch64.dmg\` abaixo.
-          2. Abra o \`.dmg\` e arraste o **Leviticus** para a pasta **Aplicativos**.
-          3. **Antes da primeira execução**, abra o Terminal e rode:
-             \`\`\`
-             xattr -cr /Applications/Leviticus.app
-             \`\`\`
-          4. Abra o app pelo Launchpad ou pasta Aplicativos. Clique em **Abrir** se o macOS pedir.
+          **Download direto:** ${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${ASSET_DMG}
 
-          > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
+          A partir desta versão o app se atualiza sozinho via Supabase Storage.
           EOF
 
           gh release create "$TAG" \
             --title "Leviticus ${TAG}" \
             --notes-file release-notes.md \
-            "Leviticus_${VERSION}_aarch64.dmg" \
-            "${ASSET_TARGZ}" \
+            "$ASSET_DMG" \
+            "$ASSET_TARGZ" \
             "latest.json"
