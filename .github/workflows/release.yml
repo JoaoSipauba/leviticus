@@ -47,80 +47,75 @@ jobs:
       - name: Tests (todos os pacotes)
         run: pnpm test
 
-      - name: Build Tauri app and publish release
-        # Pinado por SHA (não por tag) porque o tag major @v0 estava desatualizado
-        # e o lookup do .sig do updater falha em versões antigas ("Signature not
-        # found for the updater JSON. Skipping upload..."). SHA-pin garante que
-        # nenhum movimento de tag mude o que roda aqui.
-        uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # action-v0.6.2
+      # Build direto via Tauri CLI — abandonamos tauri-action porque ela
+      # re-empacota o tar.gz invalidando o .sig do updater, e mesmo passando
+      # --bundles app,dmg,updater não preserva os arquivos. Aqui controlamos
+      # tudo: build, signing (env vars), criação da release e upload.
+      - name: Build Tauri app
+        working-directory: apps/desktop
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-        with:
-          projectPath: apps/desktop
-          tauriScript: pnpm tauri
-          includeUpdaterJson: true
-          tagName: v__VERSION__
-          releaseName: 'Leviticus v__VERSION__'
-          # Sem --target: macos-latest é ARM nativo e o output cai em
-          # target/release/bundle/macos/ (path que a tauri-action procura
-          # ao montar o latest.json). Forçar --target aarch64-apple-darwin
-          # quebra a geração do manifest do updater (signature not found).
-          releaseBody: |
-            Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
+        run: pnpm tauri build --bundles app,dmg,updater
 
-            **Instalação (macOS Apple Silicon):**
-            1. Baixe `Leviticus_X.Y.Z_aarch64.dmg` abaixo.
-            2. Abra o `.dmg` e arraste o **Leviticus** para a pasta **Aplicativos**.
-            3. **Antes da primeira execução**, abra o Terminal e rode:
-               ```
-               xattr -cr /Applications/Leviticus.app
-               ```
-               Esse comando remove a flag de quarentena do macOS (necessário porque o app não é assinado por um Developer ID Apple).
-            4. Abra o app pelo Launchpad ou pasta Aplicativos. O macOS pode pedir confirmação na primeira vez — clique em **Abrir**.
-
-            > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
-          releaseDraft: false
-          prerelease: false
-          # Pede ao Tauri CLI o bundle de updater nativamente — ele já produz
-          # tar.gz + .sig consistentes (signature confere com o tar.gz final).
-          # Sem isso a action re-empacotava o tar.gz invalidando a assinatura.
-          args: --bundles app,dmg,updater
-
-      # Workaround: tauri-action v0.6.2 ainda tem bug que skipa upload do
-      # latest.json em macOS ("Signature not found for the updater JSON.
-      # Skipping upload..."). Renomeia bundle pra Leviticus_aarch64.app.tar.gz
-      # mas procura .sig com o mesmo sufixo, que não existe. Montamos o
-      # manifest aqui na unha lendo o .sig real.
-      - name: Upload latest.json manualmente (workaround tauri-action)
+      - name: Create release + upload assets + latest.json
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle/macos"
-          echo "Conteúdo do bundle dir após tauri-action:"
-          ls -la "$BUNDLE_DIR" || true
-          # A action renomeia/move arquivos no upload — procuramos o .sig em
-          # qualquer um dos nomes possíveis (com ou sem sufixo _aarch64).
-          SIG_FILE=$(find "$BUNDLE_DIR" -maxdepth 1 -name "*.sig" -print -quit)
-          if [ -z "$SIG_FILE" ]; then
-            echo "ERROR: nenhum .sig encontrado em $BUNDLE_DIR"
-            exit 1
-          fi
-          echo "Usando .sig: $SIG_FILE"
-          SIG=$(cat "$SIG_FILE")
+          BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
           VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          TAG="v${VERSION}"
+
+          # Confirma que tudo que precisamos existe antes de criar a release
+          DMG="${BUNDLE_DIR}/dmg/Leviticus_${VERSION}_aarch64.dmg"
+          TARGZ="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz"
+          SIGFILE="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz.sig"
+          for f in "$DMG" "$TARGZ" "$SIGFILE"; do
+            [ -f "$f" ] || { echo "ERRO: arquivo esperado faltando: $f"; ls -la "$(dirname "$f")"; exit 1; }
+          done
+
+          # Renomeia tar.gz pro nome canônico (com versão+arch) usado no manifest
+          ASSET_TARGZ="Leviticus_${VERSION}_aarch64.app.tar.gz"
+          cp "$TARGZ" "$ASSET_TARGZ"
+          cp "$DMG" .
+
+          # Monta latest.json com a signature do .sig real (mesmo build que o tar.gz)
+          SIG=$(cat "$SIGFILE")
           PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          DOWNLOAD_URL="https://github.com/JoaoSipauba/leviticus/releases/download/v${VERSION}/Leviticus_aarch64.app.tar.gz"
+          URL="https://github.com/JoaoSipauba/leviticus/releases/download/${TAG}/${ASSET_TARGZ}"
           jq -n \
             --arg version "$VERSION" \
             --arg pub_date "$PUB_DATE" \
             --arg signature "$SIG" \
-            --arg url "$DOWNLOAD_URL" \
+            --arg url "$URL" \
             '{version:$version, notes:"Veja o CHANGELOG", pub_date:$pub_date, platforms:{"darwin-aarch64":{signature:$signature, url:$url}}}' \
             > latest.json
+          echo "=== latest.json ==="
           cat latest.json
-          gh release upload "v${VERSION}" latest.json --clobber --repo JoaoSipauba/leviticus
+
+          # Release notes via heredoc num arquivo separado (--notes-file)
+          # pra evitar problemas de indentação YAML com markdown multilinha
+          cat > release-notes.md <<EOF
+          Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
+
+          **Instalação (macOS Apple Silicon):**
+          1. Baixe \`Leviticus_${VERSION}_aarch64.dmg\` abaixo.
+          2. Abra o \`.dmg\` e arraste o **Leviticus** para a pasta **Aplicativos**.
+          3. **Antes da primeira execução**, abra o Terminal e rode:
+             \`\`\`
+             xattr -cr /Applications/Leviticus.app
+             \`\`\`
+          4. Abra o app pelo Launchpad ou pasta Aplicativos. Clique em **Abrir** se o macOS pedir.
+
+          > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
+          EOF
+
+          gh release create "$TAG" \
+            --title "Leviticus ${TAG}" \
+            --notes-file release-notes.md \
+            "Leviticus_${VERSION}_aarch64.dmg" \
+            "${ASSET_TARGZ}" \
+            "latest.json"
