@@ -61,6 +61,10 @@ jobs:
           includeUpdaterJson: true
           tagName: v__VERSION__
           releaseName: 'Leviticus v__VERSION__'
+          # Sem --target: macos-latest é ARM nativo e o output cai em
+          # target/release/bundle/macos/ (path que a tauri-action procura
+          # ao montar o latest.json). Forçar --target aarch64-apple-darwin
+          # quebra a geração do manifest do updater (signature not found).
           releaseBody: |
             Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
 
@@ -77,4 +81,3 @@ jobs:
             > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
           releaseDraft: false
           prerelease: false
-          args: --target aarch64-apple-darwin
