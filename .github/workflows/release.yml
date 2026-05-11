@@ -85,3 +85,28 @@ jobs:
             > A partir da próxima atualização o app se atualiza sozinho — esse passo do Terminal só é necessário na primeira instalação.
           releaseDraft: false
           prerelease: false
+
+      # Workaround: tauri-action v0.6.2 ainda tem bug que skipa upload do
+      # latest.json em macOS ("Signature not found for the updater JSON.
+      # Skipping upload..."). Renomeia bundle pra Leviticus_aarch64.app.tar.gz
+      # mas procura .sig com o mesmo sufixo, que não existe. Montamos o
+      # manifest aqui na unha lendo o .sig real (Leviticus.app.tar.gz.sig).
+      - name: Upload latest.json manualmente (workaround tauri-action)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle/macos"
+          SIG=$(cat "$BUNDLE_DIR/Leviticus.app.tar.gz.sig")
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          PUB_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          DOWNLOAD_URL="https://github.com/JoaoSipauba/leviticus/releases/download/v${VERSION}/Leviticus_aarch64.app.tar.gz"
+          jq -n \
+            --arg version "$VERSION" \
+            --arg pub_date "$PUB_DATE" \
+            --arg signature "$SIG" \
+            --arg url "$DOWNLOAD_URL" \
+            '{version:$version, notes:"Veja o CHANGELOG", pub_date:$pub_date, platforms:{"darwin-aarch64":{signature:$signature, url:$url}}}' \
+            > latest.json
+          cat latest.json
+          gh release upload "v${VERSION}" latest.json --clobber --repo JoaoSipauba/leviticus
