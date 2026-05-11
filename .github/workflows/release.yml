@@ -193,3 +193,53 @@ jobs:
             exit 1
           fi
           echo "latest.json publicado: ${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/latest.json"
+
+      - name: Create GitHub Release with assets (archive)
+        env:
+          SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./apps/desktop/package.json').version")
+          TAG="v${VERSION}"
+          BUCKET="app-releases"
+          BASE_URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}"
+
+          DMG="Leviticus_${VERSION}_aarch64.dmg"
+          TARGZ="Leviticus_${VERSION}_aarch64.app.tar.gz"
+          EXE="Leviticus_${VERSION}_x64-setup.exe"
+
+          # Baixa os assets do Supabase pro runner. Custo: ~20MB de transferência,
+          # ~10s total. Em troca, aba Releases do GitHub mostra histórico completo
+          # com binários atrelados a cada tag.
+          curl -sSfL -o "$DMG"   "${BASE_URL}/${DMG}"
+          curl -sSfL -o "$TARGZ" "${BASE_URL}/${TARGZ}"
+          curl -sSfL -o "$EXE"   "${BASE_URL}/${EXE}"
+
+          cat > release-notes.md <<EOF
+          Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
+
+          ## Downloads
+
+          | Plataforma | Arquivo |
+          |---|---|
+          | macOS (Apple Silicon) | \`${DMG}\` |
+          | Windows x64 | \`${EXE}\` |
+
+          ## Instalação macOS
+          1. Baixa o \`.dmg\`, arrasta o Leviticus para Aplicativos.
+          2. Antes de abrir pela primeira vez, no Terminal: \`xattr -cr /Applications/Leviticus.app\`
+          3. Abre normalmente.
+
+          ## Instalação Windows
+          1. Baixa o \`.exe\` e executa.
+          2. SmartScreen vai avisar — clica em **"Mais informações"** → **"Executar mesmo assim"**.
+          3. Wizard NSIS instala.
+
+          Updates automáticos via Supabase Storage a partir da próxima versão.
+          EOF
+
+          gh release create "$TAG" \
+            --title "Leviticus ${TAG}" \
+            --notes-file release-notes.md \
+            "$DMG" "$TARGZ" "$EXE" "latest.json"
