@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.13](https://github.com/JoaoSipauba/leviticus/compare/v0.1.12...v0.1.13) (2026-05-11)
+
+### Funcionalidades
+
+* **release:** adicionar build Windows (NSIS) ao pipeline ([1e54458](https://github.com/JoaoSipauba/leviticus/commit/1e544587d6dee2a930179f1036d9da2d9a842bb1))
+
 ## [0.1.12](https://github.com/JoaoSipauba/leviticus/compare/v0.1.11...v0.1.12) (2026-05-11)
 
 ### Funcionalidades
