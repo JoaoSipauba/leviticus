@@ -85,25 +85,33 @@ jobs:
           cp "$TARGZ" "$ASSET_TARGZ"
           cp "$DMG" "./$ASSET_DMG"
 
-          # Helper: upload file pro bucket no path indicado (x-upsert=true permite
-          # sobrescrever; latest.json é sempre sobrescrito a cada release).
+          # Helper: upload file pro bucket no path indicado.
+          # x-upsert: true permite sobrescrever (latest.json e re-runs de release).
+          # PUT com -T é mais robusto pro Supabase do que POST com --data-binary.
           upload() {
             local FILE="$1"
             local DEST_PATH="$2"
             local MIME="$3"
-            echo "Subindo $FILE → $BUCKET/$DEST_PATH"
-            curl -sS -fL -X POST \
+            echo "Subindo $FILE → $BUCKET/$DEST_PATH ($(wc -c < "$FILE") bytes)"
+            HTTP_CODE=$(curl -sS -o /tmp/sb_response.txt -w "%{http_code}" -X POST \
               -H "Authorization: Bearer $SUPABASE_KEY" \
               -H "Content-Type: $MIME" \
               -H "x-upsert: true" \
-              --data-binary "@$FILE" \
-              "$SUPABASE_URL/storage/v1/object/$BUCKET/$DEST_PATH"
-            echo
+              -T "$FILE" \
+              "$SUPABASE_URL/storage/v1/object/$BUCKET/$DEST_PATH")
+            if [ "$HTTP_CODE" -ge 300 ]; then
+              echo "ERRO upload (HTTP $HTTP_CODE):"
+              cat /tmp/sb_response.txt
+              echo
+              exit 1
+            fi
+            echo "OK (HTTP $HTTP_CODE)"
           }
 
-          # Sobe binários versionados (preserva histórico de instaladores)
-          upload "$ASSET_TARGZ" "${TAG}/${ASSET_TARGZ}" "application/gzip"
-          upload "$ASSET_DMG"   "${TAG}/${ASSET_DMG}"   "application/x-apple-diskimage"
+          # Sobe binários versionados (preserva histórico de instaladores).
+          # octet-stream pra evitar Supabase rejeitar mime customizado.
+          upload "$ASSET_TARGZ" "${TAG}/${ASSET_TARGZ}" "application/octet-stream"
+          upload "$ASSET_DMG"   "${TAG}/${ASSET_DMG}"   "application/octet-stream"
 
           # Monta latest.json apontando pro tar.gz versionado recém-subido
           SIG=$(cat "$SIGFILE")
