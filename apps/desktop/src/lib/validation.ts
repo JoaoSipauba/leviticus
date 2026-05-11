@@ -1,8 +1,12 @@
 // Pragmático: tem @, tem . no domínio, sem espaços. Não valida MX nem deliverability.
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+// Quantificadores limitados (RFC 5321: local ≤64, domínio ≤255) pra garantir
+// runtime linear e prevenir input gigante engatilhando backtracking patológico.
+const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{1,255}$/
 
 export function isValidEmail(value: string): boolean {
-  return EMAIL_RE.test(value.trim())
+  const trimmed = value.trim()
+  if (trimmed.length > 320) return false
+  return EMAIL_RE.test(trimmed)
 }
 
 // "joão da silva e maria" -> "João da Silva e Maria".

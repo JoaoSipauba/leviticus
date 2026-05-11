@@ -203,7 +203,9 @@ export function startDownload(
 
       command.stdout.on('data', (line: string) => {
         outputBuf += line + '\n'
-        const match = line.match(/(\d+\.?\d*)%/)
+        // Quantificadores limitados (formato yt-dlp: "XX.X%") pra runtime linear
+        // garantido — defesa contra input artificial gigante engatilhando regex.
+        const match = line.match(/(\d{1,4}\.?\d{0,4})%/)
         if (match) reportProgress(parseFloat(match[1]) / 100)
       })
 

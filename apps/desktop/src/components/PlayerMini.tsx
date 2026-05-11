@@ -13,6 +13,7 @@ import {
 } from '../lib/playback.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
+import * as mediaSession from '../lib/mediaSession.js'
 
 function fmt(s: number): string {
   const h = Math.floor(s / 3600)
@@ -53,6 +54,17 @@ export function PlayerMini() {
     usePlayerStore.getState().resume()
   }, [nextInPlaylist])
 
+  // Volta para a faixa anterior (botão prev, atalhos, media keys, widget do
+  // macOS). Extraído pra evitar callbacks aninhados profundos nos handlers.
+  const playPrevious = useCallback(async () => {
+    const prev = usePlayerStore.getState().previousInPlaylist()
+    if (!prev) return
+    if (!(await isDownloaded(prev.id))) return
+    const path = await getSongFilename(prev.id)
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
+    usePlayerStore.getState().resume()
+  }, [])
+
   // Detector de ≥70% — marca como tocada uma vez por (playlist, song).
   //
   // Bug histórico: na transição A→B, o effect rodava com currentSong=B mas
@@ -79,11 +91,13 @@ export function PlayerMini() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, duration, currentSong?.id, currentPlaylist?.id])
 
-  // Referências estáveis para uso nos listeners de mídia
+  // Referências estáveis para uso nos listeners de mídia (evita closures stale)
   const isPlayingRef = useRef(isPlaying)
   const playNextRef = useRef(playNext)
+  const playPreviousRef = useRef(playPrevious)
   useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
   useEffect(() => { playNextRef.current = playNext }, [playNext])
+  useEffect(() => { playPreviousRef.current = playPrevious }, [playPrevious])
 
   // Botões de mídia do macOS (F7 / F8 / F9)
   useEffect(() => {
@@ -93,28 +107,49 @@ export function PlayerMini() {
         else { resumeAudio(); usePlayerStore.getState().resume() }
       }),
       listen('media-next', () => playNextRef.current()),
-      listen('media-prev', () => {
-        const prev = usePlayerStore.getState().previousInPlaylist()
-        if (!prev) return
-        isDownloaded(prev.id).then(ok => {
-          if (!ok) return
-          getSongFilename(prev.id).then(path => {
-            playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
-            usePlayerStore.getState().resume()
-          })
-        })
-      }),
+      listen('media-prev', () => playPreviousRef.current()),
     ])
     return () => { unlisten.then(fns => fns.forEach(fn => fn())) }
+  }, [])
+
+  // Media Session API — popula o widget "Tocando agora" do macOS Control
+  // Center, sinaliza ao sistema que somos um player ativo (bloqueia sleep
+  // da tela) e recebe comandos de play/pause/next/prev/seek vindos dali.
+  // Handlers usam refs e getState() pra não capturar closures stale.
+  useEffect(() => {
+    mediaSession.updateMetadata(currentSong)
+  }, [currentSong])
+
+  useEffect(() => {
+    if (currentSong) mediaSession.updatePlaybackState(isPlaying ? 'playing' : 'paused')
+    else mediaSession.updatePlaybackState('none')
+  }, [isPlaying, currentSong])
+
+  useEffect(() => {
+    const unregister = mediaSession.registerHandlers({
+      onPlay: () => { resumeAudio(); usePlayerStore.getState().resume() },
+      onPause: () => { pauseAudio(); usePlayerStore.getState().pause() },
+      onNext: () => playNextRef.current(),
+      onPrev: () => playPreviousRef.current(),
+      onSeek: (sec) => {
+        seekTo(sec)
+        setPos(sec)
+      },
+    })
+    return unregister
   }, [])
 
   // Polling de posição
   useEffect(() => {
     if (!isPlaying) return
     const interval = setInterval(() => {
-      setPos(getPosition())
-      setDuration(getDuration())
-      setPosition(getPosition())
+      const p = getPosition()
+      const d = getDuration()
+      setPos(p)
+      setDuration(d)
+      setPosition(p)
+      // Atualiza barra de progresso do widget "Tocando agora" do macOS.
+      mediaSession.updatePosition({ position: p, duration: d })
     }, 500)
     return () => clearInterval(interval)
   }, [isPlaying, setPosition, currentSong?.id])

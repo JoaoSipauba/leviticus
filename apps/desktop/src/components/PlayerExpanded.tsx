@@ -30,8 +30,10 @@ type Props = {
 }
 
 function fmt(s: number): string {
-  const m = Math.floor(s / 60)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
   const sec = Math.floor(s % 60)
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
@@ -91,6 +93,15 @@ export function PlayerExpanded({
   const firstPlayedIdx = visualOrder.findIndex((s) => s.id !== currentSong?.id && playedIds.has(s.id))
   const playableEnd = firstPlayedIdx === -1 ? visualOrder.length : firstPlayedIdx
   const minDropIdx = Math.max(currentVisualIdx + 1, 0)
+
+  // Hook precisa ser chamado em toda render (Rules of Hooks). O early return
+  // pra !currentSong fica DEPOIS, junto dos demais hooks no topo.
+  useEffect(() => {
+    function up() { endDrag() }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragOverIdx])
 
   if (!currentSong) return null
 
@@ -194,13 +205,6 @@ export function PlayerExpanded({
     setDraggingIdx(null)
     setDragOverIdx(null)
   }
-
-  useEffect(() => {
-    function up() { endDrag() }
-    window.addEventListener('mouseup', up)
-    return () => window.removeEventListener('mouseup', up)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragOverIdx])
 
   function handleResetPlayed() {
     if (!currentPlaylist) return
