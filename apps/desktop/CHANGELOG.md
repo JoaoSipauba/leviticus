@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/JoaoSipauba/leviticus/compare/v0.1.5...v0.1.6) (2026-05-11)
+
+### Correções
+
+* **ci:** pinar todas as actions por SHA (Sonar S7637) ([1e5ffd0](https://github.com/JoaoSipauba/leviticus/commit/1e5ffd096bf616be7fafe4b4649e32db0fe9e6e4))
+* **release:** pin tauri-action em v0.6.2 pra publicar latest.json ([63554af](https://github.com/JoaoSipauba/leviticus/commit/63554af3e67b9fa926ab356e7dfe782953e62b66))
+* **release:** pin tauri-action por SHA (Sonar S7637) ([e746368](https://github.com/JoaoSipauba/leviticus/commit/e746368c207f2adb8e8d215a31de0da0bee30d09))
+
 ## [0.1.5](https://github.com/JoaoSipauba/leviticus/compare/v0.1.4...v0.1.5) (2026-05-11)
 
 ### Correções
