@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.9](https://github.com/JoaoSipauba/leviticus/compare/v0.1.8...v0.1.9) (2026-05-11)
+
+### Correções
+
+* **release:** --bundles app,dmg,updater pra Tauri assinar o tar.gz final ([0a89ae9](https://github.com/JoaoSipauba/leviticus/commit/0a89ae96fbd66b6c78bfc81ed82ccc798ff7d96b))
+
 ## [0.1.8](https://github.com/JoaoSipauba/leviticus/compare/v0.1.7...v0.1.8) (2026-05-11)
 
 ### Correções
