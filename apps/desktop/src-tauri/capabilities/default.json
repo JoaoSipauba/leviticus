@@ -11,14 +11,14 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
-        { "name": "yt-dlp", "cmd": "yt-dlp", "args": true },
+        { "name": "binaries/yt-dlp", "sidecar": true, "args": true },
         { "name": "ffmpeg", "cmd": "/opt/homebrew/bin/ffmpeg", "args": true }
       ]
     },
     {
       "identifier": "shell:allow-spawn",
       "allow": [
-        { "name": "yt-dlp", "cmd": "yt-dlp", "args": true },
+        { "name": "binaries/yt-dlp", "sidecar": true, "args": true },
         { "name": "ffmpeg", "cmd": "/opt/homebrew/bin/ffmpeg", "args": true }
       ]
     },
