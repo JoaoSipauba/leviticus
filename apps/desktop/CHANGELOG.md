@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.5](https://github.com/JoaoSipauba/leviticus/compare/v0.1.4...v0.1.5) (2026-05-11)
+
+### Correções
+
+* **release:** remover --target pra tauri-action achar o .sig do updater ([b9bae22](https://github.com/JoaoSipauba/leviticus/commit/b9bae22d24daf57103c9215d5997d46ded8f2eab))
+
 ## [0.1.4](https://github.com/JoaoSipauba/leviticus/compare/v0.1.3...v0.1.4) (2026-05-11)
 
 ### Funcionalidades
