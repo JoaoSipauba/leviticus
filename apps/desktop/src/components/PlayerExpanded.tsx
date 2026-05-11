@@ -94,6 +94,15 @@ export function PlayerExpanded({
   const playableEnd = firstPlayedIdx === -1 ? visualOrder.length : firstPlayedIdx
   const minDropIdx = Math.max(currentVisualIdx + 1, 0)
 
+  // Hook precisa ser chamado em toda render (Rules of Hooks). O early return
+  // pra !currentSong fica DEPOIS, junto dos demais hooks no topo.
+  useEffect(() => {
+    function up() { endDrag() }
+    window.addEventListener('mouseup', up)
+    return () => window.removeEventListener('mouseup', up)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dragOverIdx])
+
   if (!currentSong) return null
 
   function handlePlayPause() {
@@ -196,13 +205,6 @@ export function PlayerExpanded({
     setDraggingIdx(null)
     setDragOverIdx(null)
   }
-
-  useEffect(() => {
-    function up() { endDrag() }
-    window.addEventListener('mouseup', up)
-    return () => window.removeEventListener('mouseup', up)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragOverIdx])
 
   function handleResetPlayed() {
     if (!currentPlaylist) return

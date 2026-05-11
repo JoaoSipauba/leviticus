@@ -128,7 +128,9 @@ export function PlaylistDetail() {
     setDraftSections((prev) => prev.filter((d) => !ps.some((p) => p.section_id === d.sectionId)))
   }, [id, navigate, orgId])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+  }, [load])
 
   // Lista flat ordenada — concluídas primeiro (na ordem original entre elas),
   // depois as que faltam executar (também na ordem original). Usada pra
@@ -151,10 +153,15 @@ export function PlaylistDetail() {
     setMissingDownloads(missing)
   }, [allSongsFlat])
 
-  useEffect(() => { void recomputeMissing() }, [recomputeMissing])
   useEffect(() => {
-    const unsubA = subscribeCompleted(() => void recomputeMissing())
-    const unsubB = subscribeCanceled(() => void recomputeMissing())
+    recomputeMissing().catch((e) => console.error('[PlaylistDetail] recomputeMissing falhou:', e))
+  }, [recomputeMissing])
+  useEffect(() => {
+    const onChange = () => {
+      recomputeMissing().catch((e) => console.error('[PlaylistDetail] recomputeMissing falhou:', e))
+    }
+    const unsubA = subscribeCompleted(onChange)
+    const unsubB = subscribeCanceled(onChange)
     return () => { unsubA(); unsubB() }
   }, [recomputeMissing, subscribeCompleted, subscribeCanceled])
 
@@ -414,7 +421,12 @@ export function PlaylistDetail() {
     try {
       const path = await getSongFilename(first.id)
       const volume = usePlayerStore.getState().volume
-      playSong(path, { onEnd: () => void handleSongEnd(), volume })
+      playSong(path, {
+        onEnd: () => {
+          handleSongEnd().catch((e) => console.error('[PlaylistDetail] handleSongEnd falhou:', e))
+        },
+        volume,
+      })
       usePlayerStore.getState().play(first, {
         playlist,
         songs: downloadable,
@@ -429,11 +441,11 @@ export function PlaylistDetail() {
     // Toca tudo desde o começo, na ordem do banco. Não pula tocadas — usuário
     // que clica "Tocar tudo" geralmente quer recomeçar do zero.
     const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
-    void playSongs(all.map((ps) => ps.song))
+    playSongs(all.map((ps) => ps.song)).catch((e) => console.error('[PlaylistDetail] playAll falhou:', e))
   }
 
   function playSection(section: SectionView) {
-    void playSongs(section.songs.map((ps) => ps.song))
+    playSongs(section.songs.map((ps) => ps.song)).catch((e) => console.error('[PlaylistDetail] playSection falhou:', e))
   }
 
   async function confirmMerge() {
@@ -639,7 +651,9 @@ export function PlaylistDetail() {
         open={editingPlaylist}
         editing={editingPlaylist ? playlist : null}
         onClose={() => setEditingPlaylist(false)}
-        onSaved={() => { void load() }}
+        onSaved={() => {
+          load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+        }}
       />
       <AddSectionModal
         open={addSectionOpen}
@@ -649,7 +663,9 @@ export function PlaylistDetail() {
       <AddSongToPlaylistModal
         open={addingSongTo !== null}
         onClose={() => setAddingSongTo(null)}
-        onAdded={() => { void load() }}
+        onAdded={() => {
+          load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+        }}
         playlistId={playlist.id}
         sectionId={addingSongTo?.sectionId ?? null}
         groupId={addingSongTo?.groupId ?? null}
