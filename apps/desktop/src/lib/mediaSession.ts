@@ -65,7 +65,7 @@ export function updatePlaybackState(state: MediaSessionPlaybackState): void {
 
 export function updatePosition(opts: { duration: number; position: number }): void {
   const m = ms()
-  if (!m || !m.setPositionState) return
+  if (!m?.setPositionState) return
   // setPositionState valida: position <= duration e ambos finitos > 0.
   // Em transições de faixa pode chegar valor stale; protegemos contra throw.
   const duration = Number.isFinite(opts.duration) && opts.duration > 0 ? opts.duration : 0
