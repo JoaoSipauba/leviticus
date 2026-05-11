@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.7](https://github.com/JoaoSipauba/leviticus/compare/v0.1.6...v0.1.7) (2026-05-11)
+
+### Correções
+
+* **release:** montar latest.json na unha (workaround bug tauri-action) ([a881ca8](https://github.com/JoaoSipauba/leviticus/commit/a881ca808a45735380591678fc16e12f7634005b))
+
 ## [0.1.6](https://github.com/JoaoSipauba/leviticus/compare/v0.1.5...v0.1.6) (2026-05-11)
 
 ### Correções
