@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.1.4](https://github.com/JoaoSipauba/leviticus/compare/v0.1.3...v0.1.4) (2026-05-11)
+
+### Funcionalidades
+
+* **player:** format >1h + integração MediaSession + workflow dev ([e873824](https://github.com/JoaoSipauba/leviticus/commit/e87382420ce57b7a1e08e675e806a2774a5d7952))
+
+### Correções
+
+* SonarCloud camada 1 (bug real + void operator + regex ReDoS) ([cce97a9](https://github.com/JoaoSipauba/leviticus/commit/cce97a97631f2909719b13cd21482dcce203454a))
+* **updater:** dismissal só na sessão + intervalo 6h -> 1h ([5c7af7b](https://github.com/JoaoSipauba/leviticus/commit/5c7af7bdfe23286174360dec90dfd87d6cfb033c))
+
 ## [0.1.3](https://github.com/JoaoSipauba/leviticus/compare/v0.1.2...v0.1.3) (2026-05-10)
 
 ### Correções
