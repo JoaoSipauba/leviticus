@@ -18,9 +18,11 @@ jobs:
         include:
           - runner: macos-latest
             platform_key: darwin-aarch64
+            rust_target: aarch64-apple-darwin
             bundles: app,dmg,updater
           - runner: windows-latest
             platform_key: windows-x86_64
+            rust_target: x86_64-pc-windows-msvc
             bundles: nsis,updater
     steps:
       - name: Checkout
@@ -54,6 +56,10 @@ jobs:
 
       - name: Tests (todos os pacotes)
         run: pnpm test
+
+      - name: Fetch yt-dlp sidecar
+        working-directory: apps/desktop
+        run: pnpm fetch:binaries ${{ matrix.rust_target }}
 
       - name: Tauri build
         working-directory: apps/desktop

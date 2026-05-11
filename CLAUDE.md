@@ -188,7 +188,8 @@ A partir daí, toda release lança bundle assinado e os apps em campo se atualiz
 - `tsconfig.json` has `noUnusedLocals: true` — unused variables cause build failures.
 - YouTube URLs must have a `v=` parameter. The `fetchYoutubeMetadata` function in `src/lib/ytdlp.ts` auto-prepends `https://` if missing.
 - Audio files are stored at `$APPLOCALDATADIR/audio/{songId}.mp3`. The `assetProtocol` scope in `tauri.conf.json` must cover `$APPLOCALDATA/**` to serve them.
-- yt-dlp and ffmpeg are expected at `/opt/homebrew/bin` (Homebrew on Apple Silicon). The PATH is set explicitly in `downloadSong()` since Tauri does not inherit the shell PATH.
+- **yt-dlp é bundlado como Tauri sidecar** — não depende de instalação no sistema. Antes de `pnpm tauri dev` ou `tauri build`, rode `pnpm --filter appsdesktop fetch:binaries` pra baixar o binário do host atual em `apps/desktop/src-tauri/binaries/yt-dlp-<triple>(.exe)`. CI roda esse passo automaticamente por plataforma na matrix de release. Pinagem em [scripts/fetch-binaries.mjs](apps/desktop/scripts/fetch-binaries.mjs) (`YT_DLP_VERSION`).
+- **ffmpeg** ainda é usado só pela função `exportSongToMp3` (export para mp3) e segue dependente de instalação no sistema (`/opt/homebrew/bin/ffmpeg` em macOS, não disponível em Windows). O fluxo principal (busca/download/preview) não precisa de ffmpeg porque o yt-dlp baixa m4a/opus nativos sem reencodar.
 - `tauri-plugin-global-shortcut` registration is wrapped in `let _ =` (not `?`) to prevent the app from crashing if macOS Accessibility permission is denied.
 
 ## Perceived performance

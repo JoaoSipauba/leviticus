@@ -142,20 +142,18 @@ export function startDownload(
     // final via findSongFile() depois que o processo terminar.
     const outputTemplate = await join(audioDir, `${songId}.%(ext)s`)
 
-    // Tauri não herda o PATH do shell — passa os caminhos comuns do Homebrew via PATH
-    const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
-
+    // Sidecar — Tauri bundla yt-dlp por plataforma (binaries/yt-dlp-<triple>).
     // Sem -x e sem --audio-format: pega o stream original do YouTube sem
     // re-encodar. Prefere m4a (AAC, melhor compat com WebKit/Howler) e cai
     // pra qualquer bestaudio (geralmente opus/webm) se m4a não existir.
-    const command = Command.create('yt-dlp', [
+    const command = Command.sidecar('binaries/yt-dlp', [
       '--no-playlist',
       '-f', 'bestaudio[ext=m4a]/bestaudio',
       '--newline',
       '--socket-timeout', '10',
       '-o', outputTemplate,
       youtubeUrl,
-    ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+    ])
 
     return new Promise<string>((resolve, reject) => {
       // yt-dlp envia TODO output (inclusive erros) para stdout, não stderr.
@@ -345,13 +343,12 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
   }
   const url = normalized
 
-  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
-  const command = Command.create('yt-dlp', [
+  const command = Command.sidecar('binaries/yt-dlp', [
     '--no-playlist',
     '--no-download',
     '--print', '%(title)s|||%(uploader)s|||%(duration)s',
     url,
-  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+  ])
 
   const result = await command.execute()
   if (result.code !== 0) {
@@ -383,15 +380,14 @@ const SEARCH_TIMEOUT_MS = 15_000
 export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   if (!query.trim()) return []
 
-  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
   // --flat-playlist: usa apenas os dados da página de resultados, sem fazer
   // uma requisição extra por vídeo. Reduz de ~6 requests para 1.
-  const command = Command.create('yt-dlp', [
+  const command = Command.sidecar('binaries/yt-dlp', [
     '--flat-playlist',
     '--dump-json',
     '--socket-timeout', '10', // timeout de rede no próprio yt-dlp — causa raiz de travamento
     `ytsearch5:${query}`,
-  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+  ])
 
   const stdout = await new Promise<string>((resolve, reject) => {
     let out = ''
@@ -451,16 +447,15 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
 }
 
 export async function getPreviewUrl(videoId: string): Promise<string> {
-  const extraPath = '/opt/homebrew/bin:/usr/local/bin:/usr/bin'
   // Pra prévia usamos formato 140 (m4a 128kbps AAC-LC, codec mp4a.40.2) —
   // tamanho razoável e codec amplamente suportado pelo Media Source
   // Extensions, que vai fazer streaming progressivo verdadeiro
   // (chunks chegando e tocando ao mesmo tempo).
-  const command = Command.create('yt-dlp', [
+  const command = Command.sidecar('binaries/yt-dlp', [
     '-f', '140/bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio',
     '--get-url',
     `https://youtube.com/watch?v=${videoId}`,
-  ], { env: { PATH: `${extraPath}:/usr/bin:/bin` } })
+  ])
   const result = await command.execute()
   if (result.code !== 0) {
     console.error('[getPreviewUrl] yt-dlp failed:', result.stderr)
