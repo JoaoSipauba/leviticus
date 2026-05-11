@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/JoaoSipauba/leviticus/compare/v0.1.13...v0.1.14) (2026-05-11)
+
+### Funcionalidades
+
+* **release:** criar GitHub Release com assets do Supabase no publish ([1ccbce5](https://github.com/JoaoSipauba/leviticus/commit/1ccbce51f8c8265ee4b10a4f7b24878b245c55ce))
+* **yt-dlp:** bundle como sidecar Tauri (Windows + macOS) ([990ade5](https://github.com/JoaoSipauba/leviticus/commit/990ade53fa697b16895c6bd7479aac71e9b5205a))
+
 ## [0.1.13](https://github.com/JoaoSipauba/leviticus/compare/v0.1.12...v0.1.13) (2026-05-11)
 
 ### Funcionalidades
