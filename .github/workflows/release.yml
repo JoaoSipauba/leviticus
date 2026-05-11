@@ -85,11 +85,12 @@ jobs:
             UPDATER_SIG="${BUNDLE_DIR}/macos/Leviticus.app.tar.gz.sig"
             UPDATER_NAME="Leviticus_${VERSION}_aarch64.app.tar.gz"
           elif [ "$PLATFORM" = "windows-x86_64" ]; then
+            # Tauri 2 NSIS: o updater bundle É o próprio .exe (com .exe.sig)
             INSTALLER="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.exe"
             INSTALLER_NAME="Leviticus_${VERSION}_x64-setup.exe"
-            UPDATER="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.nsis.zip"
-            UPDATER_SIG="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.nsis.zip.sig"
-            UPDATER_NAME="Leviticus_${VERSION}_x64-setup.nsis.zip"
+            UPDATER="$INSTALLER"
+            UPDATER_SIG="${BUNDLE_DIR}/nsis/Leviticus_${VERSION}_x64-setup.exe.sig"
+            UPDATER_NAME="$INSTALLER_NAME"
           else
             echo "Plataforma desconhecida: $PLATFORM"; exit 1
           fi
@@ -122,9 +123,12 @@ jobs:
             echo "OK"
           }
 
-          # Sobe installer + updater bundle versionados
+          # Sobe installer + updater bundle versionados (no Windows os dois
+          # são o mesmo arquivo, então só sobe uma vez)
           upload "$INSTALLER" "${TAG}/${INSTALLER_NAME}"
-          upload "$UPDATER"   "${TAG}/${UPDATER_NAME}"
+          if [ "$UPDATER" != "$INSTALLER" ]; then
+            upload "$UPDATER" "${TAG}/${UPDATER_NAME}"
+          fi
 
           # Manifest parcial só dessa plataforma. O job de publish baixa, mescla e
           # gera o latest.json final com todas as plataformas presentes.
