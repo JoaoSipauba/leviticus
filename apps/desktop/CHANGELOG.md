@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.12](https://github.com/JoaoSipauba/leviticus/compare/v0.1.11...v0.1.12) (2026-05-11)
+
+### Funcionalidades
+
+* **release:** distribuir via Supabase Storage (repo é privado) ([689833a](https://github.com/JoaoSipauba/leviticus/commit/689833a21426751eb8b7398a62010557452192b7))
+
 ## [0.1.11](https://github.com/JoaoSipauba/leviticus/compare/v0.1.10...v0.1.11) (2026-05-11)
 
 ### Correções
