@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.11](https://github.com/JoaoSipauba/leviticus/compare/v0.1.10...v0.1.11) (2026-05-11)
+
+### Correções
+
+* **tauri:** habilitar createUpdaterArtifacts no bundle config ([ca6a410](https://github.com/JoaoSipauba/leviticus/commit/ca6a410120c30d67ec3dafe7f43ec936290298f3))
+
 ## [0.1.10](https://github.com/JoaoSipauba/leviticus/compare/v0.1.9...v0.1.10) (2026-05-11)
 
 ### Correções
