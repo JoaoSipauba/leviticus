@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.8](https://github.com/JoaoSipauba/leviticus/compare/v0.1.7...v0.1.8) (2026-05-11)
+
+### Correções
+
+* **release:** localizar .sig dinamicamente + log do bundle dir ([8ff9941](https://github.com/JoaoSipauba/leviticus/commit/8ff9941e69e1564d12575463f5cbda38e7a34333))
+
 ## [0.1.7](https://github.com/JoaoSipauba/leviticus/compare/v0.1.6...v0.1.7) (2026-05-11)
 
 ### Correções
