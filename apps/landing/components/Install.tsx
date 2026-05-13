@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef } from 'react'
+import { AlertTriangle } from 'lucide-react'
+import { APP_VERSION } from '@/lib/config'
 
 export default function Install() {
   const xattrBtnRef = useRef<HTMLButtonElement>(null)
@@ -35,7 +37,7 @@ export default function Install() {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Abra o arquivo <code>Leviticus-0.1.13-aarch64.dmg</code> que você baixou.</div>
+              <div className="install-step-text">Abra o arquivo <code>Leviticus_{APP_VERSION}_aarch64.dmg</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
@@ -62,7 +64,7 @@ export default function Install() {
               >Copiar</button>
             </div>
             <div className="install-warn">
-              <span style={{ fontSize: '16px' }}>⚠</span>
+              <AlertTriangle size={16} style={{ flexShrink: 0, color: 'var(--orange)' }} />
               <div><strong>Por que esses passos?</strong> O macOS coloca os arquivos baixados em quarentena e bloqueia apps que não pagam a taxa anual do Apple Developer Program. O comando <code style={{ fontFamily: "'JetBrains Mono', monospace", padding: '1px 5px', background: 'rgba(0,0,0,0.3)', borderRadius: '3px', color: '#fdba74' }}>xattr -cr</code> remove esse atributo de quarentena. É seguro — só está liberando o app que você acabou de baixar.</div>
             </div>
           </div>
@@ -75,7 +77,7 @@ export default function Install() {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Execute o arquivo <code>Leviticus-0.1.13-x64.msi</code> que você baixou.</div>
+              <div className="install-step-text">Execute o arquivo <code>Leviticus_{APP_VERSION}_x64-setup.exe</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
@@ -90,7 +92,7 @@ export default function Install() {
               <div className="install-step-text">Pronto. O Leviticus aparece no menu Iniciar e pode ser fixado na barra de tarefas.</div>
             </div>
             <div className="install-warn">
-              <span style={{ fontSize: '16px' }}>⚠</span>
+              <AlertTriangle size={16} style={{ flexShrink: 0, color: 'var(--orange)' }} />
               <div><strong>Antivírus reclamando?</strong> Pode acontecer com apps que ainda não têm um certificado de assinatura de código (caro pra um projeto independente). Adicione uma exceção e o app vai rodar normalmente.</div>
             </div>
           </div>

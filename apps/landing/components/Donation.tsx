@@ -1,8 +1,11 @@
 'use client'
 
 import { useRef } from 'react'
+import QRCode from 'react-qr-code'
+import { PIX_KEY } from '@/lib/config'
+import { buildPixPayload } from '@/lib/pix'
 
-const PIX_KEY = 'appleviticus@gmail.com'
+const pixPayload = buildPixPayload(PIX_KEY, 'Leviticus App', 'SAO PAULO')
 
 export default function Donation() {
   const copyBtnRef = useRef<HTMLButtonElement>(null)
@@ -42,35 +45,13 @@ export default function Donation() {
           <div className="donation-card">
             <div className="donation-card-label">PIX · qualquer valor</div>
             <div className="donation-qr">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <rect width="100" height="100" fill="#fff"/>
-                <g fill="#030712">
-                  {/* corner markers */}
-                  <rect x="4" y="4" width="22" height="22"/>
-                  <rect x="74" y="4" width="22" height="22"/>
-                  <rect x="4" y="74" width="22" height="22"/>
-                  <rect x="9" y="9" width="12" height="12" fill="#fff"/>
-                  <rect x="79" y="9" width="12" height="12" fill="#fff"/>
-                  <rect x="9" y="79" width="12" height="12" fill="#fff"/>
-                  <rect x="13" y="13" width="4" height="4"/>
-                  <rect x="83" y="13" width="4" height="4"/>
-                  <rect x="13" y="83" width="4" height="4"/>
-                  {/* random data dots */}
-                  <g>
-                    <rect x="32" y="6" width="4" height="4"/><rect x="40" y="6" width="4" height="4"/><rect x="48" y="6" width="4" height="4"/><rect x="60" y="6" width="4" height="4"/>
-                    <rect x="32" y="14" width="4" height="4"/><rect x="44" y="14" width="4" height="4"/><rect x="56" y="14" width="4" height="4"/><rect x="64" y="14" width="4" height="4"/>
-                    <rect x="36" y="22" width="4" height="4"/><rect x="48" y="22" width="4" height="4"/><rect x="52" y="22" width="4" height="4"/><rect x="68" y="22" width="4" height="4"/>
-                    <rect x="6" y="32" width="4" height="4"/><rect x="14" y="32" width="4" height="4"/><rect x="26" y="32" width="4" height="4"/><rect x="38" y="32" width="4" height="4"/><rect x="46" y="32" width="4" height="4"/><rect x="58" y="32" width="4" height="4"/><rect x="70" y="32" width="4" height="4"/><rect x="82" y="32" width="4" height="4"/><rect x="90" y="32" width="4" height="4"/>
-                    <rect x="10" y="40" width="4" height="4"/><rect x="22" y="40" width="4" height="4"/><rect x="34" y="40" width="4" height="4"/><rect x="42" y="40" width="4" height="4"/><rect x="50" y="40" width="4" height="4"/><rect x="62" y="40" width="4" height="4"/><rect x="74" y="40" width="4" height="4"/><rect x="86" y="40" width="4" height="4"/>
-                    <rect x="6" y="48" width="4" height="4"/><rect x="18" y="48" width="4" height="4"/><rect x="30" y="48" width="4" height="4"/><rect x="46" y="48" width="4" height="4"/><rect x="58" y="48" width="4" height="4"/><rect x="66" y="48" width="4" height="4"/><rect x="78" y="48" width="4" height="4"/><rect x="90" y="48" width="4" height="4"/>
-                    <rect x="14" y="56" width="4" height="4"/><rect x="26" y="56" width="4" height="4"/><rect x="38" y="56" width="4" height="4"/><rect x="50" y="56" width="4" height="4"/><rect x="54" y="56" width="4" height="4"/><rect x="70" y="56" width="4" height="4"/><rect x="82" y="56" width="4" height="4"/>
-                    <rect x="10" y="64" width="4" height="4"/><rect x="22" y="64" width="4" height="4"/><rect x="34" y="64" width="4" height="4"/><rect x="46" y="64" width="4" height="4"/><rect x="62" y="64" width="4" height="4"/><rect x="74" y="64" width="4" height="4"/><rect x="86" y="64" width="4" height="4"/>
-                    <rect x="6" y="72" width="4" height="4"/><rect x="34" y="72" width="4" height="4"/><rect x="42" y="72" width="4" height="4"/><rect x="54" y="72" width="4" height="4"/><rect x="66" y="72" width="4" height="4"/><rect x="78" y="72" width="4" height="4"/><rect x="90" y="72" width="4" height="4"/>
-                    <rect x="34" y="80" width="4" height="4"/><rect x="46" y="80" width="4" height="4"/><rect x="58" y="80" width="4" height="4"/><rect x="70" y="80" width="4" height="4"/><rect x="82" y="80" width="4" height="4"/>
-                    <rect x="38" y="88" width="4" height="4"/><rect x="50" y="88" width="4" height="4"/><rect x="62" y="88" width="4" height="4"/><rect x="74" y="88" width="4" height="4"/><rect x="86" y="88" width="4" height="4"/>
-                  </g>
-                </g>
-              </svg>
+              <QRCode
+                value={pixPayload}
+                size={160}
+                bgColor="#ffffff"
+                fgColor="#030712"
+                style={{ display: 'block' }}
+              />
             </div>
             <div className="donation-pix-row">
               <span className="key">{PIX_KEY}</span>

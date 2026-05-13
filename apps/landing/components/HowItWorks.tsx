@@ -1,3 +1,5 @@
+import { Heart } from 'lucide-react'
+
 export default function HowItWorks() {
   return (
     <section className="section section-divider" id="como" data-screen-label="como">
@@ -66,7 +68,7 @@ export default function HowItWorks() {
             </div>
             <div className="demo-results" style={{ marginTop: 0 }}>
               <div className="demo-result">
-                <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'linear-gradient(135deg,#dc2626,#f43f5e)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px' }}>🌹</div>
+                <div style={{ width: '36px', height: '36px', borderRadius: '6px', background: 'linear-gradient(135deg,#dc2626,#f43f5e)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Heart size={16} color="#fff" /></div>
                 <div className="demo-result-meta">
                   <div className="demo-result-title">Mãe</div>
                   <div className="demo-result-artist">Grupo Voices</div>

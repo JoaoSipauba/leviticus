@@ -8,7 +8,7 @@ export default function Nav() {
   return (
     <nav className="nav" data-screen-label="nav">
       <div className="container nav-inner">
-        <a href="#" className="nav-brand">
+        <a href="/" className="nav-brand">
           <span className="logo-mark"><span></span><span></span><span></span><span></span><span></span><span></span></span>
           <span className="word">Leviticus</span>
         </a>

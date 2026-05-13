@@ -1,3 +1,5 @@
+import { APP_VERSION } from '@/lib/config'
+
 export default function Hero() {
   return (
     <header className="hero" data-screen-label="hero">
@@ -8,7 +10,7 @@ export default function Hero() {
           <div className="hero-verse-ref">Salmos 96 · 1</div>
         </aside>
         <div>
-          <div className="hero-eyebrow">v0.1.13 · Beta pública · macOS + Windows · mobile em breve</div>
+          <div className="hero-eyebrow">v{APP_VERSION} · Beta pública · macOS + Windows · mobile em breve</div>
           <h1 className="hero-headline">Repertório do culto. <em>Sempre pronto, sempre offline.</em></h1>
           <p className="hero-sub">Leviticus é o player desktop da equipe de louvor. Centralize o repertório dos ministérios, monte o setlist do culto e toque no domingo — mesmo sem internet na igreja.</p>
           <div className="hero-actions">
