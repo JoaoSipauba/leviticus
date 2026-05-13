@@ -5,7 +5,10 @@ import { AlertTriangle } from 'lucide-react'
 
 type Props = { version?: string }
 
-export default function Install({ version = '0.2.0' }: Props) {
+export default function Install({ version }: Props) {
+  // Sem versão: usa placeholder no nome do arquivo. Mantém o passo-a-passo
+  // útil mesmo quando o feed está fora — o usuário ainda entende o fluxo.
+  const versionTag = version ?? 'X.Y.Z'
   const xattrBtnRef = useRef<HTMLButtonElement>(null)
 
   function copyXattr() {
@@ -38,7 +41,7 @@ export default function Install({ version = '0.2.0' }: Props) {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Abra o arquivo <code>Leviticus_{version}_aarch64.dmg</code> que você baixou.</div>
+              <div className="install-step-text">Abra o arquivo <code>Leviticus_{versionTag}_aarch64.dmg</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
@@ -78,7 +81,7 @@ export default function Install({ version = '0.2.0' }: Props) {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Execute o arquivo <code>Leviticus_{version}_x64-setup.exe</code> que você baixou.</div>
+              <div className="install-step-text">Execute o arquivo <code>Leviticus_{versionTag}_x64-setup.exe</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
