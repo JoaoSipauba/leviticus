@@ -1,6 +1,5 @@
 {
-  "buildCommand": null,
-  "outputDirectory": ".",
-  "cleanUrls": true,
-  "trailingSlash": false
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".next",
+  "framework": "nextjs"
 }
