@@ -18,6 +18,12 @@ use tauri::{AppHandle, Manager};
 
 const FFMPEG_STATIC_TAG: &str = "b6.0";
 
+// Defesa contra zip-bomb / gzip expansão maliciosa. ffmpeg real
+// descompactado dá no máximo ~80MB nas plataformas que suportamos.
+// 128MB dá folga sem deixar passar um payload absurdo. Caso a release
+// upstream cresça de verdade, atualiza esse cap junto com o pin.
+const MAX_DECOMPRESSED_BYTES: u64 = 128 * 1024 * 1024;
+
 // Hashes esperados dos assets — defesa supply-chain. Mismatch indica:
 // (a) release foi alterada após pin, ou (b) MITM. Em qualquer caso,
 // recusamos executar. Hashes obtidos via:
@@ -124,16 +130,27 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     }
 
     // Descompressão é CPU-bound + bloqueante. spawn_blocking devolve o
-    // thread async pro runtime durante o ~1s de gunzip. Decomprime em
-    // memória (não-streaming) pra simplicidade; pico ~80MB pontual.
-    let decompressed = tokio::task::spawn_blocking(move || {
-        let mut decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(gz_bytes));
+    // thread async pro runtime durante o ~1s de gunzip. `take(LIMIT)`
+    // corta a leitura em MAX_DECOMPRESSED_BYTES — defesa explícita
+    // contra zip-bomb (input ~25MB que se expande pra GBs).
+    let decompressed = tokio::task::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(gz_bytes));
+        let mut limited = decoder.take(MAX_DECOMPRESSED_BYTES);
         let mut out = Vec::with_capacity(80 * 1024 * 1024);
-        decoder.read_to_end(&mut out).map(|_| out)
+        limited
+            .read_to_end(&mut out)
+            .map_err(|e| format!("falha descomprimindo gz do ffmpeg: {e}"))?;
+        // Se atingiu exatamente o limite, provavelmente havia mais dados
+        // (zip-bomb): rejeita por precaução.
+        if out.len() as u64 >= MAX_DECOMPRESSED_BYTES {
+            return Err(format!(
+                "ffmpeg descompactado excedeu o limite de {MAX_DECOMPRESSED_BYTES} bytes — release possivelmente maliciosa"
+            ));
+        }
+        Ok(out)
     })
     .await
-    .map_err(|e| format!("task de descompressão falhou: {e}"))?
-    .map_err(|e| format!("falha descomprimindo gz do ffmpeg: {e}"))?;
+    .map_err(|e| format!("task de descompressão falhou: {e}"))??;
 
     // Escreve num arquivo .tmp e só renomeia pra dest no final. Se o
     // processo morrer no meio (kill, crash), só sobra o .tmp órfão —
@@ -147,14 +164,17 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        // 0o700: só o user dono lê/escreve/executa. O ffmpeg vive em
+        // $APPLOCALDATA do próprio usuário — não há razão pra outros
+        // usuários no sistema acessarem (ataque de elevação local).
         let mut perms = tokio::fs::metadata(&tmp)
             .await
             .map_err(|e| format!("falha lendo metadata: {e}"))?
             .permissions();
-        perms.set_mode(0o755);
+        perms.set_mode(0o700);
         tokio::fs::set_permissions(&tmp, perms)
             .await
-            .map_err(|e| format!("falha em chmod +x: {e}"))?;
+            .map_err(|e| format!("falha em chmod 700: {e}"))?;
     }
 
     tokio::fs::rename(&tmp, &dest)

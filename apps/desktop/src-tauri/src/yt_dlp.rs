@@ -129,14 +129,17 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
+        // 0o700: só o user dono lê/escreve/executa. O yt-dlp vive em
+        // $APPLOCALDATA do próprio usuário — não há razão pra outros
+        // usuários no sistema acessarem (ataque de elevação local).
         let mut perms = tokio::fs::metadata(&tmp)
             .await
             .map_err(|e| format!("falha lendo metadata: {e}"))?
             .permissions();
-        perms.set_mode(0o755);
+        perms.set_mode(0o700);
         tokio::fs::set_permissions(&tmp, perms)
             .await
-            .map_err(|e| format!("falha em chmod +x: {e}"))?;
+            .map_err(|e| format!("falha em chmod 700: {e}"))?;
     }
 
     tokio::fs::rename(&tmp, &dest)
