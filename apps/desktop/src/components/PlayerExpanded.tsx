@@ -335,6 +335,7 @@ export function PlayerExpanded({
           <Slider
             min={0} max={duration || 1} step={1}
             value={pos} onChange={onSeek}
+            commitOnDragEnd
             formatTooltip={fmt}
             style={{ width: '100%' }}
           />
