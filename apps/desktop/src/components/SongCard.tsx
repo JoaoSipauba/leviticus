@@ -131,12 +131,21 @@ function ActionsMenu({
   }
 
   // Calcula posição do menu baseado no botão (alinha à direita do botão).
+  // Preferência: abre pra baixo. Se não couber embaixo e couber/tiver mais espaço
+  // em cima (ex: última música da lista perto do PlayerMini), abre pra cima.
   useLayoutEffect(() => {
     if (!open || !btnRef.current) return
     function update() {
-      const rect = btnRef.current!.getBoundingClientRect()
+      if (!btnRef.current) return
+      const rect = btnRef.current.getBoundingClientRect()
+      const menuHeight = menuRef.current?.offsetHeight ?? 0
+      const gap = 6
+      const margin = 12
+      const spaceBelow = window.innerHeight - rect.bottom - margin
+      const spaceAbove = rect.top - margin
+      const shouldGoUp = menuHeight > 0 && menuHeight > spaceBelow && spaceAbove > spaceBelow
       setPos({
-        top: rect.bottom + 6,
+        top: shouldGoUp ? rect.top - menuHeight - gap : rect.bottom + gap,
         right: window.innerWidth - rect.right,
       })
     }
