@@ -1,6 +1,3 @@
-type Asset = { name: string; size: number; browser_download_url: string }
-type Release = { tag_name: string; assets: Asset[] }
-
 export type ReleaseInfo = {
   version: string
   macUrl: string
@@ -9,35 +6,39 @@ export type ReleaseInfo = {
   winSizeMB: number
 }
 
+// Feed publicado pelo workflow Release a cada nova versão.
+// Conteúdo é estático e cacheado pela CDN do Supabase. Repo é privado,
+// por isso não dá pra usar api.github.com (404 sem auth).
+const FEED_URL =
+  'https://ttoefyaybhfpwnkbuvzc.supabase.co/storage/v1/object/public/app-releases/landing.json'
+
 const FALLBACK: ReleaseInfo = {
-  version: '0.2.0',
-  macUrl: 'https://github.com/JoaoSipauba/leviticus/releases/download/v0.2.0/Leviticus_0.2.0_aarch64.dmg',
+  version: '0.5.0',
+  macUrl: 'https://ttoefyaybhfpwnkbuvzc.supabase.co/storage/v1/object/public/app-releases/v0.5.0/Leviticus_0.5.0_aarch64.dmg',
   macSizeMB: 9,
-  winUrl: 'https://github.com/JoaoSipauba/leviticus/releases/download/v0.2.0/Leviticus_0.2.0_x64-setup.exe',
+  winUrl: 'https://ttoefyaybhfpwnkbuvzc.supabase.co/storage/v1/object/public/app-releases/v0.5.0/Leviticus_0.5.0_x64-setup.exe',
   winSizeMB: 6,
+}
+
+type Feed = {
+  version: string
+  mac: { url: string; sizeMB: number }
+  win: { url: string; sizeMB: number }
 }
 
 export async function getLatestRelease(): Promise<ReleaseInfo> {
   try {
-    const res = await fetch(
-      'https://api.github.com/repos/JoaoSipauba/leviticus/releases/latest',
-      // Cache ISR: revalida em segundo plano a cada 30min.
-      { next: { revalidate: 1800 } }
-    )
+    // ISR: revalida em background a cada 30min.
+    const res = await fetch(FEED_URL, { next: { revalidate: 1800 } })
     if (!res.ok) return FALLBACK
-    const data: Release = await res.json()
-    const mac = data.assets.find(a => a.name.endsWith('.dmg'))
-    const win = data.assets.find(a => a.name.endsWith('.exe'))
-    // Se algum asset crítico está faltando (release ainda buildando, falha de
-    // upload, etc), o FALLBACK inteiro é mais seguro do que misturar a versão
-    // nova com URL/filename antigos — a UX ficaria com instruções inconsistentes.
-    if (!mac || !win) return FALLBACK
+    const data = (await res.json()) as Feed
+    if (!data?.version || !data.mac?.url || !data.win?.url) return FALLBACK
     return {
-      version:   data.tag_name.replace(/^v/, ''),
-      macUrl:    mac.browser_download_url,
-      macSizeMB: Math.round(mac.size / 1024 / 1024),
-      winUrl:    win.browser_download_url,
-      winSizeMB: Math.round(win.size / 1024 / 1024),
+      version:   data.version,
+      macUrl:    data.mac.url,
+      macSizeMB: data.mac.sizeMB,
+      winUrl:    data.win.url,
+      winSizeMB: data.win.sizeMB,
     }
   } catch {
     return FALLBACK

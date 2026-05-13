@@ -207,6 +207,7 @@ jobs:
       - name: Create GitHub Release with assets (archive)
         env:
           SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
@@ -225,6 +226,36 @@ jobs:
           curl -sSfL -o "$DMG"   "${BASE_URL}/${DMG}"
           curl -sSfL -o "$TARGZ" "${BASE_URL}/${TARGZ}"
           curl -sSfL -o "$EXE"   "${BASE_URL}/${EXE}"
+
+          # Publica landing.json: feed estático que a landing page consome
+          # pra mostrar versão + URL + tamanho atualizados sem depender da
+          # API do GitHub (que retorna 404 pra repos privados sem auth).
+          DMG_MB=$(( ( $(wc -c < "$DMG") + 524288 ) / 1048576 ))
+          EXE_MB=$(( ( $(wc -c < "$EXE") + 524288 ) / 1048576 ))
+          jq -n \
+            --arg version "$VERSION" \
+            --arg macUrl  "${BASE_URL}/${DMG}" \
+            --argjson macSizeMB "$DMG_MB" \
+            --arg winUrl  "${BASE_URL}/${EXE}" \
+            --argjson winSizeMB "$EXE_MB" \
+            '{version:$version, mac:{url:$macUrl, sizeMB:$macSizeMB}, win:{url:$winUrl, sizeMB:$winSizeMB}}' \
+            > landing.json
+
+          echo "=== landing.json ==="
+          cat landing.json
+
+          HTTP=$(curl -sS -o /tmp/resp.txt -w "%{http_code}" -X POST \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -H "x-upsert: true" \
+            -T landing.json \
+            "${SUPABASE_URL}/storage/v1/object/${BUCKET}/landing.json")
+          if [ "$HTTP" -ge 300 ]; then
+            echo "ERRO upload landing.json (HTTP $HTTP):"
+            cat /tmp/resp.txt
+            exit 1
+          fi
+          echo "landing.json publicado em ${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/landing.json"
 
           cat > release-notes.md <<EOF
           Veja [CHANGELOG.md](https://github.com/JoaoSipauba/leviticus/blob/main/CHANGELOG.md) para detalhes.
