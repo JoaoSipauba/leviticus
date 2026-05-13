@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.0](https://github.com/JoaoSipauba/leviticus/compare/v0.3.0...v0.4.0) (2026-05-13)
+
+### Funcionalidades
+
+* **landing:** add landing page for Vercel deploy ([dddbd41](https://github.com/JoaoSipauba/leviticus/commit/dddbd418dfc17a40be55a1a09ff3bcf27805f395))
+* **landing:** adicionar OG image gerada em runtime (edge) ([ccc5d75](https://github.com/JoaoSipauba/leviticus/commit/ccc5d757bf9d44e0e6eb6869dca1756daade759f))
+* **landing:** integrar waitlist com Supabase ([aa27258](https://github.com/JoaoSipauba/leviticus/commit/aa27258794e228baf33802f2c61e5658fe4406bf))
+* **landing:** migrate to Next.js App Router for SEO ([a631b1d](https://github.com/JoaoSipauba/leviticus/commit/a631b1d690165eac3fae518c36b5538c1f83f4be))
+* **landing:** substituir logo CSS pelo SVG real do Figma ([032135d](https://github.com/JoaoSipauba/leviticus/commit/032135d6b4f5176ecfbff7bbcb511de7a49a7ee8))
+
+### Correções
+
+* **landing:** corrigir todos os pontos bloqueantes para produção ([b132fd1](https://github.com/JoaoSipauba/leviticus/commit/b132fd1868b27f50a8cc5e30304d47842383bef5))
+
 ## [0.3.0](https://github.com/JoaoSipauba/leviticus/compare/v0.2.0...v0.3.0) (2026-05-13)
 
 ### Funcionalidades
