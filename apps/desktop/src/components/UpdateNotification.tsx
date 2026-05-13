@@ -8,7 +8,8 @@ type Status =
   | { kind: 'idle' }
   | { kind: 'available'; update: Update }
   | { kind: 'downloading'; update: Update; downloaded: number; total: number | null }
-  | { kind: 'installed'; version: string }
+  | { kind: 'downloaded'; update: Update }
+  | { kind: 'installing' }
   | { kind: 'error'; message: string }
 
 const CHECK_INTERVAL_MS = 1 * 60 * 60 * 1000 // 1h
@@ -69,12 +70,19 @@ export function UpdateNotification() {
     }
   }, [])
 
-  async function handleInstall() {
+  // Download separado do install. Antes: downloadAndInstall era um único
+  // await — no Windows o installer NSIS roda dentro do install e fecha
+  // o app em seguida, então o toast de "Reiniciar" nunca aparecia: o
+  // usuário ficava em loop, app reabria na versão antiga.
+  // Agora: download() avança até 100%, mostra toast "Reiniciar pra
+  // finalizar". Só quando o usuário clicar, install() roda — daí pode
+  // fechar tudo, foi expectativa explícita.
+  async function handleDownload() {
     if (status.kind !== 'available') return
     const update = status.update
     setStatus({ kind: 'downloading', update, downloaded: 0, total: null })
     try {
-      await update.downloadAndInstall((event) => {
+      await update.download((event) => {
         if (event.event === 'Started') {
           setStatus({
             kind: 'downloading',
@@ -88,27 +96,35 @@ export function UpdateNotification() {
             return { ...prev, downloaded: prev.downloaded + event.data.chunkLength }
           })
         } else if (event.event === 'Finished') {
-          setStatus({ kind: 'installed', version: update.version })
+          setStatus({ kind: 'downloaded', update })
         }
       })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.'
-      console.error('[updater] downloadAndInstall falhou:', e)
+      console.error('[updater] download falhou:', e)
       setStatus({ kind: 'error', message: msg })
     }
   }
 
   function handleDismiss() {
-    if (status.kind !== 'available') return
+    if (status.kind !== 'available' && status.kind !== 'downloaded') return
     dismissedRef.current = true
     setStatus({ kind: 'idle' })
   }
 
   async function handleRestart() {
+    if (status.kind !== 'downloaded') return
+    const update = status.update
+    setStatus({ kind: 'installing' })
     try {
+      await update.install()
+      // Em macOS install() apenas substitui o .app; precisa de relaunch
+      // explícito. Em Windows o installer NSIS já se vira (e nesse caso
+      // o relaunch abaixo nem chega a executar — app é morto antes).
       await relaunch()
     } catch (e) {
-      console.error('[updater] relaunch falhou:', e)
+      console.error('[updater] install/relaunch falhou:', e)
+      setStatus({ kind: 'error', message: 'Não foi possível aplicar a atualização. Tente reiniciar manualmente.' })
     }
   }
 
@@ -128,7 +144,7 @@ export function UpdateNotification() {
             </p>
             <div className="flex gap-2 mt-3">
               <button
-                onClick={handleInstall}
+                onClick={handleDownload}
                 className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 text-white transition-colors"
               >
                 Atualizar agora
@@ -165,13 +181,20 @@ export function UpdateNotification() {
               Baixando {status.update.version}…
             </p>
             <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-blue-500 transition-[width] duration-150"
-                style={{ width: pct !== null ? `${pct}%` : '40%' }}
-              />
+              {pct !== null ? (
+                <div
+                  className="h-full bg-blue-500 transition-[width] duration-150"
+                  style={{ width: `${pct}%` }}
+                />
+              ) : (
+                // Sem Content-Length do servidor: barra inteira pulsando
+                // pra deixar claro que tá em progresso (era 40% fixo antes,
+                // dava a impressão de "travou no meio").
+                <div className="h-full w-full bg-blue-500/80 animate-pulse" />
+              )}
             </div>
             <p className="text-xs text-body mt-1.5">
-              {pct !== null ? `${Math.round(pct)}%` : `${formatBytes(downloaded)}`}
+              {pct !== null ? `${Math.round(pct)}%` : formatBytes(downloaded)}
             </p>
           </div>
         </div>
@@ -179,17 +202,35 @@ export function UpdateNotification() {
     )
   }
 
-  // installed
+  if (status.kind === 'installing') {
+    return (
+      <Toast>
+        <div className="flex items-start gap-3">
+          <Loader2 size={18} className="mt-0.5 text-green-400 flex-shrink-0 animate-spin" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-heading font-medium">
+              Aplicando atualização…
+            </p>
+            <p className="text-xs text-body mt-0.5">
+              O app vai reiniciar em instantes.
+            </p>
+          </div>
+        </div>
+      </Toast>
+    )
+  }
+
+  // status.kind === 'downloaded' — espera o usuário clicar Reiniciar
   return (
     <Toast>
       <div className="flex items-start gap-3">
         <RotateCw size={18} className="mt-0.5 text-green-400 flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm text-heading font-medium">
-            Atualização instalada
+            Pronto pra atualizar
           </p>
           <p className="text-xs text-body mt-0.5">
-            Reinicie o app para usar a versão {status.version}.
+            Reinicie pra usar a versão {status.update.version}.
           </p>
           <div className="flex gap-2 mt-3">
             <button
@@ -199,7 +240,7 @@ export function UpdateNotification() {
               Reiniciar agora
             </button>
             <button
-              onClick={() => setStatus({ kind: 'idle' })}
+              onClick={handleDismiss}
               className="px-3 py-1.5 text-xs font-medium rounded-md text-body hover:text-heading transition-colors"
             >
               Depois
