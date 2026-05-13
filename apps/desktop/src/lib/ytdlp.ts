@@ -176,21 +176,32 @@ export function startDownload(
       // yt-dlp envia TODO output (inclusive erros) para stdout, não stderr.
       let outputBuf = ''
 
-      // Animação assintótica de progresso. Pra m4a sem reencoding, o
-      // download é tão rápido (~1-2s pra músicas de 4 min) que o yt-dlp
-      // raramente emite progress intermediário — vai de 0 a close direto.
-      // A curva fake (1 - e^(-t/tau)) cresce rápido no início e desacelera
-      // até assintotar em 95%. Quando o yt-dlp emite progress real, usamos
-      // o maior valor pra evitar regressão. O close dispara o 100%.
+      // Progresso: prefere o número real do yt-dlp; usa animação fake
+      // só enquanto o yt-dlp não emitiu nenhum progress ainda (típico
+      // dos primeiros ~500ms até começar a baixar).
+      //
+      // Antes a curva fake (assintota em 95%) era combinada com
+      // Math.max(real, fake) — em downloads grandes, fake batia 95% em
+      // ~10s enquanto o real ainda tava em 30%, e a barra ficava
+      // travada em ~95% pelo resto do download. Agora: assim que
+      // chega qualquer real, fake é abandonada e seguimos só o real.
       let lastReal = 0
+      let hasRealProgress = false
       const startedAt = Date.now()
-      const FAKE_CEILING = 0.95
-      const FAKE_TAU = 1.5 // segundos pra atingir ~63% da curva
+      const FAKE_CEILING = 0.5     // teto baixo: fake é apenas placeholder até real
+      const FAKE_TAU = 1.5          // segundos pra atingir ~63% da curva
       const reportProgress = (real?: number) => {
-        if (real !== undefined && real > lastReal) lastReal = real
-        const elapsed = (Date.now() - startedAt) / 1000
-        const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
-        onProgress(Math.min(0.99, Math.max(lastReal, fake)))
+        if (real !== undefined) {
+          if (real > lastReal) lastReal = real
+          hasRealProgress = true
+        }
+        if (hasRealProgress) {
+          onProgress(Math.min(0.99, lastReal))
+        } else {
+          const elapsed = (Date.now() - startedAt) / 1000
+          const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
+          onProgress(Math.min(0.99, fake))
+        }
       }
       const animationTimer = window.setInterval(() => reportProgress(), 150)
       const stopAnimation = () => window.clearInterval(animationTimer)
