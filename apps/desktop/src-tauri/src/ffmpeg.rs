@@ -63,12 +63,24 @@ fn bin_path(app: &AppHandle) -> Result<PathBuf, String> {
 pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     let dest = bin_path(&app)?;
 
-    if dest.exists() {
-        return Ok(dest.to_string_lossy().into_owned());
+    // Idempotência: validação mínima do binário cacheado. file_exists +
+    // size > 0 previne aceitar arquivo corrompido por download
+    // interrompido. Hash full check é caro (~80MB) — pulamos aqui
+    // porque o atomic rename abaixo só publica em dest depois de hash
+    // verificado, então qualquer arquivo final é válido por construção.
+    if let Ok(meta) = tokio::fs::metadata(&dest).await {
+        if meta.is_file() && meta.len() > 0 {
+            return Ok(dest.to_string_lossy().into_owned());
+        }
     }
 
-    let asset = asset_for_platform()
-        .ok_or_else(|| "plataforma não suportada para ffmpeg".to_string())?;
+    let asset = asset_for_platform().ok_or_else(|| {
+        format!(
+            "ffmpeg ainda não suportado nessa plataforma: os={} arch={}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        )
+    })?;
     let url = format!(
         "https://github.com/eugeneware/ffmpeg-static/releases/download/{FFMPEG_STATIC_TAG}/{asset}"
     );
@@ -123,22 +135,31 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     .map_err(|e| format!("task de descompressão falhou: {e}"))?
     .map_err(|e| format!("falha descomprimindo gz do ffmpeg: {e}"))?;
 
-    tokio::fs::write(&dest, &decompressed)
+    // Escreve num arquivo .tmp e só renomeia pra dest no final. Se o
+    // processo morrer no meio (kill, crash), só sobra o .tmp órfão —
+    // o dest jamais existe em estado incompleto, evitando o problema
+    // de "arquivo corrompido aceito como válido" na próxima execução.
+    let tmp = dest.with_extension("partial");
+    tokio::fs::write(&tmp, &decompressed)
         .await
-        .map_err(|e| format!("falha ao escrever {}: {e}", dest.display()))?;
+        .map_err(|e| format!("falha ao escrever {}: {e}", tmp.display()))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = tokio::fs::metadata(&dest)
+        let mut perms = tokio::fs::metadata(&tmp)
             .await
             .map_err(|e| format!("falha lendo metadata: {e}"))?
             .permissions();
         perms.set_mode(0o755);
-        tokio::fs::set_permissions(&dest, perms)
+        tokio::fs::set_permissions(&tmp, perms)
             .await
             .map_err(|e| format!("falha em chmod +x: {e}"))?;
     }
+
+    tokio::fs::rename(&tmp, &dest)
+        .await
+        .map_err(|e| format!("falha ao mover {} → {}: {e}", tmp.display(), dest.display()))?;
 
     Ok(dest.to_string_lossy().into_owned())
 }
