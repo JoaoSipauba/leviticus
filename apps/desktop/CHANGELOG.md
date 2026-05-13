@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.3.0](https://github.com/JoaoSipauba/leviticus/compare/v0.2.0...v0.3.0) (2026-05-13)
+
+### Funcionalidades
+
+* **boot:** splash com equalizer animado (mesma identidade do ícone) ([b8ea0b4](https://github.com/JoaoSipauba/leviticus/commit/b8ea0b4aa512eb6ce5e5c297b71a0792d84ecf8c))
+* **boot:** splash screen + boot resiliente a Supabase offline ([1b808d6](https://github.com/JoaoSipauba/leviticus/commit/1b808d6577dd95ccf3f23ae1c29ba6e7beec7a15))
+* tracker global de mousemove para drop target via posição do cursor ([fcb6d6e](https://github.com/JoaoSipauba/leviticus/commit/fcb6d6e8c397dd5e3d783ecec71c6a12e86e15d9))
+* zona de detecção expandida para drop de seções e músicas ([c58bf50](https://github.com/JoaoSipauba/leviticus/commit/c58bf507013e22653e67ff67b9f403dc490ec02f))
+
+### Correções
+
+* **boot:** baseline do equalizer agora extende além das barras ([e78c396](https://github.com/JoaoSipauba/leviticus/commit/e78c3963820545644960f09acf732c1fec2b730f))
+* **download:** barra de progresso travava em ~95% em músicas grandes ([a983b39](https://github.com/JoaoSipauba/leviticus/commit/a983b39d64f34bf53a5c40fcbe58dc00452c0653))
+* drag de seção não ativa mais drop zones de música ([1527457](https://github.com/JoaoSipauba/leviticus/commit/152745748158ab304c43fc4ed6e96958a4d1cc14))
+* DropZone usa height:0 + absolute para zona de detecção confiável ([30843cf](https://github.com/JoaoSipauba/leviticus/commit/30843cf85d67751c2a59427220461468c476ed75))
+* **ensure_*:** atomic write + cache validation + erro com target ([2a66f85](https://github.com/JoaoSipauba/leviticus/commit/2a66f85ab85ea336a73517d2ab4b910f3252cc0e)), closes [#8](https://github.com/JoaoSipauba/leviticus/issues/8) [#1](https://github.com/JoaoSipauba/leviticus/issues/1)
+* **export:** baixar ffmpeg em runtime — resolve export Windows ([aa6710b](https://github.com/JoaoSipauba/leviticus/commit/aa6710b4061d66a6137bf4195ba1e2a2a33af6e0))
+* indicador de seção apaga ao sair da zona de drop ([a69af6a](https://github.com/JoaoSipauba/leviticus/commit/a69af6a5703a4e282b7190a2b9ef979c793c2a20))
+* indicador de seção some ao entrar no conteúdo da seção ([a09cbf5](https://github.com/JoaoSipauba/leviticus/commit/a09cbf518822adef0dbf5aa954e76f45b88c13e2))
+* **player:** liberar http(s)://asset.localhost no CSP — toca áudio no Windows ([1ca9017](https://github.com/JoaoSipauba/leviticus/commit/1ca901781030c33b3bfbb989d9613c18d8eefde4))
+* reordenação de músicas no culto via mouse events (padrão PlayerExpanded) ([08510a9](https://github.com/JoaoSipauba/leviticus/commit/08510a9739e033c40013e913f8f0d015ac95dd9d))
+* reordenação de seções no culto via mouse events (padrão PlayerExpanded) ([0f8e9c0](https://github.com/JoaoSipauba/leviticus/commit/0f8e9c098cce82b74aff67dd7c5186319316a299))
+* **sonar:** bound regex de trailing dot/space (S5852 ReDoS) ([576c693](https://github.com/JoaoSipauba/leviticus/commit/576c6937a2cb4314730c50fe2a9acc8b1ba24f65))
+* **sonar:** zip-bomb limit + permissões 0o700 nos binários baixados ([a1b7abb](https://github.com/JoaoSipauba/leviticus/commit/a1b7abbca676db1401e5f3c5fc84779dace967ab))
+* **updater:** progresso real + Windows não fecha sem prompt de reiniciar ([6dd97aa](https://github.com/JoaoSipauba/leviticus/commit/6dd97aa2690127195a8cb3b22cb4280f4837053e))
+* **windows:** downloadDir, reserved-name sanitize, shell:bash no build ([1c74c21](https://github.com/JoaoSipauba/leviticus/commit/1c74c21ca9021fcc6f082b6951ccdfd39ca968f7))
+* **yt-dlp,ffmpeg:** SHA-256 check + spawn_blocking na descompressão ([aba0666](https://github.com/JoaoSipauba/leviticus/commit/aba06662d2389f5f5e76b52590309e3004187086))
+
 ## [0.2.0](https://github.com/JoaoSipauba/leviticus/compare/v0.1.15...v0.2.0) (2026-05-13)
 
 ### Funcionalidades
