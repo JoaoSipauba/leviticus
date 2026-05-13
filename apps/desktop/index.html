@@ -32,13 +32,22 @@
         pointer-events: none;
       }
 
-      /* Equalizer: 5 barras pulsando + linha base (mesma forma do ícone) */
+      /* Equalizer: 5 barras pulsando + linha base (mesma forma do ícone).
+         A baseline horizontal é ~30% mais larga que o grupo de barras —
+         se estende além das pontas em ambos os lados, igual o ícone. */
+      #boot-eq-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
       #boot-eq {
         display: flex;
         align-items: flex-end;
         justify-content: center;
         gap: 7px;
         height: 72px;
+        /* Total bars: 5*9 + 4*7 = 73px */
       }
       #boot-eq > span {
         display: block;
@@ -54,11 +63,12 @@
       #boot-eq > span:nth-child(4) { height: 72%; animation-delay: -0.2s; }
       #boot-eq > span:nth-child(5) { height: 48%; animation-delay: -0.55s; }
       #boot-baseline {
-        width: 64px;
-        height: 2px;
+        /* Bar group = 73px. Baseline ~30% maior pra emular a proporção
+           do ícone, em que a linha extende além das barras. */
+        width: 96px;
+        height: 3px;
         background: #3b82f6;
         border-radius: 2px;
-        margin: 4px auto 0;
       }
 
       #boot-title {
@@ -76,11 +86,11 @@
 
   <body>
     <div id="boot-splash" role="status" aria-live="polite" aria-label="Carregando">
-      <div>
-        <div id="boot-eq" aria-hidden="true">
+      <div id="boot-eq-wrap" aria-hidden="true">
+        <div id="boot-eq">
           <span></span><span></span><span></span><span></span><span></span>
         </div>
-        <div id="boot-baseline" aria-hidden="true"></div>
+        <div id="boot-baseline"></div>
       </div>
       <div id="boot-title">Leviticus</div>
     </div>

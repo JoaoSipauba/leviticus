@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Leviticus — Splash variations</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; min-height: 100%; background: #08080f; color: #e5e7eb;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 28px 32px 8px; }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; color: #f3f4f6; }
+  header p { margin: 6px 0 0; font-size: 13px; color: #9ca3af; }
+  main { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 24px 32px 48px; }
+  .frame {
+    aspect-ratio: 1280 / 800;
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .frame__label {
+    position: absolute; top: 12px; left: 14px; z-index: 5;
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px);
+    color: #f3f4f6;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .frame__desc {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #9ca3af;
+    line-height: 1.5;
+  }
+  .frame__desc strong { color: #e5e7eb; font-weight: 600; }
+
+  /* ─── Option A — Logo + wordmark + spinner discreto ─── */
+  .splash-a {
+    width: 100%; height: 100%;
+    background: #0a0a13;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 22px;
+  }
+  .splash-a__logo {
+    width: 96px; height: 96px;
+    border-radius: 22px;
+    box-shadow: 0 12px 32px rgba(59, 130, 246, 0.18);
+  }
+  .splash-a__title {
+    font-size: 26px; font-weight: 600; letter-spacing: -0.015em;
+    color: #f3f4f6;
+  }
+  .splash-a__spinner {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2.5px solid rgba(255,255,255,0.06);
+    border-top-color: #6366f1;
+    animation: spin 0.9s linear infinite;
+  }
+
+  /* ─── Option B — Logo com glow + barra de progresso animada na base ─── */
+  .splash-b {
+    width: 100%; height: 100%;
+    background: radial-gradient(ellipse at center top, rgba(59,130,246,0.10), transparent 50%), #0a0a13;
+    position: relative;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 18px;
+  }
+  .splash-b__logo {
+    width: 112px; height: 112px;
+    border-radius: 26px;
+    animation: breath 2.2s ease-in-out infinite;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+  }
+  .splash-b__title {
+    font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+    color: #f3f4f6;
+  }
+  .splash-b__tagline {
+    margin-top: -8px;
+    font-size: 13px; color: #9ca3af; letter-spacing: 0.01em;
+  }
+  .splash-b__progress {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 2px;
+    background: rgba(255,255,255,0.04);
+    overflow: hidden;
+  }
+  .splash-b__bar {
+    position: absolute;
+    inset: 0;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, #3b82f6 50%, transparent);
+    animation: slide 1.6s ease-in-out infinite;
+  }
+
+  /* ─── Option C — Equalizer animado custom (combina com o ícone) ─── */
+  .splash-c {
+    width: 100%; height: 100%;
+    background: #0a0a13;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 26px;
+  }
+  .splash-c__eq {
+    display: flex; align-items: flex-end; justify-content: center;
+    gap: 7px;
+    height: 72px;
+  }
+  .splash-c__bar {
+    width: 9px;
+    background: linear-gradient(180deg, #60a5fa, #3b82f6);
+    border-radius: 4px;
+    transform-origin: bottom center;
+  }
+  .splash-c__bar:nth-child(1) { height: 56%; animation: eq 1.1s ease-in-out infinite; animation-delay: 0s; }
+  .splash-c__bar:nth-child(2) { height: 92%; animation: eq 1.1s ease-in-out infinite; animation-delay: -0.4s; }
+  .splash-c__bar:nth-child(3) { height: 36%; animation: eq 1.1s ease-in-out infinite; animation-delay: -0.7s; }
+  .splash-c__bar:nth-child(4) { height: 72%; animation: eq 1.1s ease-in-out infinite; animation-delay: -0.2s; }
+  .splash-c__bar:nth-child(5) { height: 48%; animation: eq 1.1s ease-in-out infinite; animation-delay: -0.55s; }
+  .splash-c__baseline {
+    width: 96px; height: 3px;
+    background: #3b82f6;
+    border-radius: 2px;
+    margin: 6px auto 0;
+  }
+  .splash-c__title {
+    font-size: 26px; font-weight: 600; letter-spacing: -0.015em;
+    color: #f3f4f6;
+  }
+
+  /* ─── Keyframes ─── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes breath {
+    0%, 100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(59,130,246, 0.25), 0 12px 32px rgba(59, 130, 246, 0.15);
+    }
+    50% {
+      transform: scale(1.03);
+      box-shadow: 0 0 0 18px rgba(59,130,246, 0), 0 16px 40px rgba(59, 130, 246, 0.30);
+    }
+  }
+  @keyframes slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(330%); }
+  }
+  @keyframes eq {
+    0%, 100% { transform: scaleY(0.35); }
+    50%      { transform: scaleY(1); }
+  }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Splash de boot — 3 variações</h1>
+    <p>Cada quadro está com proporção 1280×800 (mesma janela do Tauri). Veja qual te agrada mais.</p>
+  </header>
+
+  <main>
+    <section>
+      <div class="frame">
+        <div class="frame__label">A — Clean</div>
+        <div class="splash-a">
+          <img src="logo.png" alt="Leviticus" class="splash-a__logo" />
+          <div class="splash-a__title">Leviticus</div>
+          <div class="splash-a__spinner"></div>
+        </div>
+      </div>
+      <p class="frame__desc">
+        <strong>Clean.</strong> Logo + wordmark + spinner pequeno embaixo. Mais sóbrio,
+        chama atenção pro logo sem distrações.
+      </p>
+    </section>
+
+    <section>
+      <div class="frame">
+        <div class="frame__label">B — Glow + barra</div>
+        <div class="splash-b">
+          <img src="logo.png" alt="Leviticus" class="splash-b__logo" />
+          <div class="splash-b__title">Leviticus</div>
+          <div class="splash-b__tagline">Música para a igreja</div>
+          <div class="splash-b__progress">
+            <div class="splash-b__bar"></div>
+          </div>
+        </div>
+      </div>
+      <p class="frame__desc">
+        <strong>Glow + barra.</strong> Logo respira (scale + halo) com tagline.
+        Barra indeterminate cruza a base — sensação de "carregando".
+      </p>
+    </section>
+
+    <section>
+      <div class="frame">
+        <div class="frame__label">C — Equalizer animado</div>
+        <div class="splash-c">
+          <div>
+            <div class="splash-c__eq">
+              <div class="splash-c__bar"></div>
+              <div class="splash-c__bar"></div>
+              <div class="splash-c__bar"></div>
+              <div class="splash-c__bar"></div>
+              <div class="splash-c__bar"></div>
+            </div>
+            <div style="display:flex; justify-content:center;">
+              <div class="splash-c__baseline"></div>
+            </div>
+          </div>
+          <div class="splash-c__title">Leviticus</div>
+        </div>
+      </div>
+      <p class="frame__desc">
+        <strong>Equalizer animado.</strong> Versão "viva" do próprio ícone — as
+        barras pulsam como num equalizer real. Tema musical reforçado.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
