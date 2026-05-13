@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.0](https://github.com/JoaoSipauba/leviticus/compare/v0.5.0...v0.6.0) (2026-05-13)
+
+### Funcionalidades
+
+* **landing+release:** feed estático landing.json no Supabase ([8eecc21](https://github.com/JoaoSipauba/leviticus/commit/8eecc211180cbc46536beb8a716883350163081b))
+
 ## [0.5.0](https://github.com/JoaoSipauba/leviticus/compare/v0.4.0...v0.5.0) (2026-05-13)
 
 ### Funcionalidades
