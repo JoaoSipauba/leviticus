@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/JoaoSipauba/leviticus/compare/v0.4.0...v0.5.0) (2026-05-13)
+
+### Funcionalidades
+
+* **landing+ci:** versão dinâmica + path filters dos pipelines ([b699e48](https://github.com/JoaoSipauba/leviticus/commit/b699e4891929f237952a7585a733a2281b4acc7b))
+* **landing:** habilitar Vercel Analytics e Speed Insights ([bfdf00b](https://github.com/JoaoSipauba/leviticus/commit/bfdf00b4c73e4615c4d18d03ce86cc4405c98c45))
+
+### Correções
+
+* **desktop:** UX de progresso, atalho Q e toast de exportação MP3 ([981590a](https://github.com/JoaoSipauba/leviticus/commit/981590ac9de6f31e2df5b706a49316e153fca221))
+* review do Copilot no PR [#12](https://github.com/JoaoSipauba/leviticus/issues/12) ([601fb2c](https://github.com/JoaoSipauba/leviticus/commit/601fb2c13037e394f21d9e6e07066ffcd234982e))
+
 ## [0.4.0](https://github.com/JoaoSipauba/leviticus/compare/v0.3.0...v0.4.0) (2026-05-13)
 
 ### Funcionalidades
