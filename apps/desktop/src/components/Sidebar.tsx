@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Music, LayoutGrid, CalendarDays, Users, LogOut, Home } from 'lucide-react'
+import { Music, LayoutGrid, CalendarDays, LogOut, Home } from 'lucide-react'
 import { getVersion } from '@tauri-apps/api/app'
 import type { Playlist } from '@leviticus/core'
 import { useAuthStore } from '../store/auth.js'
@@ -30,7 +30,7 @@ const links = [
   { to: '/library', label: 'Biblioteca', Icon: Music },
   { to: '/ministries', label: 'Ministérios', Icon: LayoutGrid },
   { to: '/services', label: 'Cultos', Icon: CalendarDays },
-  { to: '/manage', label: 'Organização', Icon: Users },
+  // { to: '/manage', label: 'Organização', Icon: Users }, // ocultado temporariamente — página ainda é um placeholder
 ]
 
 export function Sidebar() {
