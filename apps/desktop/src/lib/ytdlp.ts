@@ -294,9 +294,22 @@ export function startDownload(
   }
 }
 
+// Cache pra ensure_ffmpeg: só baixa 1x por sessão. Reset em erro pra
+// próxima tentativa rebaixar.
+let ensureFfmpegPromise: Promise<string> | null = null
+function ensureFfmpeg(): Promise<string> {
+  if (!ensureFfmpegPromise) {
+    ensureFfmpegPromise = invoke<string>('ensure_ffmpeg').catch((e) => {
+      ensureFfmpegPromise = null
+      throw e
+    })
+  }
+  return ensureFfmpegPromise
+}
+
 // Converte o arquivo de áudio local para MP3 e salva em ~/Downloads.
-// Requer ffmpeg instalado via Homebrew. Lança se o arquivo não existir ou
-// se o ffmpeg falhar. Retorna o caminho do arquivo gerado.
+// ffmpeg é baixado em runtime pra $APPLOCALDATA/bin no primeiro uso
+// (ver src-tauri/src/ffmpeg.rs). Funciona em macOS + Windows.
 export async function exportSongToMp3(songId: string, title: string): Promise<string> {
   const inputPath = await findSongFile(songId)
   if (!inputPath) throw new Error('Arquivo de áudio não encontrado. Baixe a música primeiro.')
@@ -305,6 +318,7 @@ export async function exportSongToMp3(songId: string, title: string): Promise<st
   const safeName = title.replace(/[/\\:*?"<>|]/g, '_').trim() || songId
   const outputPath = await join(home, 'Downloads', `${safeName}.mp3`)
 
+  await ensureFfmpeg()
   const command = Command.create('ffmpeg', [
     '-i', inputPath,
     '-codec:a', 'libmp3lame',
@@ -316,7 +330,7 @@ export async function exportSongToMp3(songId: string, title: string): Promise<st
   const result = await command.execute()
   if (result.code !== 0) {
     console.error('[exportSongToMp3] ffmpeg failed:', result.stderr)
-    throw new Error('Falha ao exportar. Verifique se o ffmpeg está instalado (brew install ffmpeg).')
+    throw new Error('Não foi possível exportar a música. Tente novamente.')
   }
   return outputPath
 }

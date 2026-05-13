@@ -8,18 +8,6 @@
     "fs:default",
     "fs:allow-app-read-recursive",
     "fs:allow-app-write-recursive",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        { "name": "ffmpeg", "cmd": "/opt/homebrew/bin/ffmpeg", "args": true }
-      ]
-    },
-    {
-      "identifier": "shell:allow-spawn",
-      "allow": [
-        { "name": "ffmpeg", "cmd": "/opt/homebrew/bin/ffmpeg", "args": true }
-      ]
-    },
     "sql:default",
     "sql:allow-execute",
     "sql:allow-select",
