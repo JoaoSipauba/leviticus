@@ -59,7 +59,11 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
     setEntry(nextId, { state: 'downloading', progress: 0, error: undefined })
 
     const handle = startDownload(nextId, entry.youtubeUrl, (p) => {
-      setEntry(nextId, { progress: p })
+      // Defesa secundária: garante progresso monotônico no store. O
+      // startDownload já não emite valores regressivos, mas isso protege
+      // contra futuros bugs/race conditions e torna a invariante explícita.
+      const current = get().byId[nextId]?.progress ?? 0
+      if (p >= current) setEntry(nextId, { progress: p })
     })
     activeChild = { songId: nextId, cancel: handle.cancel }
 

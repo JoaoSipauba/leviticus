@@ -176,32 +176,28 @@ export function startDownload(
       // yt-dlp envia TODO output (inclusive erros) para stdout, não stderr.
       let outputBuf = ''
 
-      // Progresso: prefere o número real do yt-dlp; usa animação fake
-      // só enquanto o yt-dlp não emitiu nenhum progress ainda (típico
-      // dos primeiros ~500ms até começar a baixar).
+      // Progresso: usa Math.max(lastReal, fake) pra combinar real + animação.
+      // - FAKE_CEILING baixo (0.5) garante que fake é só "floor" antes do real.
+      // - Quando real ultrapassa fake, segue só o real (que vai até ~1.0).
+      // - lastReported garante monotonicidade absoluta (defesa em profundidade
+      //   contra regressões de race condition entre ticks do timer e do regex).
       //
-      // Antes a curva fake (assintota em 95%) era combinada com
-      // Math.max(real, fake) — em downloads grandes, fake batia 95% em
-      // ~10s enquanto o real ainda tava em 30%, e a barra ficava
-      // travada em ~95% pelo resto do download. Agora: assim que
-      // chega qualquer real, fake é abandonada e seguimos só o real.
+      // Bug antigo (corrigido aqui): se hasRealProgress passava a true antes
+      // de fake passar de lastReal, a barra "saltava pra trás" — ex: fake já
+      // estava em 40% e o primeiro real chegou em 10%, o output pulava de
+      // 40%→10%. Agora Math.max + lastReported impedem qualquer regressão.
       let lastReal = 0
-      let hasRealProgress = false
+      let lastReported = 0
       const startedAt = Date.now()
-      const FAKE_CEILING = 0.5     // teto baixo: fake é apenas placeholder até real
-      const FAKE_TAU = 1.5          // segundos pra atingir ~63% da curva
+      const FAKE_CEILING = 0.5
+      const FAKE_TAU = 2.5 // segundos pra atingir ~63% da curva (mais lento que antes)
       const reportProgress = (real?: number) => {
-        if (real !== undefined) {
-          if (real > lastReal) lastReal = real
-          hasRealProgress = true
-        }
-        if (hasRealProgress) {
-          onProgress(Math.min(0.99, lastReal))
-        } else {
-          const elapsed = (Date.now() - startedAt) / 1000
-          const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
-          onProgress(Math.min(0.99, fake))
-        }
+        if (real !== undefined && real > lastReal) lastReal = real
+        const elapsed = (Date.now() - startedAt) / 1000
+        const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
+        const candidate = Math.min(0.99, Math.max(lastReal, fake))
+        if (candidate > lastReported) lastReported = candidate
+        onProgress(lastReported)
       }
       const animationTimer = window.setInterval(() => reportProgress(), 150)
       const stopAnimation = () => window.clearInterval(animationTimer)

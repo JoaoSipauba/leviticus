@@ -8,6 +8,7 @@ import { handleSongEnd } from '../lib/playback.js'
 import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
+import { toastSuccess, toastError } from '../store/toasts.js'
 import { supabase } from '../lib/supabase.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
@@ -631,10 +632,13 @@ export function SongCard({
           try {
             const path = await exportSongToMp3(song.id, song.title)
             console.log('[SongCard] exportado:', path)
-            window.alert(`MP3 salvo em:\n${path}`)
+            toastSuccess('MP3 exportado', path)
           } catch (e) {
             console.error('[SongCard] export mp3 error:', e)
-            window.alert(`Erro ao exportar:\n${e instanceof Error ? e.message : String(e)}`)
+            toastError(
+              'Falha ao exportar MP3',
+              e instanceof Error ? e.message : 'Tente novamente.'
+            )
           }
         } : undefined}
         isDownloadedOnDevice={downloaded}

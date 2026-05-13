@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase.js'
 import { useAuthStore } from './store/auth.js'
 import { Layout } from './components/Layout.js'
 import { UpdateNotification } from './components/UpdateNotification.js'
+import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
@@ -94,6 +95,7 @@ export function App() {
     <Layout>
       <Outlet />
       <UpdateNotification />
+      <Toasts />
     </Layout>
   )
 }
