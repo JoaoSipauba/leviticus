@@ -103,6 +103,22 @@ export function PlayerExpanded({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragOverIdx])
 
+  // Atalho Q: toggle da fila. PlayerExpanded só é renderizado quando expanded=true,
+  // então o listener é automaticamente removido ao recolher o player.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return
+      const tag = (e.target as HTMLElement | null)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+      if (e.key === 'q' || e.key === 'Q') {
+        e.preventDefault()
+        setQueueOpen((v) => !v)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
+
   if (!currentSong) return null
 
   function handlePlayPause() {

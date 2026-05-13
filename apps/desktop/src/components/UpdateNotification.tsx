@@ -7,7 +7,7 @@ import { usePlayerStore } from '../store/player.js'
 type Status =
   | { kind: 'idle' }
   | { kind: 'available'; update: Update }
-  | { kind: 'downloading'; update: Update; downloaded: number; total: number | null }
+  | { kind: 'downloading'; update: Update; downloaded: number; total: number; estimated: boolean }
   | { kind: 'downloaded'; update: Update }
   | { kind: 'installing' }
   | { kind: 'error'; message: string }
@@ -15,6 +15,11 @@ type Status =
 const CHECK_INTERVAL_MS = 1 * 60 * 60 * 1000 // 1h
 const PLAYBACK_RETRY_MS = 5 * 60 * 1000      // 5min
 const BOOT_DELAY_MS = 5 * 1000               // 5s pós-boot
+// Fallback quando o servidor de update não retorna Content-Length.
+// Releases típicas: ~9MB macOS, ~6MB Windows — 10MB cobre ambas com folga.
+// Se o download real for menor, a barra para antes de 100% e salta no Finished.
+// Antes (sem fallback) a barra ficava pulsando inteira, parecia travada.
+const ESTIMATED_TOTAL_BYTES = 10 * 1024 * 1024
 
 export function UpdateNotification() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -80,20 +85,28 @@ export function UpdateNotification() {
   async function handleDownload() {
     if (status.kind !== 'available') return
     const update = status.update
-    setStatus({ kind: 'downloading', update, downloaded: 0, total: null })
+    setStatus({ kind: 'downloading', update, downloaded: 0, total: ESTIMATED_TOTAL_BYTES, estimated: true })
     try {
       await update.download((event) => {
         if (event.event === 'Started') {
+          const real = event.data.contentLength
           setStatus({
             kind: 'downloading',
             update,
             downloaded: 0,
-            total: event.data.contentLength ?? null,
+            total: real ?? ESTIMATED_TOTAL_BYTES,
+            estimated: real == null,
           })
         } else if (event.event === 'Progress') {
           setStatus((prev) => {
             if (prev.kind !== 'downloading') return prev
-            return { ...prev, downloaded: prev.downloaded + event.data.chunkLength }
+            // Quando estimamos o total e o download passou da estimativa,
+            // expande o teto pra evitar mostrar >99%.
+            const downloaded = prev.downloaded + event.data.chunkLength
+            const total = prev.estimated && downloaded > prev.total * 0.99
+              ? Math.max(prev.total, downloaded / 0.95)
+              : prev.total
+            return { ...prev, downloaded, total }
           })
         } else if (event.event === 'Finished') {
           setStatus({ kind: 'downloaded', update })
@@ -170,8 +183,10 @@ export function UpdateNotification() {
   }
 
   if (status.kind === 'downloading') {
-    const { downloaded, total } = status
-    const pct = total ? Math.min(100, (downloaded / total) * 100) : null
+    const { downloaded, total, estimated } = status
+    // Cap em 99% até o Finished — assim a barra nunca chega a 100% antes
+    // do download realmente terminar (evita ilusão de "concluído" + delay).
+    const pct = Math.min(99, (downloaded / total) * 100)
     return (
       <Toast>
         <div className="flex items-start gap-3">
@@ -181,20 +196,15 @@ export function UpdateNotification() {
               Baixando {status.update.version}…
             </p>
             <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
-              {pct !== null ? (
-                <div
-                  className="h-full bg-blue-500 transition-[width] duration-150"
-                  style={{ width: `${pct}%` }}
-                />
-              ) : (
-                // Sem Content-Length do servidor: barra inteira pulsando
-                // pra deixar claro que tá em progresso (era 40% fixo antes,
-                // dava a impressão de "travou no meio").
-                <div className="h-full w-full bg-blue-500/80 animate-pulse" />
-              )}
+              <div
+                className="h-full bg-blue-500 transition-[width] duration-150"
+                style={{ width: `${pct}%` }}
+              />
             </div>
-            <p className="text-xs text-body mt-1.5">
-              {pct !== null ? `${Math.round(pct)}%` : formatBytes(downloaded)}
+            <p className="text-xs text-body mt-1.5 font-variant-numeric:tabular-nums">
+              {estimated
+                ? `${formatBytes(downloaded)} · ${Math.round(pct)}%`
+                : `${formatBytes(downloaded)} de ${formatBytes(total)} · ${Math.round(pct)}%`}
             </p>
           </div>
         </div>
