@@ -141,15 +141,21 @@ Toda alteração de schema no Supabase precisa ser **retrocompatível com a vers
 
 Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda em runner macOS Apple Silicon, gera `.dmg` (e bundle assinado pra updater) e cria a GitHub Release automaticamente.
 
-### Fluxo de release
+### Fluxo de release (preferido — pela UI do GitHub Actions)
+
+1. Vai em [Actions → Release Bump → Run workflow](https://github.com/JoaoSipauba/leviticus/actions/workflows/release-bump.yml).
+2. Escolhe o tipo de bump (`patch` | `minor` | `major`) e clica em Run workflow.
+3. O job no Ubuntu roda `pnpm release ${bump} --ci`, bumpa versão (package.json + Cargo.toml + CHANGELOG.md), commita, cria + pusha a tag e logo em seguida dispara o workflow `Release`.
+4. `Release` builda macOS + Windows em paralelo (~10–15 min) e publica `.dmg` / `.exe` / `latest.json` no Supabase Storage e na aba Releases.
+
+### Fluxo de release (fallback — local)
 
 ```bash
 # Em apps/desktop, com working dir limpo, na branch main:
-pnpm release
+pnpm release patch --ci
 # → release-it bumpa versão (package.json + Cargo.toml), gera CHANGELOG.md,
 #   commita, cria tag vX.Y.Z e dá push.
-# Push da tag dispara o workflow. ~10-12 min até .dmg + latest.json estarem
-# em https://github.com/JoaoSipauba/leviticus/releases.
+# Push da tag dispara o workflow Release (não passa pelo Release Bump).
 ```
 
 ### Auto-updater — setup inicial (uma vez só)

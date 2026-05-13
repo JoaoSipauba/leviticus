@@ -14,7 +14,7 @@
     "publish": false
   },
   "hooks": {
-    "after:bump": "sed -i '' 's/^version = \".*\"/version = \"${version}\"/' src-tauri/Cargo.toml"
+    "after:bump": "perl -i -pe 's/^version = \".*\"/version = \"${version}\"/' src-tauri/Cargo.toml"
   },
   "plugins": {
     "@release-it/conventional-changelog": {

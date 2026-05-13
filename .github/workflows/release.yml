@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  # Permite disparo via `gh workflow run release.yml --ref vX.Y.Z`
+  # — usado pelo workflow Release Bump após criar a tag (porque pushes
+  # de tag feitos com GITHUB_TOKEN não disparam outros workflows).
+  workflow_dispatch:
 
 permissions:
   contents: write
