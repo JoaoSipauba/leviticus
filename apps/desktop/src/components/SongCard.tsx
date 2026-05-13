@@ -492,9 +492,11 @@ export function SongCard({
       await deleteSongFile(song.id)
     } catch (e) {
       console.error('[SongCard] deleteSongFile error:', e)
+      toastError('Não foi possível remover a música do dispositivo.')
       return
     }
     setDownloaded(false)
+    toastSuccess('Música removida do dispositivo')
   }
 
   const isList = variant === 'list'
