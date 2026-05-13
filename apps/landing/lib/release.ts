@@ -21,19 +21,23 @@ export async function getLatestRelease(): Promise<ReleaseInfo> {
   try {
     const res = await fetch(
       'https://api.github.com/repos/JoaoSipauba/leviticus/releases/latest',
-      { next: { revalidate: 1800 } } // revalida a cada 30min no edge
+      // Cache ISR: revalida em segundo plano a cada 30min.
+      { next: { revalidate: 1800 } }
     )
     if (!res.ok) return FALLBACK
     const data: Release = await res.json()
-    const version = data.tag_name.replace(/^v/, '')
     const mac = data.assets.find(a => a.name.endsWith('.dmg'))
     const win = data.assets.find(a => a.name.endsWith('.exe'))
+    // Se algum asset crítico está faltando (release ainda buildando, falha de
+    // upload, etc), o FALLBACK inteiro é mais seguro do que misturar a versão
+    // nova com URL/filename antigos — a UX ficaria com instruções inconsistentes.
+    if (!mac || !win) return FALLBACK
     return {
-      version,
-      macUrl:     mac?.browser_download_url ?? FALLBACK.macUrl,
-      macSizeMB:  mac ? Math.round(mac.size / 1024 / 1024) : FALLBACK.macSizeMB,
-      winUrl:     win?.browser_download_url ?? FALLBACK.winUrl,
-      winSizeMB:  win ? Math.round(win.size / 1024 / 1024) : FALLBACK.winSizeMB,
+      version:   data.tag_name.replace(/^v/, ''),
+      macUrl:    mac.browser_download_url,
+      macSizeMB: Math.round(mac.size / 1024 / 1024),
+      winUrl:    win.browser_download_url,
+      winSizeMB: Math.round(win.size / 1024 / 1024),
     }
   } catch {
     return FALLBACK

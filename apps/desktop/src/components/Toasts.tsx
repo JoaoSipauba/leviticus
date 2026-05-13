@@ -20,8 +20,9 @@ export function Toasts() {
   if (items.length === 0) return null
 
   return (
+    // Topo-direito pra não colidir com o UpdateNotification (bottom-4 right-4).
     <div
-      className="fixed bottom-4 right-4 z-40 flex flex-col gap-2 pointer-events-none"
+      className="fixed top-4 right-4 z-40 flex flex-col gap-2 pointer-events-none"
       style={{ maxWidth: 360 }}
     >
       {items.map((t) => {

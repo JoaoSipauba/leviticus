@@ -201,7 +201,7 @@ export function UpdateNotification() {
                 style={{ width: `${pct}%` }}
               />
             </div>
-            <p className="text-xs text-body mt-1.5 font-variant-numeric:tabular-nums">
+            <p className="text-xs text-body mt-1.5 tabular-nums">
               {estimated
                 ? `${formatBytes(downloaded)} · ${Math.round(pct)}%`
                 : `${formatBytes(downloaded)} de ${formatBytes(total)} · ${Math.round(pct)}%`}
