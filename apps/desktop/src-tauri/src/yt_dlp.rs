@@ -13,12 +13,27 @@
 // Python carrega normalmente. Capability shell aponta pra esse path
 // usando o placeholder $APPLOCALDATA.
 
+use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 // Pin de versão alinhado com scripts/fetch-binaries.mjs (legado, será
 // removido). Atualizar manualmente quando subir.
 const YT_DLP_VERSION: &str = "2026.03.17";
+
+// Hashes oficiais publicados pelo yt-dlp em SHA2-256SUMS por release.
+// Defesa supply-chain: mismatch = release alterada ou MITM.
+fn asset_sha256(asset: &str) -> Option<&'static str> {
+    match asset {
+        "yt-dlp_macos" =>
+            Some("e80c47b3ce712acee51d5e3d4eace2d181b44d38f1942c3a32e3c7ff53cd9ed5"),
+        "yt-dlp.exe" =>
+            Some("3db811b366b2da47337d2fcfdfe5bbd9a258dad3f350c54974f005df115a1545"),
+        "yt-dlp_linux" =>
+            Some("c2b0189f581fe4a2ddd41954f1bcb7d327db04b07ed0dea97e4f1b3e09b5dd8e"),
+        _ => None,
+    }
+}
 
 fn asset_for_platform() -> Option<&'static str> {
     if cfg!(target_os = "macos") {
@@ -79,6 +94,19 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
         .bytes()
         .await
         .map_err(|e| format!("falha lendo bytes do yt-dlp: {e}"))?;
+
+    // Verifica hash ANTES de gravar — mismatch indica release adulterada.
+    if let Some(expected) = asset_sha256(asset) {
+        let mut hasher = Sha256::new();
+        hasher.update(&bytes);
+        let got = hex::encode(hasher.finalize());
+        if got != expected {
+            return Err(format!(
+                "hash do yt-dlp não bate (esperado {expected}, obtido {got}) — release pode ter sido alterada"
+            ));
+        }
+    }
+
     tokio::fs::write(&dest, &bytes)
         .await
         .map_err(|e| format!("falha ao escrever {}: {e}", dest.display()))?;

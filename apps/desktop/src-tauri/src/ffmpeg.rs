@@ -11,11 +11,27 @@
 // binário, distribuído como .gz. ffmpeg 6.0 é suficiente pra
 // conversão m4a/opus → mp3 (codecs estáveis há décadas).
 
+use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 const FFMPEG_STATIC_TAG: &str = "b6.0";
+
+// Hashes esperados dos assets — defesa supply-chain. Mismatch indica:
+// (a) release foi alterada após pin, ou (b) MITM. Em qualquer caso,
+// recusamos executar. Hashes obtidos via:
+//   curl -sSL <url> | sha256sum
+fn asset_sha256(asset: &str) -> Option<&'static str> {
+    match asset {
+        "ffmpeg-darwin-arm64.gz" =>
+            Some("6be74d6f449889c2e87a75873894f8520cad56c08ac76f2a628d85b0519daaca"),
+        "ffmpeg-win32-x64.gz" =>
+            Some("450d66226c79405c724e821f291cab0911e934bfa9fa2231adcab587f3e07b50"),
+        // Outros assets ainda não pinados — adicionar sob demanda.
+        _ => None,
+    }
+}
 
 fn asset_for_platform() -> Option<&'static str> {
     if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
@@ -75,20 +91,37 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
         ));
     }
 
-    // Baixa gz completo (18-27MB dependendo da plataforma) em memória.
-    // ffmpeg descompactado dá 43-77MB. Eficiente em memória? Suficiente.
+    // Baixa gz completo (18-27MB) em memória. ffmpeg descompactado dá
+    // 43-77MB. Pico aceitável pra um download que roda 1x na vida do app.
     let gz_bytes = res
         .bytes()
         .await
         .map_err(|e| format!("falha lendo bytes do ffmpeg: {e}"))?;
 
-    // ffmpeg-static distribui um único arquivo gzipped (sem tar) — basta
-    // descomprimir o stream e escrever direto.
-    let mut decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(gz_bytes));
-    let mut decompressed = Vec::with_capacity(80 * 1024 * 1024);
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| format!("falha descomprimindo gz do ffmpeg: {e}"))?;
+    // Verifica hash ANTES de descomprimir e gravar. Pinado em
+    // asset_sha256() — mismatch indica release adulterada ou MITM.
+    if let Some(expected) = asset_sha256(asset) {
+        let mut hasher = Sha256::new();
+        hasher.update(&gz_bytes);
+        let got = hex::encode(hasher.finalize());
+        if got != expected {
+            return Err(format!(
+                "hash do ffmpeg não bate (esperado {expected}, obtido {got}) — release pode ter sido alterada"
+            ));
+        }
+    }
+
+    // Descompressão é CPU-bound + bloqueante. spawn_blocking devolve o
+    // thread async pro runtime durante o ~1s de gunzip. Decomprime em
+    // memória (não-streaming) pra simplicidade; pico ~80MB pontual.
+    let decompressed = tokio::task::spawn_blocking(move || {
+        let mut decoder = flate2::read::GzDecoder::new(std::io::Cursor::new(gz_bytes));
+        let mut out = Vec::with_capacity(80 * 1024 * 1024);
+        decoder.read_to_end(&mut out).map(|_| out)
+    })
+    .await
+    .map_err(|e| format!("task de descompressão falhou: {e}"))?
+    .map_err(|e| format!("falha descomprimindo gz do ffmpeg: {e}"))?;
 
     tokio::fs::write(&dest, &decompressed)
         .await
