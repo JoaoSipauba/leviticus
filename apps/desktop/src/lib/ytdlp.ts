@@ -327,10 +327,14 @@ function ensureFfmpeg(): Promise<string> {
 //      LPT1-9 (case-insensitive, mesmo sem extensão). Sem o prefixo
 //      o Windows recusa abrir o arquivo com ERROR_ACCESS_DENIED.
 const WIN_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
+// Quantificador limitado pra evitar backtracking quadrático em strings
+// patológicas (toda dots/espaços). NTFS já recusa filenames > 255 chars,
+// então o bound real do mundo nunca chega aqui.
+const TRAILING_DOT_SPACE = /[. ]{1,256}$/
 function sanitizeFilename(input: string, fallback: string): string {
   const cleaned = input
     .replace(/[/\\:*?"<>|]/g, '_')
-    .replace(/[. ]+$/, '') // remove ponto/espaço no final (regra Windows)
+    .replace(TRAILING_DOT_SPACE, '') // remove ponto/espaço no final (regra Windows)
     .trim()
   if (!cleaned) return fallback
   if (WIN_RESERVED.test(cleaned)) return `_${cleaned}`
