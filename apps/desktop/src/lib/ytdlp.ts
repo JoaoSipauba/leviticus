@@ -1,6 +1,23 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
+import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join, homeDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
+
+// Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
+// primeiro boot baixa do GitHub releases do yt-dlp; depois disso é
+// O(1) (só um stat no Rust). Tem que rodar ANTES de qualquer Command
+// que chame "yt-dlp" porque a capability aponta pra esse path.
+let ensurePromise: Promise<string> | null = null
+function ensureYtDlp(): Promise<string> {
+  if (!ensurePromise) {
+    ensurePromise = invoke<string>('ensure_yt_dlp').catch((e) => {
+      // Reset cache em erro pra próxima tentativa rebaixar
+      ensurePromise = null
+      throw e
+    })
+  }
+  return ensurePromise
+}
 
 export const DOWNLOAD_CANCELED = 'canceled'
 
@@ -142,11 +159,11 @@ export function startDownload(
     // final via findSongFile() depois que o processo terminar.
     const outputTemplate = await join(audioDir, `${songId}.%(ext)s`)
 
-    // Sidecar — Tauri bundla yt-dlp por plataforma (binaries/yt-dlp-<triple>).
     // Sem -x e sem --audio-format: pega o stream original do YouTube sem
     // re-encodar. Prefere m4a (AAC, melhor compat com WebKit/Howler) e cai
     // pra qualquer bestaudio (geralmente opus/webm) se m4a não existir.
-    const command = Command.sidecar('binaries/yt-dlp', [
+    await ensureYtDlp()
+    const command = Command.create('yt-dlp', [
       '--no-playlist',
       '-f', 'bestaudio[ext=m4a]/bestaudio',
       '--newline',
@@ -343,7 +360,8 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
   }
   const url = normalized
 
-  const command = Command.sidecar('binaries/yt-dlp', [
+  await ensureYtDlp()
+  const command = Command.create('yt-dlp', [
     '--no-playlist',
     '--no-download',
     '--print', '%(title)s|||%(uploader)s|||%(duration)s',
@@ -382,7 +400,8 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
 
   // --flat-playlist: usa apenas os dados da página de resultados, sem fazer
   // uma requisição extra por vídeo. Reduz de ~6 requests para 1.
-  const command = Command.sidecar('binaries/yt-dlp', [
+  await ensureYtDlp()
+  const command = Command.create('yt-dlp', [
     '--flat-playlist',
     '--dump-json',
     '--socket-timeout', '10', // timeout de rede no próprio yt-dlp — causa raiz de travamento
@@ -451,7 +470,8 @@ export async function getPreviewUrl(videoId: string): Promise<string> {
   // tamanho razoável e codec amplamente suportado pelo Media Source
   // Extensions, que vai fazer streaming progressivo verdadeiro
   // (chunks chegando e tocando ao mesmo tempo).
-  const command = Command.sidecar('binaries/yt-dlp', [
+  await ensureYtDlp()
+  const command = Command.create('yt-dlp', [
     '-f', '140/bestaudio[ext=m4a]/bestaudio[acodec=aac]/bestaudio',
     '--get-url',
     `https://youtube.com/watch?v=${videoId}`,

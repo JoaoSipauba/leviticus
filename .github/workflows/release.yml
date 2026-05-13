@@ -57,10 +57,6 @@ jobs:
       - name: Tests (todos os pacotes)
         run: pnpm test
 
-      - name: Fetch yt-dlp sidecar
-        working-directory: apps/desktop
-        run: pnpm fetch:binaries ${{ matrix.rust_target }}
-
       - name: Tauri build
         working-directory: apps/desktop
         env:

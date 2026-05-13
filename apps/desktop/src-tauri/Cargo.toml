@@ -23,3 +23,8 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-http = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# Pra baixar yt-dlp em $APPLOCALDATA/bin no primeiro uso. rustls evita
+# linkar OpenSSL (mais leve e cross-platform). stream pra futuro progresso.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros"] }
+futures-util = "0.3"

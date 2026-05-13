@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "yt-dlp-mac",
+  "description": "yt-dlp baixado em runtime pra $APPLOCALDATA/bin (macOS e Linux)",
+  "windows": ["main"],
+  "platforms": ["macOS", "linux"],
+  "permissions": [
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "yt-dlp", "cmd": "$APPLOCALDATA/bin/yt-dlp", "args": true }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "yt-dlp", "cmd": "$APPLOCALDATA/bin/yt-dlp", "args": true }
+      ]
+    }
+  ]
+}

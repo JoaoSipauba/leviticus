@@ -1,9 +1,12 @@
+mod yt_dlp;
+
 use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
 use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub fn run() {
     tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![yt_dlp::ensure_yt_dlp])
         .plugin(tauri_plugin_shell::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
