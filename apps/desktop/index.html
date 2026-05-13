@@ -1,13 +1,112 @@
 <!doctype html>
-<html lang="en">
+<html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Leviticus</title>
+    <style>
+      /* Boot splash: pintado já no HTML pra cobrir o gap entre a janela
+         do Tauri abrir e o bundle React montar. Equalizer animado em
+         CSS puro (sem imagem) — mesma identidade do ícone do app, sem
+         depender de fetch de asset. React dispara 'leviticus-ready'
+         quando termina o auth — só então o splash some. */
+      html, body { margin: 0; padding: 0; height: 100%; background: #0a0a13; }
+
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        background: #0a0a13;
+        color: #f3f4f6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 26px;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.25s ease-out;
+      }
+      #boot-splash.hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      /* Equalizer: 5 barras pulsando + linha base (mesma forma do ícone).
+         A baseline horizontal é ~30% mais larga que o grupo de barras —
+         se estende além das pontas em ambos os lados, igual o ícone. */
+      #boot-eq-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      #boot-eq {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 7px;
+        height: 72px;
+        /* Total bars: 5*9 + 4*7 = 73px */
+      }
+      #boot-eq > span {
+        display: block;
+        width: 9px;
+        background: linear-gradient(180deg, #60a5fa, #3b82f6);
+        border-radius: 4px;
+        transform-origin: bottom center;
+        animation: boot-eq 1.1s ease-in-out infinite;
+      }
+      #boot-eq > span:nth-child(1) { height: 56%; animation-delay: 0s; }
+      #boot-eq > span:nth-child(2) { height: 92%; animation-delay: -0.4s; }
+      #boot-eq > span:nth-child(3) { height: 36%; animation-delay: -0.7s; }
+      #boot-eq > span:nth-child(4) { height: 72%; animation-delay: -0.2s; }
+      #boot-eq > span:nth-child(5) { height: 48%; animation-delay: -0.55s; }
+      #boot-baseline {
+        /* Bar group = 73px. Baseline ~30% maior pra emular a proporção
+           do ícone, em que a linha extende além das barras. */
+        width: 96px;
+        height: 3px;
+        background: #3b82f6;
+        border-radius: 2px;
+      }
+
+      #boot-title {
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.015em;
+      }
+
+      @keyframes boot-eq {
+        0%, 100% { transform: scaleY(0.35); }
+        50%      { transform: scaleY(1); }
+      }
+    </style>
   </head>
 
   <body>
+    <div id="boot-splash" role="status" aria-live="polite" aria-label="Carregando">
+      <div id="boot-eq-wrap" aria-hidden="true">
+        <div id="boot-eq">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div id="boot-baseline"></div>
+      </div>
+      <div id="boot-title">Leviticus</div>
+    </div>
+
     <div id="root"></div>
+
+    <script>
+      // Idempotente — React chama isso quando auth termina. Após o fade
+      // o splash é removido do DOM pra liberar o z-index.
+      window.addEventListener('leviticus-ready', function once() {
+        var el = document.getElementById('boot-splash');
+        if (!el) return;
+        el.classList.add('hide');
+        setTimeout(function () { el.remove(); }, 260);
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

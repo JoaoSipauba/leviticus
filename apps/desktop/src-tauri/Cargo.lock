@@ -2101,12 +2101,15 @@ checksum = "09edd9e8b54e49e587e4f6295a7d29c3ea94d469cb40ab8ca70b288248a81db2"
 
 [[package]]
 name = "leviticus-desktop"
-version = "0.1.14"
+version = "0.1.15"
 dependencies = [
+ "flate2",
  "futures-util",
+ "hex",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "tauri",
  "tauri-build",
  "tauri-plugin-fs",

@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "ext-bin-win",
+  "description": "yt-dlp e ffmpeg baixados em runtime pra $APPLOCALDATA/bin (Windows)",
+  "windows": ["main"],
+  "platforms": ["windows"],
+  "permissions": [
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "yt-dlp",  "cmd": "$APPLOCALDATA/bin/yt-dlp.exe", "args": true },
+        { "name": "ffmpeg", "cmd": "$APPLOCALDATA/bin/ffmpeg.exe", "args": true }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        { "name": "yt-dlp",  "cmd": "$APPLOCALDATA/bin/yt-dlp.exe", "args": true },
+        { "name": "ffmpeg", "cmd": "$APPLOCALDATA/bin/ffmpeg.exe", "args": true }
+      ]
+    }
+  ]
+}

@@ -252,7 +252,7 @@ function ActionsMenu({
                   <FileDown size={14} className="text-body" strokeWidth={2} />
                   <div className="flex-1">
                     <div>Exportar como MP3</div>
-                    <div className="text-xs text-muted font-normal mt-0.5">Salva em ~/Downloads</div>
+                    <div className="text-xs text-muted font-normal mt-0.5">Salva na pasta Downloads</div>
                   </div>
                 </button>
               )}
@@ -336,17 +336,13 @@ type Props = {
   // 'list' = row densa sem fundo próprio (uso dentro de uma lista contínua,
   // ex: detalhe do culto onde já tem ar visual ao redor).
   variant?: 'standalone' | 'list'
-  // Drag handlers HTML5 — quando o consumidor quer permitir arrastar a row
-  // (ex: reordenar dentro de um culto). Aplicados direto na div root.
-  draggable?: boolean
-  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void
-  onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void
-  onDragEnd?: () => void
+  // Handle de drag — quando preenchido, renderiza antes do índice da fila.
+  // Permite ao consumidor injetar o GripVertical com onMouseDown/onMouseUp.
+  dragHandle?: React.ReactNode
 }
 
 export function SongCard({
-  song, playlistContext, onEdit, variant = 'standalone',
-  draggable, onDragStart, onDragOver, onDragEnd,
+  song, playlistContext, onEdit, variant = 'standalone', dragHandle,
 }: Props) {
   const [downloaded, setDownloaded] = useState(false)
   // Animação de "concluído": logo após o download terminar, exibe um check
@@ -502,10 +498,6 @@ export function SongCard({
     && downloadStatus.state !== 'queued'
   return (
     <div
-      draggable={draggable && !isPlayed}
-      onDragStart={onDragStart}
-      onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
       className={`group relative flex items-center gap-4 transition-all overflow-hidden ${
         isList ? 'gap-3 px-2 py-2 rounded-lg hover:bg-white/[0.04]' : 'px-4 py-3.5 rounded-2xl'
       }`}
@@ -513,7 +505,6 @@ export function SongCard({
         background: showDownloadAlert
           ? 'rgba(239,68,68,0.05)'
           : (isCurrentlyPlaying ? `${typeColor}1a` : undefined),
-        cursor: draggable && !isPlayed ? 'grab' : undefined,
         opacity: isPlayed ? 0.55 : 1,
         ...(showDownloadAlert ? { paddingLeft: 14 } : {}),
       } : {
@@ -525,10 +516,10 @@ export function SongCard({
         border: isCurrentlyPlaying
           ? `1px solid ${typeColor}55`
           : '1px solid rgba(255,255,255,0.06)',
-        cursor: draggable && !isPlayed ? 'grab' : undefined,
         opacity: isPlayed ? 0.55 : 1,
       }}
     >
+      {dragHandle}
       {/* Listra vermelha vertical pra row em alerta de download */}
       {showDownloadAlert && (
         <span
@@ -559,7 +550,7 @@ export function SongCard({
         style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
       >
         {song.thumbnail_url ? (
-          <img src={song.thumbnail_url} alt="" className="w-full h-full object-cover" />
+          <img src={song.thumbnail_url} alt="" draggable={false} className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Music size={20} className="text-muted" strokeWidth={2} />

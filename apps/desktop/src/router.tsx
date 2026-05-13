@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
 import { App } from './App.js'
 import { Login } from './pages/Login.js'
@@ -12,6 +13,9 @@ import { DownloadBadgePreview } from './pages/_DownloadBadgePreview.js'
 
 function LoginRoute() {
   const navigate = useNavigate()
+  // Esconde o splash do index.html se o app abriu direto em /login
+  // (deeplink ou sessão expirada antes de App.tsx montar).
+  useEffect(() => { window.dispatchEvent(new Event('leviticus-ready')) }, [])
   return <Login onSuccess={() => navigate('/org', { replace: true })} />
 }
 

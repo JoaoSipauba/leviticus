@@ -1,6 +1,6 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { invoke } from '@tauri-apps/api/core'
-import { appLocalDataDir, join, homeDir } from '@tauri-apps/api/path'
+import { appLocalDataDir, join, downloadDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
@@ -176,21 +176,32 @@ export function startDownload(
       // yt-dlp envia TODO output (inclusive erros) para stdout, não stderr.
       let outputBuf = ''
 
-      // Animação assintótica de progresso. Pra m4a sem reencoding, o
-      // download é tão rápido (~1-2s pra músicas de 4 min) que o yt-dlp
-      // raramente emite progress intermediário — vai de 0 a close direto.
-      // A curva fake (1 - e^(-t/tau)) cresce rápido no início e desacelera
-      // até assintotar em 95%. Quando o yt-dlp emite progress real, usamos
-      // o maior valor pra evitar regressão. O close dispara o 100%.
+      // Progresso: prefere o número real do yt-dlp; usa animação fake
+      // só enquanto o yt-dlp não emitiu nenhum progress ainda (típico
+      // dos primeiros ~500ms até começar a baixar).
+      //
+      // Antes a curva fake (assintota em 95%) era combinada com
+      // Math.max(real, fake) — em downloads grandes, fake batia 95% em
+      // ~10s enquanto o real ainda tava em 30%, e a barra ficava
+      // travada em ~95% pelo resto do download. Agora: assim que
+      // chega qualquer real, fake é abandonada e seguimos só o real.
       let lastReal = 0
+      let hasRealProgress = false
       const startedAt = Date.now()
-      const FAKE_CEILING = 0.95
-      const FAKE_TAU = 1.5 // segundos pra atingir ~63% da curva
+      const FAKE_CEILING = 0.5     // teto baixo: fake é apenas placeholder até real
+      const FAKE_TAU = 1.5          // segundos pra atingir ~63% da curva
       const reportProgress = (real?: number) => {
-        if (real !== undefined && real > lastReal) lastReal = real
-        const elapsed = (Date.now() - startedAt) / 1000
-        const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
-        onProgress(Math.min(0.99, Math.max(lastReal, fake)))
+        if (real !== undefined) {
+          if (real > lastReal) lastReal = real
+          hasRealProgress = true
+        }
+        if (hasRealProgress) {
+          onProgress(Math.min(0.99, lastReal))
+        } else {
+          const elapsed = (Date.now() - startedAt) / 1000
+          const fake = FAKE_CEILING * (1 - Math.exp(-elapsed / FAKE_TAU))
+          onProgress(Math.min(0.99, fake))
+        }
       }
       const animationTimer = window.setInterval(() => reportProgress(), 150)
       const stopAnimation = () => window.clearInterval(animationTimer)
@@ -294,17 +305,57 @@ export function startDownload(
   }
 }
 
-// Converte o arquivo de áudio local para MP3 e salva em ~/Downloads.
-// Requer ffmpeg instalado via Homebrew. Lança se o arquivo não existir ou
-// se o ffmpeg falhar. Retorna o caminho do arquivo gerado.
+// Cache pra ensure_ffmpeg: só baixa 1x por sessão. Reset em erro pra
+// próxima tentativa rebaixar.
+let ensureFfmpegPromise: Promise<string> | null = null
+function ensureFfmpeg(): Promise<string> {
+  if (!ensureFfmpegPromise) {
+    ensureFfmpegPromise = invoke<string>('ensure_ffmpeg').catch((e) => {
+      ensureFfmpegPromise = null
+      throw e
+    })
+  }
+  return ensureFfmpegPromise
+}
+
+// Sanitiza um título de música pra virar nome de arquivo válido em
+// macOS + Windows. Cobre:
+//   1. Caracteres proibidos no NTFS/HFS+:  / \ : * ? " < > |
+//   2. Trailing dots e espaços (Windows silenciosamente remove e cria
+//      filename diferente, ou recusa com ERROR_INVALID_NAME)
+//   3. Nomes reservados de device Windows: CON, PRN, AUX, NUL, COM1-9,
+//      LPT1-9 (case-insensitive, mesmo sem extensão). Sem o prefixo
+//      o Windows recusa abrir o arquivo com ERROR_ACCESS_DENIED.
+const WIN_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
+// Quantificador limitado pra evitar backtracking quadrático em strings
+// patológicas (toda dots/espaços). NTFS já recusa filenames > 255 chars,
+// então o bound real do mundo nunca chega aqui.
+const TRAILING_DOT_SPACE = /[. ]{1,256}$/
+function sanitizeFilename(input: string, fallback: string): string {
+  const cleaned = input
+    .replace(/[/\\:*?"<>|]/g, '_')
+    .replace(TRAILING_DOT_SPACE, '') // remove ponto/espaço no final (regra Windows)
+    .trim()
+  if (!cleaned) return fallback
+  if (WIN_RESERVED.test(cleaned)) return `_${cleaned}`
+  return cleaned
+}
+
+// Converte o arquivo de áudio local para MP3 e salva na pasta Downloads
+// do sistema. ffmpeg é baixado em runtime pra $APPLOCALDATA/bin no
+// primeiro uso (ver src-tauri/src/ffmpeg.rs). Funciona em macOS + Windows.
 export async function exportSongToMp3(songId: string, title: string): Promise<string> {
   const inputPath = await findSongFile(songId)
   if (!inputPath) throw new Error('Arquivo de áudio não encontrado. Baixe a música primeiro.')
 
-  const home = await homeDir()
-  const safeName = title.replace(/[/\\:*?"<>|]/g, '_').trim() || songId
-  const outputPath = await join(home, 'Downloads', `${safeName}.mp3`)
+  // downloadDir() resolve o Known Folder do sistema — funciona com
+  // redirect pro OneDrive, locale não-PT etc. (~/Downloads era frágil
+  // em Windows quando o usuário tinha redirect ativo).
+  const downloads = await downloadDir()
+  const safeName = sanitizeFilename(title, songId)
+  const outputPath = await join(downloads, `${safeName}.mp3`)
 
+  await ensureFfmpeg()
   const command = Command.create('ffmpeg', [
     '-i', inputPath,
     '-codec:a', 'libmp3lame',
@@ -316,7 +367,7 @@ export async function exportSongToMp3(songId: string, title: string): Promise<st
   const result = await command.execute()
   if (result.code !== 0) {
     console.error('[exportSongToMp3] ffmpeg failed:', result.stderr)
-    throw new Error('Falha ao exportar. Verifique se o ffmpeg está instalado (brew install ffmpeg).')
+    throw new Error('Não foi possível exportar a música. Tente novamente.')
   }
   return outputPath
 }

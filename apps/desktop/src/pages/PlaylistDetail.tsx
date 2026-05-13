@@ -82,12 +82,14 @@ export function PlaylistDetail() {
   } | null>(null)
 
   // Drag state. dragRef e dropTargetRef são ref síncronas usadas no endDrag
-  // pra evitar race condition: dragend pode disparar antes do React processar
-  // o setDropTarget agendado pelo último dragover. State paralelo é só pra UI.
+  // pra evitar race condition com mouse events. State paralelo é só pra UI.
   const dragRef = useRef<DragState>(null)
   const dropTargetRef = useRef<DropTarget>(null)
   const [drag, setDrag] = useState<DragState>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
+  // Ref que aponta para o endDrag mais recente — atualizado a cada render
+  // para que o mouseup global sempre use a versão com sections atualizado.
+  const endDragRef = useRef<() => Promise<void>>(async () => {})
   const [pendingMerge, setPendingMerge] = useState<{
     sourceSection: SectionView
     targetSection: SectionView
@@ -207,19 +209,101 @@ export function PlaylistDetail() {
     return [...real, ...drafts]
   }, [sections, draftSections, groups])
 
-  // Limpa drag em mouseup global (caso o user solte fora de um alvo).
+  // Commit do drag em mouseup global. Re-registra quando dropTarget muda para
+  // que endDrag na closure sempre veja o alvo mais recente (mesmo padrão
+  // do PlayerExpanded com [dragOverIdx]).
   useEffect(() => {
     function up() {
-      if (dragRef.current) {
-        dragRef.current = null
-        dropTargetRef.current = null
-        setDrag(null)
-        setDropTarget(null)
-      }
+      if (dragRef.current) void endDragRef.current()
     }
     window.addEventListener('mouseup', up)
     return () => window.removeEventListener('mouseup', up)
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dropTarget])
+
+  // Tracker global de mousemove durante drag. Usa a posição absoluta do
+  // cursor + getBoundingClientRect dos elementos para escolher o alvo: se
+  // o cursor está na metade superior do elemento, o alvo é "antes dele";
+  // se está na metade inferior, "depois" (= antes do próximo, ou fim).
+  // Mais confiável que onMouseEnter, que não dispara quando o mouse já está
+  // sobre o elemento no momento em que pointerEvents/listener é ativado.
+  useEffect(() => {
+    if (!drag) return
+
+    function onMove(e: MouseEvent) {
+      const state = dragRef.current
+      if (!state) return
+      const y = e.clientY
+
+      if (state.kind === 'section') {
+        const els = Array.from(document.querySelectorAll<HTMLElement>('[data-section-id]'))
+          .filter((el) => el.dataset.sectionId !== state.sectionId)
+        if (els.length === 0) return
+
+        const first = els[0].getBoundingClientRect()
+        if (y < first.top) {
+          setDragOver({ kind: 'section', beforeSectionId: els[0].dataset.sectionId! })
+          return
+        }
+        const last = els[els.length - 1].getBoundingClientRect()
+        if (y > last.bottom) {
+          setDragOver({ kind: 'section', beforeSectionId: null })
+          return
+        }
+        for (let i = 0; i < els.length; i++) {
+          const rect = els[i].getBoundingClientRect()
+          if (y >= rect.top && y <= rect.bottom) {
+            const mid = rect.top + rect.height / 2
+            if (y < mid) {
+              setDragOver({ kind: 'section', beforeSectionId: els[i].dataset.sectionId! })
+            } else {
+              const next = els[i + 1]
+              setDragOver({ kind: 'section', beforeSectionId: next ? next.dataset.sectionId! : null })
+            }
+            return
+          }
+        }
+        return
+      }
+
+      if (state.kind === 'song') {
+        const els = Array.from(document.querySelectorAll<HTMLElement>('[data-song-id]'))
+          .filter((el) => !(el.dataset.songId === state.songId && el.dataset.sectionId === state.sectionId))
+        if (els.length === 0) return
+
+        for (let i = 0; i < els.length; i++) {
+          const el = els[i]
+          const rect = el.getBoundingClientRect()
+          const songId = el.dataset.songId!
+          const sectionId = el.dataset.sectionId!
+
+          if (y < rect.top) {
+            setDragOver({ kind: 'song', sectionId, beforeSongId: songId })
+            return
+          }
+          if (y >= rect.top && y <= rect.bottom) {
+            const mid = rect.top + rect.height / 2
+            if (y < mid) {
+              setDragOver({ kind: 'song', sectionId, beforeSongId: songId })
+            } else {
+              const next = els[i + 1]
+              if (next && next.dataset.sectionId === sectionId) {
+                setDragOver({ kind: 'song', sectionId, beforeSongId: next.dataset.songId! })
+              } else {
+                setDragOver({ kind: 'song', sectionId, beforeSongId: null })
+              }
+            }
+            return
+          }
+        }
+        const lastEl = els[els.length - 1]
+        setDragOver({ kind: 'song', sectionId: lastEl.dataset.sectionId!, beforeSongId: null })
+      }
+    }
+
+    window.addEventListener('mousemove', onMove)
+    return () => window.removeEventListener('mousemove', onMove)
+  }, [drag])
 
   if (!playlist) return null
 
@@ -308,6 +392,15 @@ export function PlaylistDetail() {
 
   function setDragOver(target: DropTarget) {
     if (!dragRef.current) return
+    if (target?.kind !== dragRef.current.kind) return
+    const current = dropTargetRef.current
+    if (current && target && current.kind === target.kind) {
+      if (current.kind === 'song' && target.kind === 'song'
+        && current.sectionId === target.sectionId
+        && current.beforeSongId === target.beforeSongId) return
+      if (current.kind === 'section' && target.kind === 'section'
+        && current.beforeSectionId === target.beforeSectionId) return
+    }
     dropTargetRef.current = target
     setDropTarget(target)
   }
@@ -400,6 +493,9 @@ export function PlaylistDetail() {
       await load()
     }
   }
+  // Mantém o ref sempre apontando para a versão mais recente de endDrag
+  // (com seções atualizadas) sem adicionar deps no useEffect do mouseup.
+  endDragRef.current = endDrag
 
   // ─── Play helpers ──────────────────────────────────────────────────────
 
@@ -597,7 +693,6 @@ export function PlaylistDetail() {
           <div key={section.sectionId}>
             <SectionDropIndicator
               show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === section.sectionId}
-              onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: section.sectionId })}
             />
             <PlaylistSection
               section={section}
@@ -613,7 +708,6 @@ export function PlaylistDetail() {
               onStartDragSection={() => {
                 if (!section.isDraft) startDrag({ kind: 'section', sectionId: section.sectionId })
               }}
-              onSongDragOver={(beforeSongId) => setDragOver({ kind: 'song', sectionId: section.sectionId, beforeSongId })}
               onEndDrag={endDrag}
               onAddSong={() => handleAddSongToSection(section)}
               onRemoveSong={handleRemoveSong}
@@ -625,7 +719,6 @@ export function PlaylistDetail() {
             {idx === allSections.length - 1 && (
               <SectionDropIndicator
                 show={dropTarget?.kind === 'section' && dropTarget.beforeSectionId === null}
-                onDragEnter={() => setDragOver({ kind: 'section', beforeSectionId: null })}
               />
             )}
           </div>
@@ -686,18 +779,16 @@ export function PlaylistDetail() {
 
 // ─────────────────────────────────────────────────────────────────────────
 
-function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnter: () => void }) {
+function SectionDropIndicator({ show }: { show: boolean }) {
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); onDragEnter() }}
-      onMouseEnter={onDragEnter}
       className="h-2"
       style={{
         marginTop: -2, marginBottom: -2,
         background: show ? '#3b82f6' : 'transparent',
         borderRadius: 2,
         opacity: show ? 1 : 0,
-        transition: 'opacity 0.1s',
+        pointerEvents: 'none',
       }}
     />
   )
@@ -706,7 +797,7 @@ function SectionDropIndicator({ show, onDragEnter }: { show: boolean; onDragEnte
 function PlaylistSection({
   section, playlist, allSongs, playedIds, onMarkPlayed, onUnmarkPlayed,
   dragState, dropTarget,
-  onPlay, onStartDragSong, onStartDragSection, onSongDragOver, onEndDrag,
+  onPlay, onStartDragSong, onStartDragSection, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
 }: {
   section: SectionView & { isDraft: boolean }
@@ -720,7 +811,6 @@ function PlaylistSection({
   onPlay?: () => void
   onStartDragSong: (songId: string) => void
   onStartDragSection: () => void
-  onSongDragOver: (beforeSongId: string | null) => void
   onEndDrag: () => void
   onAddSong: () => void
   onRemoveSong: (ps: PlaylistSong & { song: Song }) => void
@@ -730,6 +820,7 @@ function PlaylistSection({
   const isBeingDraggedSection = dragState?.kind === 'section' && dragState.sectionId === section.sectionId
   return (
     <section
+      data-section-id={section.sectionId}
       style={{
         opacity: isBeingDraggedSection ? 0.4 : 1,
         transition: 'opacity 0.1s',
@@ -769,9 +860,13 @@ function PlaylistSection({
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
           return (
-            <div key={`${ps.section_id}-${ps.song_id}`} style={{ opacity: isBeingDragged ? 0.4 : 1 }}>
+            <div
+              key={`${ps.section_id}-${ps.song_id}`}
+              data-song-id={ps.song_id}
+              data-section-id={ps.section_id}
+              style={{ opacity: isBeingDragged ? 0.4 : 1 }}
+            >
               <div
-                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
                 style={{
                   height: showDropBefore ? 4 : 2,
                   background: showDropBefore ? '#3b82f6' : 'transparent',
@@ -783,21 +878,24 @@ function PlaylistSection({
                 song={ps.song}
                 playlistContext={ctx}
                 variant="list"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move'
-                  onStartDragSong(ps.song_id)
-                }}
-                onDragOver={(e) => { e.preventDefault(); onSongDragOver(ps.song_id) }}
-                onDragEnd={onEndDrag}
+                dragHandle={!isPlayed ? (
+                  <button
+                    className="w-5 h-8 flex items-center justify-center text-muted opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity flex-shrink-0"
+                    onMouseDown={(e) => { e.preventDefault(); onStartDragSong(ps.song_id) }}
+                    onMouseUp={onEndDrag}
+                    aria-label="Arrastar para reordenar"
+                  >
+                    <GripVertical size={14} strokeWidth={2} />
+                  </button>
+                ) : <span className="w-5 flex-shrink-0" />}
               />
             </div>
           )
         })}
-        {/* Drop zone explícita pra "fim da seção" — só aparece quando dragging */}
+        {/* Indicador visual pra "fim da seção" — drop target é decidido pelo
+            tracker global de mousemove via metade inferior da última música. */}
         {section.songs.length > 0 && dragState?.kind === 'song' && (
           <div
-            onDragOver={(e) => { e.preventDefault(); onSongDragOver(null) }}
             style={{
               height: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? 6 : 8,
               background: dropTarget?.kind === 'song' && dropTarget.sectionId === section.sectionId && dropTarget.beforeSongId === null ? '#3b82f6' : 'transparent',
@@ -878,12 +976,8 @@ function SectionHeader({
       style={{ background: 'rgba(13,13,22,0.85)' }}
     >
       <button
-        draggable={!section.isDraft}
-        onDragStart={(e) => {
-          e.dataTransfer.effectAllowed = 'move'
-          onStartDragSection()
-        }}
-        onDragEnd={onEndDrag}
+        onMouseDown={(e) => { e.preventDefault(); onStartDragSection() }}
+        onMouseUp={onEndDrag}
         className="text-muted hover:text-body cursor-grab disabled:cursor-not-allowed disabled:opacity-30"
         disabled={section.isDraft}
         aria-label="Mover seção"

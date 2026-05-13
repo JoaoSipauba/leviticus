@@ -62,6 +62,10 @@ jobs:
         run: pnpm test
 
       - name: Tauri build
+        # Força bash em todos os runners pra consistência de quoting +
+        # UTF-8. PowerShell default do windows-latest tem code page CP-1252
+        # e pode mangle output não-ASCII do cargo/tauri.
+        shell: bash
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

@@ -23,8 +23,13 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-http = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
-# Pra baixar yt-dlp em $APPLOCALDATA/bin no primeiro uso. rustls evita
-# linkar OpenSSL (mais leve e cross-platform). stream pra futuro progresso.
+# Pra baixar yt-dlp/ffmpeg em $APPLOCALDATA/bin no primeiro uso. rustls
+# evita linkar OpenSSL (mais leve e cross-platform). stream pra futuro
+# progresso. flate2 descomprime os .gz do ffmpeg-static. sha2 verifica
+# integridade dos binários baixados (defesa supply-chain).
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
-tokio = { version = "1", features = ["fs", "io-util", "macros"] }
+tokio = { version = "1", features = ["fs", "io-util", "macros", "rt"] }
 futures-util = "0.3"
+flate2 = "1"
+sha2 = "0.10"
+hex = "0.4"
