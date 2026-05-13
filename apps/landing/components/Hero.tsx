@@ -1,6 +1,9 @@
 type Props = { version?: string }
 
-export default function Hero({ version = '0.2.0' }: Props) {
+export default function Hero({ version }: Props) {
+  // Sem versão (feed indisponível): omite o "vX.Y.Z" do eyebrow ao invés de
+  // mostrar um número desatualizado/hardcoded.
+  const prefix = version ? `v${version} · ` : ''
   return (
     <header className="hero" data-screen-label="hero">
       <div className="hero-bg-glow"></div>
@@ -10,7 +13,7 @@ export default function Hero({ version = '0.2.0' }: Props) {
           <div className="hero-verse-ref">Salmos 96 · 1</div>
         </aside>
         <div>
-          <div className="hero-eyebrow">v{version} · Beta pública · macOS + Windows · mobile em breve</div>
+          <div className="hero-eyebrow">{prefix}Beta pública · macOS + Windows · mobile em breve</div>
           <h1 className="hero-headline">Repertório do culto. <em>Sempre pronto, sempre offline.</em></h1>
           <p className="hero-sub">Leviticus é o player desktop da equipe de louvor. Centralize o repertório dos ministérios, monte o setlist do culto e toque no domingo — mesmo sem internet na igreja.</p>
           <div className="hero-actions">
