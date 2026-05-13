@@ -6,21 +6,23 @@
     <title>Leviticus</title>
     <style>
       /* Boot splash: pintado já no HTML pra cobrir o gap entre a janela
-         do Tauri abrir e o bundle React montar. React dispara o evento
-         'leviticus-ready' quando termina o auth (incluindo timeout
-         offline) — só então o splash some. */
+         do Tauri abrir e o bundle React montar. Equalizer animado em
+         CSS puro (sem imagem) — mesma identidade do ícone do app, sem
+         depender de fetch de asset. React dispara 'leviticus-ready'
+         quando termina o auth — só então o splash some. */
       html, body { margin: 0; padding: 0; height: 100%; background: #0a0a13; }
+
       #boot-splash {
         position: fixed;
         inset: 0;
         background: #0a0a13;
-        color: #e5e7eb;
+        color: #f3f4f6;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 18px;
+        gap: 26px;
         z-index: 9999;
         opacity: 1;
         transition: opacity 0.25s ease-out;
@@ -29,41 +31,71 @@
         opacity: 0;
         pointer-events: none;
       }
+
+      /* Equalizer: 5 barras pulsando + linha base (mesma forma do ícone) */
+      #boot-eq {
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 7px;
+        height: 72px;
+      }
+      #boot-eq > span {
+        display: block;
+        width: 9px;
+        background: linear-gradient(180deg, #60a5fa, #3b82f6);
+        border-radius: 4px;
+        transform-origin: bottom center;
+        animation: boot-eq 1.1s ease-in-out infinite;
+      }
+      #boot-eq > span:nth-child(1) { height: 56%; animation-delay: 0s; }
+      #boot-eq > span:nth-child(2) { height: 92%; animation-delay: -0.4s; }
+      #boot-eq > span:nth-child(3) { height: 36%; animation-delay: -0.7s; }
+      #boot-eq > span:nth-child(4) { height: 72%; animation-delay: -0.2s; }
+      #boot-eq > span:nth-child(5) { height: 48%; animation-delay: -0.55s; }
+      #boot-baseline {
+        width: 64px;
+        height: 2px;
+        background: #3b82f6;
+        border-radius: 2px;
+        margin: 4px auto 0;
+      }
+
       #boot-title {
-        font-size: 24px;
+        font-size: 26px;
         font-weight: 600;
-        letter-spacing: -0.01em;
-        color: #f3f4f6;
+        letter-spacing: -0.015em;
       }
-      #boot-spinner {
-        width: 26px;
-        height: 26px;
-        border-radius: 50%;
-        border: 2.5px solid rgba(255, 255, 255, 0.08);
-        border-top-color: #6366f1;
-        animation: boot-spin 0.9s linear infinite;
-      }
-      @keyframes boot-spin {
-        to { transform: rotate(360deg); }
+
+      @keyframes boot-eq {
+        0%, 100% { transform: scaleY(0.35); }
+        50%      { transform: scaleY(1); }
       }
     </style>
   </head>
 
   <body>
-    <div id="boot-splash" role="status" aria-live="polite">
+    <div id="boot-splash" role="status" aria-live="polite" aria-label="Carregando">
+      <div>
+        <div id="boot-eq" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <div id="boot-baseline" aria-hidden="true"></div>
+      </div>
       <div id="boot-title">Leviticus</div>
-      <div id="boot-spinner" aria-label="Carregando"></div>
     </div>
+
     <div id="root"></div>
+
     <script>
       // Idempotente — React chama isso quando auth termina. Após o fade
       // o splash é removido do DOM pra liberar o z-index.
       window.addEventListener('leviticus-ready', function once() {
-        var el = document.getElementById('boot-splash')
-        if (!el) return
-        el.classList.add('hide')
-        setTimeout(function () { el.remove() }, 260)
-      })
+        var el = document.getElementById('boot-splash');
+        if (!el) return;
+        el.classList.add('hide');
+        setTimeout(function () { el.remove(); }, 260);
+      });
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
