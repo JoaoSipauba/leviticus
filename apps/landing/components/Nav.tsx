@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Logo from '@/components/Logo'
 
 export default function Nav() {
   const [open, setOpen] = useState(false)
@@ -9,8 +10,7 @@ export default function Nav() {
     <nav className="nav" data-screen-label="nav">
       <div className="container nav-inner">
         <a href="/" className="nav-brand">
-          <span className="logo-mark"><span></span><span></span><span></span><span></span><span></span><span></span></span>
-          <span className="word">Leviticus</span>
+          <Logo size={22} />
         </a>
         <button
           className="nav-toggle"

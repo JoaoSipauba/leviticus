@@ -28,7 +28,7 @@ export default function Hero() {
             <span>·</span>
             <span>Sem cadastro pra baixar</span>
             <span>·</span>
-            <span>~24 MB</span>
+            <span>~6–9 MB</span>
           </div>
         </div>
       </div>

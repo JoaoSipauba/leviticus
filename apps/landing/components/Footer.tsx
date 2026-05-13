@@ -1,12 +1,12 @@
 import { APP_VERSION, DOMAIN } from '@/lib/config'
+import Logo from '@/components/Logo'
 
 export default function Footer() {
   return (
     <footer className="footer" data-screen-label="footer">
       <div className="container footer-inner">
         <div className="footer-brand">
-          <span className="logo-mark" style={{ height: '18px' }}><span></span><span></span><span></span><span></span><span></span><span></span></span>
-          <span className="word">Leviticus</span>
+          <Logo size={18} />
         </div>
         <div className="footer-meta">{DOMAIN} · feito pra equipes de louvor · v{APP_VERSION}</div>
         <div className="footer-links">
