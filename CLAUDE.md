@@ -141,12 +141,26 @@ Toda alteração de schema no Supabase precisa ser **retrocompatível com a vers
 
 Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda em runner macOS Apple Silicon, gera `.dmg` (e bundle assinado pra updater) e cria a GitHub Release automaticamente.
 
-### Fluxo de release (preferido — pela UI do GitHub Actions)
+### Fluxo de release (automático)
 
-1. Vai em [Actions → Release Bump → Run workflow](https://github.com/JoaoSipauba/leviticus/actions/workflows/release-bump.yml).
-2. Escolhe o tipo de bump (`patch` | `minor` | `major`) e clica em Run workflow.
-3. O job no Ubuntu roda `pnpm release ${bump} --ci`, bumpa versão (package.json + Cargo.toml + CHANGELOG.md), commita, cria + pusha a tag e logo em seguida dispara o workflow `Release`.
-4. `Release` builda macOS + Windows em paralelo (~10–15 min) e publica `.dmg` / `.exe` / `latest.json` no Supabase Storage e na aba Releases.
+Cada push na `main` dispara o workflow [`Release Bump`](.github/workflows/release-bump.yml):
+
+1. Job `test`: typecheck + unit tests no Ubuntu (~1 min).
+2. Job `bump`: se testes passaram, roda `pnpm release --ci`. O plugin conventional-changelog do release-it olha os commits desde a última tag e decide:
+   - `feat:` → bump minor
+   - `fix:` ou `perf:` → bump patch
+   - `BREAKING CHANGE:` no body → bump major
+   - só `chore:` / `refactor:` / `docs:` → não faz nada (workflow encerra sem release)
+3. Se houve bump, commit `chore(release): vX.Y.Z` vai pra main + tag `vX.Y.Z` é criada.
+4. Job dispara `gh workflow run release.yml --ref vX.Y.Z` — o workflow `Release` builda macOS + Windows em paralelo (~10–15 min) e publica `.dmg` / `.exe` / `latest.json` no Supabase Storage e na aba Releases.
+
+Mensagens de commit importam: use prefixos convencionais (`feat:`, `fix:`, etc.) — releases acontecem em função deles.
+
+### Forçar uma release manual
+
+Casos raros (publicar mesmo sem commits relevantes, ou reverter pra versão específica):
+
+[Actions → Release Bump → Run workflow](https://github.com/JoaoSipauba/leviticus/actions/workflows/release-bump.yml) → escolhe bump (`patch`/`minor`/`major`) e dispara. Pula a inferência por conventional commits.
 
 ### Fluxo de release (fallback — local)
 
