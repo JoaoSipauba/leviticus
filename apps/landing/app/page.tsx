@@ -13,25 +13,27 @@ import Closer from '@/components/Closer'
 import WaitlistModal from '@/components/WaitlistModal'
 import Responsibility from '@/components/Responsibility'
 import Footer from '@/components/Footer'
+import { getLatestRelease } from '@/lib/release'
 
-export default function Home() {
+export default async function Home() {
+  const release = await getLatestRelease()
   return (
     <>
       <TopBanner />
       <Nav />
-      <Hero />
+      <Hero version={release.version} />
       <Showcase />
       <Features />
       <HowItWorks />
-      <Download />
-      <Install />
+      <Download release={release} />
+      <Install version={release.version} />
       <Comparison />
       <FAQ />
       <Donation />
       <Closer />
       <WaitlistModal />
       <Responsibility />
-      <Footer />
+      <Footer version={release.version} />
     </>
   )
 }

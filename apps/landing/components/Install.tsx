@@ -2,9 +2,10 @@
 
 import { useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { APP_VERSION } from '@/lib/config'
 
-export default function Install() {
+type Props = { version?: string }
+
+export default function Install({ version = '0.2.0' }: Props) {
   const xattrBtnRef = useRef<HTMLButtonElement>(null)
 
   function copyXattr() {
@@ -37,7 +38,7 @@ export default function Install() {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Abra o arquivo <code>Leviticus_{APP_VERSION}_aarch64.dmg</code> que você baixou.</div>
+              <div className="install-step-text">Abra o arquivo <code>Leviticus_{version}_aarch64.dmg</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
@@ -77,7 +78,7 @@ export default function Install() {
             </div>
             <div className="install-step">
               <div className="install-step-num">1</div>
-              <div className="install-step-text">Execute o arquivo <code>Leviticus_{APP_VERSION}_x64-setup.exe</code> que você baixou.</div>
+              <div className="install-step-text">Execute o arquivo <code>Leviticus_{version}_x64-setup.exe</code> que você baixou.</div>
             </div>
             <div className="install-step">
               <div className="install-step-num">2</div>
