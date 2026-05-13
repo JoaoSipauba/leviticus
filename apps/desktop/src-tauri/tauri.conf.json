@@ -24,7 +24,7 @@
         "enable": true,
         "scope": ["$APPDATA/**", "$APPLOCALDATA/**"]
       },
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* https://*.supabase.co https://*.supabase.io wss://*.supabase.co https://img.youtube.com https://*.googlevideo.com; img-src 'self' data: https://img.youtube.com asset: blob:; media-src asset: blob: http://127.0.0.1:* https://*.googlevideo.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* https://*.supabase.co https://*.supabase.io wss://*.supabase.co https://img.youtube.com https://*.googlevideo.com http://asset.localhost https://asset.localhost; img-src 'self' data: https://img.youtube.com asset: blob: http://asset.localhost https://asset.localhost; media-src asset: blob: http://127.0.0.1:* https://*.googlevideo.com http://asset.localhost https://asset.localhost; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
