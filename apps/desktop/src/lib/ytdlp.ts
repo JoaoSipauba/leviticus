@@ -1,6 +1,6 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { invoke } from '@tauri-apps/api/core'
-import { appLocalDataDir, join, homeDir } from '@tauri-apps/api/path'
+import { appLocalDataDir, join, downloadDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
@@ -318,16 +318,38 @@ function ensureFfmpeg(): Promise<string> {
   return ensureFfmpegPromise
 }
 
-// Converte o arquivo de áudio local para MP3 e salva em ~/Downloads.
-// ffmpeg é baixado em runtime pra $APPLOCALDATA/bin no primeiro uso
-// (ver src-tauri/src/ffmpeg.rs). Funciona em macOS + Windows.
+// Sanitiza um título de música pra virar nome de arquivo válido em
+// macOS + Windows. Cobre:
+//   1. Caracteres proibidos no NTFS/HFS+:  / \ : * ? " < > |
+//   2. Trailing dots e espaços (Windows silenciosamente remove e cria
+//      filename diferente, ou recusa com ERROR_INVALID_NAME)
+//   3. Nomes reservados de device Windows: CON, PRN, AUX, NUL, COM1-9,
+//      LPT1-9 (case-insensitive, mesmo sem extensão). Sem o prefixo
+//      o Windows recusa abrir o arquivo com ERROR_ACCESS_DENIED.
+const WIN_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i
+function sanitizeFilename(input: string, fallback: string): string {
+  const cleaned = input
+    .replace(/[/\\:*?"<>|]/g, '_')
+    .replace(/[. ]+$/, '') // remove ponto/espaço no final (regra Windows)
+    .trim()
+  if (!cleaned) return fallback
+  if (WIN_RESERVED.test(cleaned)) return `_${cleaned}`
+  return cleaned
+}
+
+// Converte o arquivo de áudio local para MP3 e salva na pasta Downloads
+// do sistema. ffmpeg é baixado em runtime pra $APPLOCALDATA/bin no
+// primeiro uso (ver src-tauri/src/ffmpeg.rs). Funciona em macOS + Windows.
 export async function exportSongToMp3(songId: string, title: string): Promise<string> {
   const inputPath = await findSongFile(songId)
   if (!inputPath) throw new Error('Arquivo de áudio não encontrado. Baixe a música primeiro.')
 
-  const home = await homeDir()
-  const safeName = title.replace(/[/\\:*?"<>|]/g, '_').trim() || songId
-  const outputPath = await join(home, 'Downloads', `${safeName}.mp3`)
+  // downloadDir() resolve o Known Folder do sistema — funciona com
+  // redirect pro OneDrive, locale não-PT etc. (~/Downloads era frágil
+  // em Windows quando o usuário tinha redirect ativo).
+  const downloads = await downloadDir()
+  const safeName = sanitizeFilename(title, songId)
+  const outputPath = await join(downloads, `${safeName}.mp3`)
 
   await ensureFfmpeg()
   const command = Command.create('ffmpeg', [

@@ -252,7 +252,7 @@ function ActionsMenu({
                   <FileDown size={14} className="text-body" strokeWidth={2} />
                   <div className="flex-1">
                     <div>Exportar como MP3</div>
-                    <div className="text-xs text-muted font-normal mt-0.5">Salva em ~/Downloads</div>
+                    <div className="text-xs text-muted font-normal mt-0.5">Salva na pasta Downloads</div>
                   </div>
                 </button>
               )}
