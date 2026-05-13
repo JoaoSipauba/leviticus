@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/JoaoSipauba/leviticus/compare/v0.1.15...v0.2.0) (2026-05-13)
+
+### Funcionalidades
+
+* **release:** bump de versão automatizado via GH Actions ([26dfbfe](https://github.com/JoaoSipauba/leviticus/commit/26dfbfe66f0683b5eeb8b134c694a3d02d08e3e9))
+* **release:** bump full-auto em push pra main ([62a9e07](https://github.com/JoaoSipauba/leviticus/commit/62a9e07558dacd1fb9fd6e310834791dd5747450))
+
 ## [0.1.15](https://github.com/JoaoSipauba/leviticus/compare/v0.1.14...v0.1.15) (2026-05-13)
 
 ### Correções
