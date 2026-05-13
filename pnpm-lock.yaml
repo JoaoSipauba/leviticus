@@ -116,6 +116,9 @@ importers:
 
   apps/landing:
     dependencies:
+      '@supabase/supabase-js':
+        specifier: ^2.49.4
+        version: 2.105.3
       lucide-react:
         specifier: ^0.511.0
         version: 0.511.0(react@18.3.1)

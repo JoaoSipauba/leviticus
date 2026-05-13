@@ -1,41 +1,56 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { joinWaitlist } from '@/app/actions/waitlist'
 
 export default function WaitlistModal() {
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen]       = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [loading, setLoading]     = useState(false)
+  const [error, setError]         = useState<string | null>(null)
+  const emailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     function handleOpen() {
       setIsOpen(true)
       setSubmitted(false)
-      setTimeout(() => {
-        const el = document.getElementById('waitlist-email')
-        el?.focus()
-      }, 50)
+      setError(null)
+      setTimeout(() => emailRef.current?.focus(), 50)
     }
     document.addEventListener('open-waitlist', handleOpen)
     return () => document.removeEventListener('open-waitlist', handleOpen)
   }, [])
 
   useEffect(() => {
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') close()
-    }
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') close() }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [])
 
-  function close() {
-    setIsOpen(false)
-    setSubmitted(false)
-  }
+  function close() { setIsOpen(false); setSubmitted(false); setError(null) }
 
-  function submitWaitlist(e: React.FormEvent) {
+  async function submitWaitlist(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    // TODO: integrar com Supabase ou serviço de email
-    setSubmitted(true)
+    setError(null)
+    setLoading(true)
+
+    const form      = e.currentTarget
+    const email     = (form.elements.namedItem('email') as HTMLInputElement).value
+    const platforms = ['ios', 'android'].filter(
+      p => (form.elements.namedItem(p) as HTMLInputElement)?.checked
+    )
+
+    const result = await joinWaitlist(email, platforms)
+    setLoading(false)
+
+    if (result.ok) {
+      setSubmitted(true)
+      return
+    }
+    setError(result.duplicate
+      ? 'Este email já está na lista. Você será avisado quando lançar.'
+      : 'Algo deu errado. Tente novamente.'
+    )
   }
 
   if (!isOpen) return null
@@ -61,22 +76,33 @@ export default function WaitlistModal() {
             <p style={{ fontSize: '14px', color: 'var(--muted)', lineHeight: 1.55, marginBottom: '22px' }}>Leviticus pra iOS e Android está em desenvolvimento. Deixe seu email e você recebe o primeiro acesso quando estiver pronto. Sem spam, sem newsletter.</p>
             <form onSubmit={submitWaitlist} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <input
+                ref={emailRef}
                 type="email"
-                id="waitlist-email"
+                name="email"
                 required
                 placeholder="seu@email.com"
                 style={{ padding: '12px 14px', background: 'var(--bg)', border: '1px solid var(--border-2)', borderRadius: '10px', color: 'var(--text)', fontSize: '14px', fontFamily: 'inherit', outline: 'none' }}
               />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                  <input type="checkbox" name="plataforma" value="ios" defaultChecked style={{ accentColor: 'var(--primary)' }} /> iOS
+                  <input type="checkbox" name="ios" defaultChecked style={{ accentColor: 'var(--primary)' }} /> iOS
                 </label>
                 <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                  <input type="checkbox" name="plataforma" value="android" defaultChecked style={{ accentColor: 'var(--primary)' }} /> Android
+                  <input type="checkbox" name="android" defaultChecked style={{ accentColor: 'var(--primary)' }} /> Android
                 </label>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ justifyContent: 'center', marginTop: '6px' }}>
-                Quero ser avisado
+              {error && (
+                <div style={{ fontSize: '13px', color: 'var(--orange)', padding: '10px 12px', background: 'rgba(251,146,60,0.08)', borderRadius: '8px', border: '1px solid rgba(251,146,60,0.2)' }}>
+                  {error}
+                </div>
+              )}
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ justifyContent: 'center', marginTop: '6px', opacity: loading ? 0.7 : 1 }}
+                disabled={loading}
+              >
+                {loading ? 'Registrando...' : 'Quero ser avisado'}
               </button>
               <div style={{ fontSize: '11px', color: 'var(--muted-2)', textAlign: 'center', marginTop: '4px' }}>Só enviamos um email quando o app sair. Nada mais.</div>
             </form>
