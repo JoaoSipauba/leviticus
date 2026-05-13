@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.15](https://github.com/JoaoSipauba/leviticus/compare/v0.1.14...v0.1.15) (2026-05-13)
+
+### Correções
+
+* **yt-dlp:** baixar em runtime pra fora do .app (resolve Mac + Windows) ([f210029](https://github.com/JoaoSipauba/leviticus/commit/f21002930a9f599d02efbcdb89f8e38738f65258))
+
 ## [0.1.14](https://github.com/JoaoSipauba/leviticus/compare/v0.1.13...v0.1.14) (2026-05-11)
 
 ### Funcionalidades
