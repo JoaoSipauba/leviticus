@@ -1,0 +1,131 @@
+name: Release Bump
+
+# Auto-release na main. Cada push roda testes; se passarem, decide se
+# tem o que lançar baseado nos conventional commits desde a última tag:
+#   - feat: → minor bump
+#   - fix: / perf: → patch bump
+#   - BREAKING CHANGE: → major bump
+#   - só chore: / refactor: / docs: → nada (workflow encerra limpo)
+# Após bumpar e tagear, dispara o workflow Release explicitamente —
+# necessário porque push de tag feito com GITHUB_TOKEN não dispara
+# outros workflows (regra anti-loop do GitHub).
+#
+# Botão "Run workflow" continua disponível com input de bump pra forçar
+# uma release específica (útil pra reverter, ou pra publicar mesmo sem
+# commits de feat/fix).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Tipo de bump (deixa vazio pra inferir do conventional commits)'
+        required: false
+        default: ''
+        type: choice
+        options: ['', 'patch', 'minor', 'major']
+
+# Evita dois bumps concorrentes — daria duas tags lutando entre si.
+concurrency:
+  group: release-bump
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    # Loop guard: ignora o push do próprio commit `chore(release): vX.Y.Z`.
+    # Tecnicamente já não dispara via GITHUB_TOKEN, mas defensivo se um dia
+    # trocarmos pra PAT. Em workflow_dispatch sempre roda.
+    if: ${{ github.event_name == 'workflow_dispatch' || !startsWith(github.event.head_commit.message, 'chore(release):') }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build @leviticus/core
+        run: pnpm --filter @leviticus/core build
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+  bump:
+    name: Bump + dispatch Release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0  # release-it precisa enxergar todas as tags
+          ref: main
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install JS dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Configure git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: release-it (bump + tag + push)
+        id: release
+        continue-on-error: true  # "nada pra lançar" é exit não-zero — não falhar o job
+        working-directory: apps/desktop
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          if [ -n "$BUMP" ]; then
+            pnpm release "$BUMP" --ci
+          else
+            pnpm release --ci
+          fi
+
+      - name: Detect created tag
+        id: tag
+        run: |
+          # Se release-it bumpou, existe uma tag apontando pro HEAD da main.
+          # Sem tag = não tem o que lançar (só commits chore/refactor).
+          TAG=$(git tag --points-at HEAD | sort -V | tail -1)
+          if [ -z "$TAG" ]; then
+            echo "Nenhuma tag criada nesse push — provavelmente só commits chore/refactor/docs."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Tag nova: $TAG"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch Release workflow on the new tag
+        if: steps.tag.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh workflow run release.yml --ref "$TAG"
