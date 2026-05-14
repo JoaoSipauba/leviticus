@@ -110,7 +110,7 @@ jobs:
         # Wrapper de compilação Rust com cache global compartilhado entre
         # workflows (não só entre runs do mesmo branch como o Swatinem).
         # Faz hit em ~50-60% dos arquivos mesmo em cold rust-cache.
-        uses: mozilla-actions/sccache-action@9a9d136d5e0d23725fad27e4dffaba6f1eaca0fe # v0.0.9
+        uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
       - name: Cache Rust target dir
         # Cacheia target/ + registry/. Cold: 15-20min build do zero.
@@ -134,7 +134,7 @@ jobs:
       - name: Install cargo-binstall
         # cargo-binstall baixa binários pré-compilados quando disponíveis,
         # evitando compilar tauri-driver do zero (~90s → ~5s).
-        uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d05be5bf0a3d9c485 # v1.10.18
+        uses: cargo-bins/cargo-binstall@aaa84a43aec4955a42c5ffc65d258961e39f276e # v1.19.1
 
       - name: Install tauri-driver
         run: cargo binstall -y tauri-driver
