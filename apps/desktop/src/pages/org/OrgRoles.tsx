@@ -5,6 +5,7 @@ import type { Permission } from '@leviticus/core'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -98,21 +99,24 @@ export function OrgRoles({ orgId }: { orgId: string }) {
 
   async function createRole() {
     if (!newName.trim()) return
-    if (newName.trim() === 'Dono') { setError('"Dono" é reservado.'); return }
+    if (newName.trim() === 'Dono') { toastError('"Dono" é reservado'); setError('"Dono" é reservado.'); return }
     const { data, error: e } = await supabase.from('roles').insert({ org_id: orgId, name: newName.trim() }).select().single()
-    if (e || !data) { console.error(e); setError('Algo deu errado. Tente novamente.'); return }
+    if (e || !data) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado. Tente novamente.'); return }
     await syncOrg(orgId)
     setShowNew(false); setNewName('')
     setSelectedId(data.id)
+    toastSuccess('Papel criado')
     await load()
   }
 
   async function renameRole() {
     if (!selectedId || isDono || !renameValue.trim()) return
+    if (renameValue.trim() === 'Dono') { toastError('"Dono" é reservado'); setError('"Dono" é reservado.'); return }
     const { error: e } = await supabase.from('roles').update({ name: renameValue.trim() }).eq('id', selectedId)
-    if (e) { console.error(e); setError('Algo deu errado.'); return }
+    if (e) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
     await syncOrg(orgId)
     setEditingName(false)
+    toastSuccess('Papel renomeado')
     await load()
   }
 
@@ -124,8 +128,9 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     }
     if (!window.confirm(`Deletar o papel "${selected?.name}"?`)) return
     const { error: e } = await supabase.from('roles').delete().eq('id', selectedId)
-    if (e) { console.error(e); setError('Algo deu errado.'); return }
+    if (e) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
     await syncOrg(orgId)
+    toastSuccess('Papel deletado')
     setSelectedId(null)
     await load()
   }

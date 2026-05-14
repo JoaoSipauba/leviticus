@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 export function RemoveMemberModal({
   open, orgId, userId, memberName, mode, onClose, onDone,
@@ -26,15 +27,17 @@ export function RemoveMemberModal({
     if (e || (data as any)?.ok === false) {
       console.error(e ?? data)
       const code = (data as any)?.error
-      setError(
+      const msg =
         code === 'cannot_remove_owner' ? 'O dono não pode ser removido. Transfira a propriedade primeiro.' :
         code === 'forbidden' ? 'Você não tem permissão pra esta ação.' :
         'Algo deu errado. Tente novamente.'
-      )
+      setError(msg)
+      toastError('Não foi possível', msg)
       setPending(false)
       return
     }
     await syncOrg(orgId)
+    toastSuccess(mode === 'remove' ? 'Membro removido' : 'Você saiu da organização')
     setPending(false); onDone(); onClose()
   }
 

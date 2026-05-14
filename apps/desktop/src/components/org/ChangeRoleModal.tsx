@@ -4,6 +4,7 @@ import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type RoleOpt = { id: string; name: string }
 
@@ -44,12 +45,14 @@ export function ChangeRoleModal({
     })
     if (rpcError || (data && (data as any).ok === false)) {
       console.error(rpcError ?? data)
+      toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
     await syncOrg(orgId)
     setSaving(false)
+    toastSuccess('Papel atualizado')
     onSaved()
     onClose()
   }

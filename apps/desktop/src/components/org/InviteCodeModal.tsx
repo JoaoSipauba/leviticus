@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type Expiry = '24h' | '7d' | '30d' | 'never'
 
@@ -38,6 +39,7 @@ export function InviteCodeModal({
     })
     if (e || (data as any)?.ok === false) {
       console.error(e ?? data)
+      toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
@@ -45,6 +47,7 @@ export function InviteCodeModal({
     await syncOrg(orgId)
     setLabel(''); setExpiry('7d')
     setSaving(false)
+    toastSuccess('Código gerado')
     onCreated(); onClose()
   }
 

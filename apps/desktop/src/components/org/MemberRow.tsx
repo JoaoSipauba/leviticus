@@ -6,6 +6,7 @@ export type MemberDisplayRow = {
   userId: string
   name: string
   email: string
+  roleId: string | null
   roleName: string | null
   roleKind: RoleTagKind
   ministries: string[]

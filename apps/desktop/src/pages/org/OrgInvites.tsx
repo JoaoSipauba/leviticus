@@ -3,6 +3,7 @@ import { Plus, Copy } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
@@ -55,6 +56,7 @@ export function OrgInvites({ orgId }: { orgId: string }) {
   async function handleCopy(code: string) {
     await navigator.clipboard.writeText(code)
     setCopiedCode(code)
+    toastSuccess('Código copiado')
     setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 1500)
   }
 
@@ -62,9 +64,13 @@ export function OrgInvites({ orgId }: { orgId: string }) {
     if (!window.confirm('Revogar este código? Ninguém mais consegue entrar com ele.')) return
     const { data, error: e } = await supabase.rpc('revoke_invite_code', { p_code_id: id })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data); setError('Algo deu errado. Tente novamente.'); return
+      console.error(e ?? data)
+      toastError('Algo deu errado', 'Tente novamente.')
+      setError('Algo deu errado. Tente novamente.')
+      return
     }
     await syncOrg(orgId)
+    toastSuccess('Código revogado')
     await load()
   }
 

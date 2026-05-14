@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Shield, LayoutGrid, Mail, UserMinus, LogOut, Lock } from 'lucide-react'
 
-export type MenuVariant = 'admin-on-member' | 'admin-on-owner' | 'self'
+export type MenuVariant = 'admin-on-member' | 'admin-on-owner' | 'self' | 'self-owner'
 
 export type MemberMenuAction = 'change-role' | 'manage-ministries' | 'view-ministries' | 'copy-email' | 'remove' | 'leave'
 
@@ -24,6 +24,11 @@ const ITEMS: Record<MenuVariant, Array<{ kind: 'item' | 'sep' | 'disabled'; acti
     { kind: 'item', action: 'copy-email',        label: 'Copiar e-mail',           Icon: Mail },
     { kind: 'sep' },
     { kind: 'item', action: 'leave',             label: 'Sair da organização',     Icon: LogOut, danger: true },
+  ],
+  'self-owner': [
+    { kind: 'item', action: 'copy-email',        label: 'Copiar e-mail',           Icon: Mail },
+    { kind: 'sep' },
+    { kind: 'disabled',                          label: 'Sair · transfira a propriedade primeiro', Icon: Lock },
   ],
 }
 

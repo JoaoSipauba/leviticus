@@ -3,6 +3,7 @@ import { X, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type Candidate = { user_id: string; name: string; email: string }
 
@@ -44,9 +45,14 @@ export function TransferOwnershipModal({
     setPending(true); setError(null)
     const { data, error: e } = await supabase.rpc('transfer_ownership', { p_org_id: orgId, p_new_owner_id: pick })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data); setError('Algo deu errado. Tente novamente.'); setPending(false); return
+      console.error(e ?? data)
+      toastError('Algo deu errado', 'Tente novamente.')
+      setError('Algo deu errado. Tente novamente.')
+      setPending(false)
+      return
     }
     await syncOrg(orgId)
+    toastSuccess('Propriedade transferida', `${picked?.name ?? 'O novo membro'} é o novo dono.`)
     setPending(false); onDone(); onClose()
   }
 

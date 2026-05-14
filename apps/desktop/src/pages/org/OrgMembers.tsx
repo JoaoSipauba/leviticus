@@ -4,6 +4,7 @@ import { Search, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { hasPermission, isOwner } from '../../lib/permissions.js'
+import { toastSuccess } from '../../store/toasts.js'
 import { MemberRow, type MemberDisplayRow } from '../../components/org/MemberRow.js'
 import { MemberMenu, type MenuVariant, type MemberMenuAction } from '../../components/org/MemberMenu.js'
 import { ChangeRoleModal } from '../../components/org/ChangeRoleModal.js'
@@ -13,6 +14,7 @@ import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
 type RawRow = {
   user_id: string
   joined_at: string
+  role_id: string | null
   role_name: string | null
   ministries: string | null
 }
@@ -46,6 +48,10 @@ export function OrgMembers({ orgId }: { orgId: string }) {
       `SELECT
          om.user_id,
          om.joined_at,
+         (SELECT a.role_id FROM user_role_assignments a
+            JOIN roles r ON r.id = a.role_id
+            WHERE a.user_id = om.user_id AND a.org_id = om.org_id AND a.group_id IS NULL
+            LIMIT 1) as role_id,
          (SELECT r.name FROM user_role_assignments a
             JOIN roles r ON r.id = a.role_id
             WHERE a.user_id = om.user_id AND a.org_id = om.org_id AND a.group_id IS NULL
@@ -82,6 +88,7 @@ export function OrgMembers({ orgId }: { orgId: string }) {
         userId: r.user_id,
         name,
         email,
+        roleId: r.role_id ?? null,
         roleName: r.role_name ?? (isOwnerRow ? 'Dono' : null),
         roleKind: isOwnerRow ? 'owner' : r.role_name ? 'custom' : 'none',
         ministries,
@@ -120,9 +127,13 @@ export function OrgMembers({ orgId }: { orgId: string }) {
 
   function handleMenuClick(row: MemberDisplayRow, anchor: HTMLElement) {
     let variant: MenuVariant
-    if (row.userId === me) variant = 'self'
-    else if (row.userId === ownerUserId) variant = 'admin-on-owner'
-    else variant = 'admin-on-member'
+    if (row.userId === me) {
+      variant = row.userId === ownerUserId ? 'self-owner' : 'self'
+    } else if (row.userId === ownerUserId) {
+      variant = 'admin-on-owner'
+    } else {
+      variant = 'admin-on-member'
+    }
     setMenuFor({ row, anchor, variant })
   }
 
@@ -130,6 +141,7 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     if (action === 'copy-email') {
       if (row.email) {
         await navigator.clipboard.writeText(row.email)
+        toastSuccess('E-mail copiado')
       }
       return
     }
@@ -221,7 +233,7 @@ export function OrgMembers({ orgId }: { orgId: string }) {
           orgId={orgId}
           userId={openChangeRole.userId}
           memberName={openChangeRole.name}
-          currentRoleId={null}
+          currentRoleId={openChangeRole.roleId}
           onClose={() => setOpenChangeRole(null)}
           onSaved={() => { void load() }}
         />

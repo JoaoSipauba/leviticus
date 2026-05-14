@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { hasPermission } from '../../lib/permissions.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -53,12 +54,14 @@ export function OrgInfo({ orgId }: { orgId: string }) {
       .eq('id', orgId)
     if (updateError) {
       console.error(updateError)
+      toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
     await syncOrg(orgId)
     await load()
+    toastSuccess('Informações salvas')
     setSaving(false)
   }
 

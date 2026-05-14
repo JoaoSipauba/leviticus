@@ -3,6 +3,7 @@ import { X, Check } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
+import { toastSuccess, toastError } from '../../store/toasts.js'
 
 type Ministry = { id: string; name: string }
 
@@ -75,7 +76,11 @@ export function ManageMinistriesModal({
         p_user_id: userId, p_org_id: orgId, p_role_id: defaultRoleId, p_group_id: groupId,
       })
       if (e || (data as any)?.ok === false) {
-        console.error(e ?? data); setError('Algo deu errado. Tente novamente.'); setSaving(false); return
+        console.error(e ?? data)
+        toastError('Algo deu errado', 'Tente novamente.')
+        setError('Algo deu errado. Tente novamente.')
+        setSaving(false)
+        return
       }
     }
     for (const groupId of toRemove) {
@@ -83,10 +88,15 @@ export function ManageMinistriesModal({
         p_user_id: userId, p_org_id: orgId, p_role_id: null, p_group_id: groupId,
       })
       if (e || (data as any)?.ok === false) {
-        console.error(e ?? data); setError('Algo deu errado. Tente novamente.'); setSaving(false); return
+        console.error(e ?? data)
+        toastError('Algo deu errado', 'Tente novamente.')
+        setError('Algo deu errado. Tente novamente.')
+        setSaving(false)
+        return
       }
     }
     await syncOrg(orgId)
+    toastSuccess('Ministérios atualizados')
     setSaving(false); onSaved(); onClose()
   }
 
