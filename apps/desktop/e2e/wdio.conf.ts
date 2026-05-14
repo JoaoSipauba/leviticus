@@ -13,6 +13,13 @@ let tauriDriver: ChildProcess | null = null
 export const config: WebdriverIO.Config = {
   runner: 'local',
   framework: 'mocha',
+  mochaOpts: {
+    // Default Mocha test timeout is 2s, wdio overrides to 60s — but our
+    // multi-step journey needs more headroom (app boot + 2 page transitions
+    // + SQL assertions). 120s is comfortable; a real failure trips the
+    // waitforTimeout (10s per step) first with a meaningful message.
+    timeout: 120_000,
+  },
   reporters: ['spec'],
   specs: ['./specs/**/*.spec.ts'],
   capabilities: [
