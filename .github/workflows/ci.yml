@@ -42,6 +42,10 @@ jobs:
   e2e:
     name: E2E (todas as jornadas)
     needs: test
+    # E2E roda só na main (push direto + PRs visando main). Em pushes pra dev
+    # ficamos com typecheck+unit, que cobre o suficiente pra iteração rápida.
+    # O fluxo é: dev acumula features → PR pra main → CI completo com E2E.
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
