@@ -4,7 +4,7 @@
 // the actual app process — these helpers cover ancillary state.
 
 import fs from 'node:fs/promises'
-import { homedir, platform } from 'node:os'
+import { platform } from 'node:os'
 import path from 'node:path'
 import { localSqliteDbPath, screenshotsDir } from './env.js'
 
@@ -12,23 +12,21 @@ import { localSqliteDbPath, screenshotsDir } from './env.js'
  * Removes the local SQLite cache used by the dev app on macOS. Safe to call
  * even if the file doesn't exist. No-op on non-darwin platforms (CI Linux
  * starts from a fresh container, so there's nothing to clean).
+ *
+ * NOTE: The WKWebView data directory (LocalStorage, cookies, etc.) is cleaned
+ * in wdio.local.conf.ts's `beforeSession` hook — BEFORE the app process
+ * starts — to avoid destabilizing the WKWebView IPC bridge by deleting live
+ * data while the process is running. This function only cleans the SQLite DB
+ * files (which use a stable fd; an unlink while open is safe on macOS).
  */
 export async function cleanLocalSqlite(): Promise<void> {
   if (platform() !== 'darwin') return
   const baseDir = path.dirname(localSqliteDbPath())
-  // Wipe SQLite (DB + WAL/SHM sidecars) AND the WKWebView LocalStorage so
-  // supabase-js auth tokens from a previous test run don't auto-log-in.
-  // We're conservative: only delete known paths, not the whole dir.
+  // Wipe SQLite (DB + WAL/SHM sidecars). The file is unlinked on disk but
+  // the app's open fd remains valid — writes continue to the old inode.
   for (const f of ['leviticus.db', 'leviticus.db-wal', 'leviticus.db-shm']) {
     await rmIfExists(path.join(baseDir, f))
   }
-  // Nuke the whole WebKit data directory for the dev app — covers
-  // LocalStorage, IndexedDB, Cookies, ServiceWorkers. supabase-js auth
-  // tokens live in LocalStorage but cached state elsewhere can interfere too.
-  await rmIfExists(
-    path.join(homedir(), 'Library/WebKit/com.leviticus.app.dev'),
-    { recursive: true }
-  )
 }
 
 async function rmIfExists(target: string, opts: { recursive?: boolean } = {}): Promise<void> {

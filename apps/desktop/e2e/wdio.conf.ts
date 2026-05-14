@@ -15,10 +15,10 @@ export const config: WebdriverIO.Config = {
   framework: 'mocha',
   mochaOpts: {
     // Default Mocha test timeout is 2s, wdio overrides to 60s — but our
-    // multi-step journey needs more headroom (app boot + 2 page transitions
-    // + SQL assertions). 120s is comfortable; a real failure trips the
-    // waitforTimeout (10s per step) first with a meaningful message.
-    timeout: 120_000,
+    // multi-step journeys need more headroom. Journey #6 in particular waits
+    // up to 90s for OrgSelect.syncOrg to complete before the /library redirect.
+    // 180s gives ample room for all journeys while still catching true hangs.
+    timeout: 180_000,
   },
   reporters: ['spec'],
   specs: ['./specs/**/*.spec.ts'],
@@ -39,6 +39,11 @@ export const config: WebdriverIO.Config = {
   waitforTimeout: 10_000,
   connectionRetryTimeout: 120_000,
   connectionRetryCount: 3,
+
+  // tauri-wd only exposes a single port (4444) and can only drive one app
+  // instance at a time. Force serial execution so spec files don't race for
+  // the WebDriver socket.
+  maxInstances: 1,
 
   // tsx loader so we can write specs/helpers in TypeScript directly.
   // In wdio v9, tsx is built-in — point to the local tsconfig.

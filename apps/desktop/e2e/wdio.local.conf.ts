@@ -10,6 +10,9 @@
 //
 // See https://danielraffel.me/2026/02/14/i-built-a-webdriver-for-wkwebview-tauri-apps-on-macos/
 
+import fs from 'node:fs/promises'
+import { homedir } from 'node:os'
+import path from 'node:path'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { config as baseConfig } from './wdio.conf.js'
@@ -31,6 +34,13 @@ export const config: WebdriverIO.Config = {
   ],
 
   beforeSession: async () => {
+    // Wipe the WKWebView data directory BEFORE starting the app so a stale
+    // session from a prior run does not auto-login and so the WKWebView
+    // process starts with a clean data root (deleting it while the process is
+    // running can destabilize the IPC bridge and cause syncOrg to hang).
+    const wkDir = path.join(homedir(), 'Library/WebKit/com.leviticus.app.dev')
+    await fs.rm(wkDir, { recursive: true, force: true })
+
     // tauri-wd is the macOS WebDriver substitute. Default port is 4444 — matches
     // the base config's port so we don't need to override.
     // `detached: true` puts the child in its own process group so we can later
