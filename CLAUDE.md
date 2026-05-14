@@ -129,6 +129,16 @@ Antes de marcar uma ação como pronta, verifique: o usuário vê confirmação?
 
 Três camadas, em ordem de custo-benefício. Toda nova feature deve ter cobertura na camada mais barata em que faz sentido — não pular pra E2E o que cabe em unit.
 
+### Regra: cobertura é parte da definição de pronto
+
+Toda feature nova **e** todo ajuste em feature existente exige uma passada explícita por testes antes de marcar como concluído. Não é opcional, não é "depois". O fluxo é:
+
+1. **Antes de começar**: identificar o que vai mudar (função pura? componente? jornada de UI?) e em qual camada faz sentido cobrir (unit / component / E2E).
+2. **Durante**: adicionar ou atualizar testes na camada mais barata possível. Se a mudança quebrar um teste existente, o teste tem prioridade — confirmar se a expectativa do teste continua válida antes de só "consertar" o teste.
+3. **Antes de marcar pronto**: rodar `pnpm test` (e `pnpm test:e2e:local` se a mudança toca jornadas cobertas em E2E). Se houver gap óbvio sem cobertura, criar o teste antes de fechar.
+
+Não bypassar essa checagem porque "a mudança é pequena" ou "o usuário só pediu o ajuste". Pequenas mudanças sem teste viram regressões silenciosas. Quando a cobertura realmente não fizer sentido (puro CSS, refactor sem mudança de comportamento, etc.), declare isso explicitamente no PR/handoff em vez de pular em silêncio.
+
 ### Stack
 
 | Ferramenta | Versão | Onde mora |
