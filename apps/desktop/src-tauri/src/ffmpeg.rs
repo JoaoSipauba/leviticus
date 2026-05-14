@@ -65,19 +65,34 @@ fn bin_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("bin").join(bin_name()))
 }
 
+// Tamanho mínimo razoável pra detectar truncamentos. ffmpeg descompactado
+// fica em 43-77MB dependendo de plataforma; 10MB cobre todos com folga.
+const MIN_BIN_SIZE: u64 = 10_000_000;
+
+fn version_marker_path(dest: &PathBuf) -> PathBuf {
+    dest.with_extension("version")
+}
+
 #[tauri::command]
 pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     let dest = bin_path(&app)?;
+    let marker = version_marker_path(&dest);
 
-    // Idempotência: validação mínima do binário cacheado. file_exists +
-    // size > 0 previne aceitar arquivo corrompido por download
-    // interrompido. Hash full check é caro (~80MB) — pulamos aqui
-    // porque o atomic rename abaixo só publica em dest depois de hash
-    // verificado, então qualquer arquivo final é válido por construção.
+    // Caminho feliz: binário já baixado com tamanho razoável + versão
+    // registrada no sidecar bate com FFMPEG_STATIC_TAG. Qualquer
+    // discrepância (truncado, sidecar ausente, versão antiga) limpa
+    // e re-baixa.
     if let Ok(meta) = tokio::fs::metadata(&dest).await {
-        if meta.is_file() && meta.len() > 0 {
+        let size_ok = meta.is_file() && meta.len() >= MIN_BIN_SIZE;
+        let version_ok = tokio::fs::read_to_string(&marker)
+            .await
+            .map(|s| s.trim() == FFMPEG_STATIC_TAG)
+            .unwrap_or(false);
+        if size_ok && version_ok {
             return Ok(dest.to_string_lossy().into_owned());
         }
+        let _ = tokio::fs::remove_file(&dest).await;
+        let _ = tokio::fs::remove_file(&marker).await;
     }
 
     let asset = asset_for_platform().ok_or_else(|| {
@@ -180,6 +195,13 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<String, String> {
     tokio::fs::rename(&tmp, &dest)
         .await
         .map_err(|e| format!("falha ao mover {} → {}: {e}", tmp.display(), dest.display()))?;
+
+    // Grava o sidecar .version DEPOIS do rename. Se algo crashar antes
+    // desse write, o sidecar fica ausente e o próximo boot trata como
+    // download incompleto → re-baixa.
+    tokio::fs::write(&marker, FFMPEG_STATIC_TAG)
+        .await
+        .map_err(|e| format!("falha escrevendo version marker: {e}"))?;
 
     Ok(dest.to_string_lossy().into_owned())
 }
