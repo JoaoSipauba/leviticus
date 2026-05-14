@@ -14,7 +14,7 @@ function mockDb(rows: any[]) {
 }
 
 describe('permissions', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it('hasPermission returns true when the row exists', async () => {
     const { getDb } = await import('./db.js')
