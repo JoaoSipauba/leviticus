@@ -1,16 +1,40 @@
 name: CI
 
+# Trigger amplo de propósito: o workflow precisa rodar em todo push/PR
+# pra que o agregador `CI passed` apareça como check obrigatório na
+# branch protection. O filtro fino acontece dentro dos jobs.
 on:
   push:
     branches: [main, dev]
-    paths-ignore:
-      - 'apps/landing/**'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'apps/landing/**'
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          # `desktop` cobre tudo que afeta o app desktop ou os testes E2E.
+          # Mudanças isoladas em apps/landing/** caem fora desse filtro.
+          filters: |
+            desktop:
+              - 'apps/desktop/**'
+              - 'packages/**'
+              - 'worker/**'
+              - 'supabase/migrations/**'
+              - '.github/workflows/ci.yml'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+
   test:
     name: Typecheck + tests
     runs-on: ubuntu-latest
@@ -41,11 +65,14 @@ jobs:
 
   e2e:
     name: E2E (todas as jornadas)
-    needs: test
-    # E2E roda só na main (push direto + PRs visando main). Em pushes pra dev
-    # ficamos com typecheck+unit, que cobre o suficiente pra iteração rápida.
-    # O fluxo é: dev acumula features → PR pra main → CI completo com E2E.
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    needs: [test, changes]
+    # Roda quando: (a) é PR pra main ou push direto na main, E
+    # (b) houve mudança em código do desktop / pacotes / schema / CI.
+    # Landing-only PRs pulam a suite — não há valor em re-rodar 20min
+    # de build Tauri pra um diff de copy ou CSS de marketing.
+    if: |
+      (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
+      needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -119,3 +146,33 @@ jobs:
           name: e2e-screenshots
           path: apps/desktop/e2e/screenshots/
           if-no-files-found: ignore
+
+  # Agregador: é ESTE job que a branch protection exige como required check.
+  # Como ele sempre roda (if: always()) e enxerga o resultado dos demais,
+  # ele cobre tanto o caso "tudo verde" quanto "e2e pulado de propósito"
+  # sem deixar PRs presos em "Expected — Waiting for status".
+  ci_passed:
+    name: CI passed
+    needs: [test, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate upstream results
+        env:
+          TEST_RESULT: ${{ needs.test.result }}
+          E2E_RESULT: ${{ needs.e2e.result }}
+        run: |
+          echo "test: $TEST_RESULT"
+          echo "e2e:  $E2E_RESULT"
+          # test SEMPRE precisa ter passado
+          if [ "$TEST_RESULT" != "success" ]; then
+            echo "::error::Typecheck + tests não passou ($TEST_RESULT)"
+            exit 1
+          fi
+          # e2e pode ser success (rodou e passou) ou skipped (landing-only).
+          # Qualquer outro estado (failure, cancelled) bloqueia.
+          if [ "$E2E_RESULT" != "success" ] && [ "$E2E_RESULT" != "skipped" ]; then
+            echo "::error::E2E não está num estado aceitável ($E2E_RESULT)"
+            exit 1
+          fi
+          echo "CI passed ✅"
