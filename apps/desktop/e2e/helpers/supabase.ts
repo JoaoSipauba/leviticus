@@ -93,6 +93,75 @@ export async function createInviteCode(
   if (error) throw new Error(`createInviteCode failed: ${error.message}`)
 }
 
+/** Creates a ministry (group) for an org directly via service-role client. */
+export async function createGroupForOrg(
+  admin: SupabaseClient,
+  orgId: string,
+  name: string,
+  colorIndex = 0
+): Promise<{ id: string; name: string }> {
+  const { data, error } = await admin
+    .from('groups')
+    .insert({ org_id: orgId, name, color_index: colorIndex })
+    .select('id, name')
+    .single()
+  if (error || !data) throw new Error(`createGroupForOrg: ${error?.message ?? 'no row'}`)
+  return data as { id: string; name: string }
+}
+
+/** Creates a playlist for an org directly via service-role client. */
+export async function createPlaylistForOrg(
+  admin: SupabaseClient,
+  orgId: string,
+  ownerId: string,
+  name: string,
+  scheduledAt: Date,
+  durationHours = 2
+): Promise<{ id: string; name: string }> {
+  const scheduledEnd = new Date(scheduledAt.getTime() + durationHours * 3600 * 1000)
+  const { data, error } = await admin
+    .from('playlists')
+    .insert({
+      org_id: orgId,
+      name,
+      scheduled_at: scheduledAt.toISOString(),
+      scheduled_end: scheduledEnd.toISOString(),
+      created_by: ownerId,
+    })
+    .select('id, name')
+    .single()
+  if (error || !data) throw new Error(`createPlaylistForOrg: ${error?.message ?? 'no row'}`)
+  return data as { id: string; name: string }
+}
+
+/**
+ * Inserts a song row directly via service-role client.
+ * The youtube_url is made unique with a timestamp-derived suffix.
+ * Returns the new song's id.
+ */
+export async function createSongForOrg(
+  admin: SupabaseClient,
+  orgId: string,
+  addedBy: string,
+  title: string,
+  artist = 'Test Channel'
+): Promise<string> {
+  const { data, error } = await admin
+    .from('songs')
+    .insert({
+      org_id: orgId,
+      youtube_url: `https://youtube.com/watch?v=seed${Date.now().toString().slice(-7)}`,
+      title,
+      artist,
+      song_type: 'normal',
+      added_by: addedBy,
+    })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(`createSongForOrg: ${error?.message ?? 'no row'}`)
+  return (data as { id: string }).id
+}
+
 /** Polls until a song row with this org+youtube_url appears or the deadline hits. */
 export async function findSongByYoutubeUrl(
   admin: SupabaseClient,
