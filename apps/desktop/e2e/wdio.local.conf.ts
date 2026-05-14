@@ -2,7 +2,11 @@
 //
 // macOS local override. Extends the base config but uses tauri-wd (community
 // CLI binary) instead of tauri-driver. Install with:
-//   cargo install tauri-wd --locked
+//   cargo install tauri-webdriver-automation --locked
+//   (the installed binary is named `tauri-wd`)
+//
+// The app must also embed `tauri-plugin-webdriver-automation` in debug builds
+// (see apps/desktop/src-tauri/src/lib.rs).
 //
 // See https://danielraffel.me/2026/02/14/i-built-a-webdriver-for-wkwebview-tauri-apps-on-macos/
 
