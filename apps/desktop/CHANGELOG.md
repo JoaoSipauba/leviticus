@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1](https://github.com/JoaoSipauba/leviticus/compare/v0.7.0...v0.7.1) (2026-05-14)
+
+### Correções
+
+* **youtube:** integração 10-20× mais rápida (oEmbed + Innertube) ([#18](https://github.com/JoaoSipauba/leviticus/issues/18)) ([506f8a5](https://github.com/JoaoSipauba/leviticus/commit/506f8a5ff56bbb51281f8ff65fd6d74bf1f2b22c))
+
 ## [0.7.0](https://github.com/JoaoSipauba/leviticus/compare/v0.6.0...v0.7.0) (2026-05-14)
 
 ### Funcionalidades
