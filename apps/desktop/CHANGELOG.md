@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.2](https://github.com/JoaoSipauba/leviticus/compare/v0.7.1...v0.7.2) (2026-05-14)
+
+### Correções
+
+* **youtube:** search via HTML scrape + binários robustos ([#19](https://github.com/JoaoSipauba/leviticus/issues/19)) ([0dd3973](https://github.com/JoaoSipauba/leviticus/commit/0dd3973afb0988b079c7c9fdad344e285faff2de))
+
 ## [0.7.1](https://github.com/JoaoSipauba/leviticus/compare/v0.7.0...v0.7.1) (2026-05-14)
 
 ### Correções

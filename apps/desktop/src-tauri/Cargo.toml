@@ -1,6 +1,6 @@
 [package]
 name = "leviticus-desktop"
-version = "0.7.1"
+version = "0.7.2"
 description = "Leviticus — church music player"
 authors = ["you"]
 edition = "2021"
