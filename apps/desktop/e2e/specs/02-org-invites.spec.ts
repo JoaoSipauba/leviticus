@@ -166,4 +166,102 @@ describe('Journey #6 — Org invites', () => {
       if (!revokedRow) throw new Error(`Invite ${codeRow.code} not revoked within 15s`)
     })
   })
+
+  describe('Test 2 — New user joins an existing org via invite code', () => {
+    let host: { id: string; email: string }
+    let org: { id: string; name: string }
+    let code: string
+    let joinerEmail: string
+
+    before(async () => {
+      // Sign out the previous user (Test 1 left the app at /manage logged in).
+      // Click the sidebar "Sair" button so App.tsx's onAuthStateChange redirects
+      // to /login — keeping the same WebDriver session alive.
+      const currentUrl = await browser.getUrl()
+      if (!/\/login/.test(currentUrl)) {
+        const sairBtn = $('button=Sair')
+        await sairBtn.waitForExist({ timeout: 10_000 })
+        await sairBtn.click()
+        await browser.waitUntil(
+          async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
+          { timeout: 20_000, timeoutMsg: 'App did not redirect to /login after clicking Sair' }
+        )
+      }
+
+      const supabase = makeAdminClient()
+      const ts = Date.now()
+      host = await createTestUser(supabase, { email: `host+${ts}@leviticus.test` })
+      org = await createOrgWithOwner(supabase, host.id, `Igreja Anfitriã 2 ${ts}`)
+      code = `JOIN${ts.toString().slice(-8)}`  // 12 chars, alphanumeric, uppercased server-side
+      await createInviteCode(supabase, { orgId: org.id, createdBy: host.id, code })
+      joinerEmail = `joiner+${ts}@leviticus.test`
+      await cleanLocalSqlite()
+    })
+
+    it('signs up a new user, accepts an invite code, and lands as a member', async () => {
+      const supabase = makeAdminClient()
+
+      // ─── Sign up via UI (fresh user) ───────────────────────────────────
+      await browser.waitUntil(
+        async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
+        { timeout: 30_000, timeoutMsg: 'Login screen did not load within 30s' }
+      )
+      await $('input[type=email]').waitForExist({ timeout: 30_000 })
+      await $('button=Criar conta').click()
+      await setReactInputValue('input#name', 'Usuário Convidado')
+      await setReactInputValue('input#email', joinerEmail)
+      await setReactInputValue('input#password', 'senha-do-teste-e2e')
+      const submitBtn = $('button[type=submit]')
+      await submitBtn.waitForEnabled({ timeout: 5_000 })
+      await submitBtn.click()
+
+      // ─── Wait for redirect to /org ─────────────────────────────────────
+      await browser.waitUntil(
+        async () => /\/org$/.test(await browser.getUrl()),
+        { timeout: 15_000, timeoutMsg: 'Did not redirect to /org after signup' }
+      )
+
+      // ─── Open the "Entrar com código" form ─────────────────────────────
+      await $('button=Entrar com código').click()
+      await setReactInputValue('input[placeholder="Código de convite"]', code)
+
+      // The OrgSelect submit button reads "Entrar" in join mode.
+      const entrarBtn = $('button=Entrar')
+      await entrarBtn.waitForEnabled({ timeout: 5_000 })
+      await entrarBtn.click()
+
+      // ─── Poll for organization_members row ─────────────────────────────
+      const joinerRow = await (async () => {
+        const usersRes = await supabase.auth.admin.listUsers()
+        if (usersRes.error) throw new Error(`listUsers: ${usersRes.error.message}`)
+        const u = usersRes.data.users.find((u) => u.email === joinerEmail)
+        if (!u) throw new Error(`auth.users row not found for ${joinerEmail}`)
+        return u
+      })()
+
+      let membershipFound = false
+      const deadline = Date.now() + 30_000
+      while (Date.now() < deadline) {
+        const { data } = await supabase
+          .from('organization_members')
+          .select('user_id, org_id, joined_at')
+          .eq('org_id', org.id)
+          .eq('user_id', joinerRow.id)
+        if (data && data.length === 1) { membershipFound = true; break }
+        await new Promise((r) => setTimeout(r, 500))
+      }
+      if (!membershipFound) {
+        throw new Error(`Membership row not found for ${joinerEmail} in ${org.name} within 30s`)
+      }
+
+      // ─── Verify joiner has NO role assigned (per spec contract) ────────
+      const { data: assignments, error: assignErr } = await supabase
+        .from('user_role_assignments')
+        .select('user_id')
+        .eq('org_id', org.id)
+        .eq('user_id', joinerRow.id)
+      if (assignErr) throw new Error(`user_role_assignments select: ${assignErr.message}`)
+      expect(assignments ?? []).toHaveLength(0)
+    })
+  })
 })
