@@ -74,7 +74,7 @@ jobs:
       (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
       needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -90,6 +90,13 @@ jobs:
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust target dir
+        # Sem isso, cada run compila ~600 crates do zero (~15-20min).
+        # Com cache: 2-3min em runs subsequentes. Primeiro run continua cold.
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          workspaces: apps/desktop/src-tauri
 
       - name: Install Tauri Linux deps
         run: |

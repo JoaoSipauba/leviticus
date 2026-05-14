@@ -1,0 +1,8 @@
+# GitGuardian config — ignora paths que contêm credenciais sabidamente fake.
+#
+# Testes E2E usam senhas tipo `'senha-do-teste-e2e'` e `'senha-errada-999'`
+# contra uma Supabase local em Docker (service-role key efêmera, regerada
+# a cada `supabase start`). Não há segredo real envolvido.
+version: 2
+paths-ignore:
+  - "apps/desktop/e2e/**"
