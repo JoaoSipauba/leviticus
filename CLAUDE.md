@@ -125,6 +125,94 @@ Regras:
 
 Antes de marcar uma ação como pronta, verifique: o usuário vê confirmação? Se não, adicione toast.
 
+## Testing strategy
+
+Três camadas, em ordem de custo-benefício. Toda nova feature deve ter cobertura na camada mais barata em que faz sentido — não pular pra E2E o que cabe em unit.
+
+### Stack
+
+| Ferramenta | Versão | Onde mora |
+|---|---|---|
+| **vitest** + **jsdom** | 1.5 | runner + DOM emulado |
+| **@testing-library/react** + **user-event** + **jest-dom** | 15 / 14 / 6 | testes de componente |
+| **mockIPC** de `@tauri-apps/api/mocks` | parte do `@tauri-apps/api` | mock de `invoke()` e calls de plugins (sql, http, fs, shell) |
+| **WebdriverIO** + **tauri-driver** | a configurar | E2E no Linux CI |
+
+### Camadas
+
+**1. Unit (lógica pura)** — [apps/desktop/src/lib/](apps/desktop/src/lib/) e [packages/core/src/](packages/core/src/).
+- Sem DOM, sem Tauri. Funções puras: parsers, formatters, sync, permission resolvers.
+- Já existe: [sync.test.ts](apps/desktop/src/lib/sync.test.ts), [permissions.test.ts](apps/desktop/src/lib/permissions.test.ts), [ytdlp.test.ts](apps/desktop/src/lib/ytdlp.test.ts).
+- Padrão: `vi.mock('./db.js')` + `vi.mock('./supabase.js')`, asserções diretas no retorno.
+
+**2. Component (RTL + jsdom)** — [apps/desktop/src/components/](apps/desktop/src/components/) e [apps/desktop/src/pages/](apps/desktop/src/pages/).
+- Renderiza um componente isolado, simula eventos (`userEvent`), verifica DOM e side effects mockados.
+- Já existe: [Login.test.tsx](apps/desktop/src/pages/Login.test.tsx).
+- Sempre mockar: `supabase`, `getDb`, e qualquer `invoke()` via `mockIPC`. Setup típico:
+
+```ts
+import { mockIPC, clearMocks } from '@tauri-apps/api/mocks'
+
+beforeEach(() => {
+  mockIPC((cmd, args) => {
+    if (cmd === 'ensure_yt_dlp') return '/fake/bin/yt-dlp'
+    if (cmd === 'ensure_ffmpeg') return '/fake/bin/ffmpeg'
+    // plugin-sql chamadas chegam como 'plugin:sql|select' etc.
+    return null
+  })
+})
+afterEach(() => clearMocks())
+```
+
+**3. E2E (Linux CI)** — pasta `e2e/` (a criar). WebdriverIO + tauri-driver contra o app empacotado real, com Supabase local em Docker.
+- **Limitação macOS:** `tauri-driver` oficial só funciona em Windows e Linux — WKWebView no Mac não tem driver nativo. Estratégia: rodar E2E só no CI (GitHub Actions Ubuntu). Local no Mac, testar manualmente.
+- Alternativa opcional pra macOS local: [`tauri-webdriver-automation`](https://danielraffel.me/2026/02/14/i-built-a-webdriver-for-wkwebview-tauri-apps-on-macos/) (community, lançado fev/2026). Não adotar como dependência obrigatória.
+
+### Jornadas críticas — escopo do E2E
+
+Lista priorizada do que precisa estar verde antes de cada release. Não cobre tudo, cobre o que dói quebrar:
+
+| # | Jornada | Cobre |
+|---|---|---|
+| 1 | **Auth → Org Select → Library** | signup → login → criar org → seed do papel Dono → sync inicial → ver Biblioteca vazia |
+| 2 | **Adicionar música** | abrir AddSongModal → buscar YouTube (yt-dlp mockado) → preencher metadados → confirmar → ver na Biblioteca |
+| 3 | **Tocar música** | clicar play em SongCard → PlayerMini aparece → seek funciona → pause/resume → próxima/anterior em playlist |
+| 4 | **Criar e tocar culto** | criar culto com horário agendado → adicionar seção → adicionar músicas → entrar em modo de execução → tocar sequência |
+| 5 | **Ministérios** | criar → adicionar músicas → navegar pelo ministério → editar/remover |
+| 6 | **Aba Organização — convites** | gerar código → copiar → revogar; segundo usuário entra com código |
+| 7 | **Aba Organização — papéis** | criar papel "Líder" → toggle de permissões → atribuir a membro via ⋯ menu |
+| 8 | **Aba Organização — danger zone** | transferir propriedade (Dono passa pra outro membro) → membro antigo perde acesso ao papel; type-to-confirm delete da org |
+| 9 | **Auto-updater** | check inicial mockado → toast aparece → "Mais tarde" silencia até próxima versão; deferral durante reprodução (não interrompe culto) |
+| 10 | **Media keys (macOS)** | manual-only por enquanto (CI Linux não tem o `tauri-plugin-global-shortcut` na mesma forma); validar ao menos que o evento `media-play-pause` é processado |
+
+### O que NÃO entra no E2E
+
+- **Downloads reais do YouTube** — flakiness de rede. yt-dlp e ffmpeg sempre mockados via sidecar fake ou `mockIPC`.
+- **Áudio real tocando** — CI sem device de áudio. Howler é mockado; testes verificam que `getPosition` é chamado, não que som sai.
+- **Builds assinadas** — pubkey/keypair e fluxo de instalação real do updater não roda em CI; só o caminho de check + decisão.
+- **Comportamento macOS específico** — Accessibility permissions, asset:// protocol nuances. Validados manualmente.
+
+### Comandos
+
+```bash
+# unit + component, todo monorepo
+pnpm test
+
+# unit + component, só apps/desktop
+cd apps/desktop && pnpm test
+
+# único arquivo, modo watch desligado
+cd apps/desktop && pnpm vitest run src/lib/sync.test.ts
+
+# watch mode
+cd apps/desktop && pnpm vitest
+
+# E2E (a configurar — Linux CI ou tauri-wd no Mac)
+cd apps/desktop && pnpm test:e2e   # TODO setup
+```
+
+Antes de abrir PR pra `main`: `pnpm test` + `pnpm typecheck` devem passar. O workflow [`release-bump.yml`](.github/workflows/release-bump.yml) já roda `test` no Ubuntu como gate antes do bump de versão.
+
 ## Migrations checklist
 
 Toda alteração de schema no Supabase precisa ser **retrocompatível com a versão do app que está em produção**. Apps antigos continuam rodando até o usuário aceitar o auto-update — não podem quebrar enquanto isso.
