@@ -92,3 +92,28 @@ export async function createInviteCode(
   })
   if (error) throw new Error(`createInviteCode failed: ${error.message}`)
 }
+
+/** Polls until a song row with this org+youtube_url appears or the deadline hits. */
+export async function findSongByYoutubeUrl(
+  admin: SupabaseClient,
+  orgId: string,
+  youtubeUrl: string,
+  timeoutMs = 15_000
+): Promise<{ id: string; title: string; artist: string; duration_seconds: number; song_type: string } | null> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const { data } = await admin
+      .from('songs')
+      .select('id, title, artist, duration_seconds, song_type')
+      .eq('org_id', orgId)
+      .eq('youtube_url', youtubeUrl)
+    if (data && data.length === 1) {
+      const row = data[0] as {
+        id: string; title: string; artist: string; duration_seconds: number; song_type: string
+      }
+      return row
+    }
+    await new Promise((r) => setTimeout(r, 300))
+  }
+  return null
+}

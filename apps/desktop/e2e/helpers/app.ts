@@ -8,6 +8,7 @@ import { homedir, platform } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { localSqliteDbPath, screenshotsDir } from './env.js'
+import { makeAdminClient } from './supabase.js'
 
 /**
  * Removes the local SQLite cache used by the dev app on macOS. Safe to call
@@ -125,4 +126,62 @@ export async function setYtDlpMockMode(
   mode: 'happy' | 'fail-metadata' | 'fail-download'
 ): Promise<void> {
   await fs.writeFile('/tmp/fake-yt-dlp.mode', mode, 'utf-8')
+}
+
+/**
+ * Full UI signup + create org. Encapsulates the proven flow from journey #1
+ * so subsequent journeys can start "logged in with an empty Library" cheaply.
+ * Returns IDs for SQL assertions.
+ *
+ * Pre-req: app is at `/login` (cleanLocalSqlite was called before app boot).
+ */
+export async function signupAndCreateOrg(opts: {
+  name?: string
+  emailPrefix?: string
+  orgName?: string
+} = {}): Promise<{ userId: string; orgId: string; email: string }> {
+  const ts = Date.now()
+  const email = `${opts.emailPrefix ?? 'addsong'}+${ts}@leviticus.test`
+  const orgName = opts.orgName ?? `Org Add Song ${ts}`
+
+  // Login screen renders
+  await browser.waitUntil(
+    async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
+    { timeout: 30_000, timeoutMsg: 'Login screen did not load' }
+  )
+  await $('input[type=email]').waitForExist({ timeout: 30_000 })
+  await $('button=Criar conta').click()
+  await setReactInputValue('input#name', opts.name ?? 'Usuário Teste')
+  await setReactInputValue('input#email', email)
+  await setReactInputValue('input#password', 'senha-do-teste-e2e')
+  const submit = $('button[type=submit]')
+  await submit.waitForEnabled({ timeout: 5_000 })
+  await submit.click()
+
+  // Org screen
+  await browser.waitUntil(
+    async () => /\/org$/.test(await browser.getUrl()),
+    { timeout: 15_000, timeoutMsg: 'Did not redirect to /org' }
+  )
+  await $('button=Criar organização').click()
+  await setReactInputValue('input[placeholder="Nome da organização"]', orgName)
+  const create = $('button=Criar')
+  await create.waitForEnabled({ timeout: 5_000 })
+  await create.click()
+
+  // Wait for the org row to materialize in Supabase
+  const supabase = makeAdminClient()
+  const deadline = Date.now() + 30_000
+  let org: { id: string; owner_id: string } | null = null
+  while (Date.now() < deadline) {
+    const { data } = await supabase
+      .from('organizations')
+      .select('id, owner_id')
+      .eq('name', orgName)
+    if (data && data.length > 0) { org = data[0] as { id: string; owner_id: string }; break }
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  if (!org) throw new Error(`Org "${orgName}" not in DB after 30s`)
+
+  return { userId: org.owner_id, orgId: org.id, email }
 }
