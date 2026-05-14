@@ -483,11 +483,26 @@ export type YTSearchResult = {
 const SEARCH_TIMEOUT_MS = 15_000
 const INNERTUBE_TIMEOUT_MS = 5_000
 
-// Innertube é o protocolo HTTP/JSON que o próprio yt-dlp (e o YouTube Web)
-// usam por baixo. Bypassando o subprocess do yt-dlp, a busca cai de
-// ~2-3s pra ~300-500ms. clientVersion precisa estar atual senão o YouTube
-// responde com 400; bumpar quando der `INNERTUBE_FAILED`.
-const INNERTUBE_CLIENT_VERSION = '2.20240307.00.00'
+// Search via scrape da página `/results`. Pulamos /youtubei/v1/* porque
+// o YouTube aplica anti-bot agressivo lá (HTTP 403 pra qualquer cliente
+// que não passe pelo TLS/JA3 fingerprint de browser — o `reqwest` do
+// Tauri bate nisso). A página HTML pública não tem essa restrição.
+//
+// A página retorna ~1MB de HTML com `var ytInitialData = {...}` embed
+// num script tag. Esse JSON tem a mesma estrutura que o Innertube WEB
+// devolveria (`twoColumnSearchResultsRenderer → sectionListRenderer →
+// itemSectionRenderer → videoRenderer`), então o parser é o que já
+// existia antes da migração de short-lived pra TVHTML5.
+//
+// Trade-off: 1MB de download vs ~300KB do Innertube JSON. Mas ainda
+// muito mais rápido que yt-dlp porque é uma HTTP request só.
+const SCRAPE_UA =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
+  '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+
+// Filtro `sp=EgIQAQ%3D%3D` significa "tipo: vídeo". Aplicado no servidor;
+// economiza parse de canais/playlists no resultado.
+const SP_VIDEOS_ONLY = 'EgIQAQ%3D%3D'
 
 // Parse de "MM:SS" ou "H:MM:SS" pra segundos.
 function parseLengthText(s: string | undefined): number {
@@ -499,22 +514,55 @@ function parseLengthText(s: string | undefined): number {
   return 0
 }
 
-async function searchViaInnertube(query: string): Promise<YTSearchResult[]> {
+// Extrai o JSON `var ytInitialData = {...};` do HTML. Faz balance de
+// chaves a partir do `{` inicial em vez de regex lazy `.+?` — string
+// de ~1MB com regex global pode ser lenta e errar o casamento se houver
+// um `</script>` dentro do próprio JSON.
+function extractYtInitialData(html: string): string | null {
+  const marker = 'var ytInitialData = '
+  const start = html.indexOf(marker)
+  if (start === -1) return null
+  const jsonStart = start + marker.length
+  if (html[jsonStart] !== '{') return null
+
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = jsonStart; i < html.length; i++) {
+    const c = html[i]
+    if (escape) { escape = false; continue }
+    if (c === '\\') { escape = true; continue }
+    if (c === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (c === '{') depth++
+    else if (c === '}') {
+      depth--
+      if (depth === 0) return html.slice(jsonStart, i + 1)
+    }
+  }
+  return null
+}
+
+async function searchViaScrape(query: string): Promise<YTSearchResult[]> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), INNERTUBE_TIMEOUT_MS)
   try {
-    const res = await tauriFetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        context: { client: { clientName: 'WEB', clientVersion: INNERTUBE_CLIENT_VERSION } },
-        query,
-        params: 'EgIQAQ%3D%3D',  // filtro: só vídeos (exclui canais/playlists)
-      }),
+    const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${SP_VIDEOS_ONLY}`
+    const res = await tauriFetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': SCRAPE_UA,
+        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+      },
       signal: controller.signal,
     })
-    if (!res.ok) throw new Error(`Innertube HTTP ${res.status}`)
-    const data = await res.json() as InnertubeResponse
+    if (!res.ok) throw new Error(`Scrape HTTP ${res.status}`)
+    const html = await res.text()
+
+    const jsonStr = extractYtInitialData(html)
+    if (!jsonStr) throw new Error('ytInitialData não encontrado no HTML')
+
+    const data = JSON.parse(jsonStr) as YtInitialData
 
     const items = data.contents?.twoColumnSearchResultsRenderer?.primaryContents
       ?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents ?? []
@@ -610,10 +658,9 @@ async function searchViaYtDlp(query: string): Promise<YTSearchResult[]> {
     })
 }
 
-// Tipagem mínima do response do Innertube — só os campos que a gente lê.
-// Os caminhos longos refletem a estrutura aninhada típica das respostas
-// da API. Se o YouTube mudar o shape, o `try/catch` no searchYoutube
-// cai pra yt-dlp.
+// Tipagem mínima do `ytInitialData` que a página /results devolve.
+// Mesmo shape do que o Innertube WEB retornaria, então o parser é
+// genérico. Se o YouTube mudar a estrutura, o try/catch cai pra yt-dlp.
 type VideoRenderer = {
   videoId?: string
   title?: { runs?: { text: string }[]; simpleText?: string }
@@ -621,7 +668,7 @@ type VideoRenderer = {
   longBylineText?: { runs?: { text: string }[] }
   lengthText?: { simpleText?: string }
 }
-type InnertubeResponse = {
+type YtInitialData = {
   contents?: {
     twoColumnSearchResultsRenderer?: {
       primaryContents?: {
@@ -640,16 +687,16 @@ type InnertubeResponse = {
 export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
   if (!query.trim()) return []
 
-  // Fast path (Innertube direto). Cai pra yt-dlp em qualquer erro:
-  // YouTube mudou o shape, timeout, video sem duração, parse falhou, etc.
+  // Fast path (HTML scrape da página /results). Cai pra yt-dlp em qualquer
+  // erro: YouTube mudou o shape do ytInitialData, timeout, parse falhou, etc.
   try {
-    const results = await searchViaInnertube(query)
+    const results = await searchViaScrape(query)
     if (results.length > 0) return results
-    // Resultado vazio do Innertube — pode ser parse desatualizado, vale
+    // Resultado vazio do scrape — pode ser parse desatualizado, vale
     // tentar yt-dlp antes de devolver lista vazia ao usuário.
-    throw new Error('Innertube retornou 0 resultados')
+    throw new Error('Scrape retornou 0 resultados')
   } catch (e) {
-    console.warn('[searchYoutube] Innertube falhou, fallback pra yt-dlp:', e)
+    console.warn('[searchYoutube] Scrape falhou, fallback pra yt-dlp:', e)
     return await searchViaYtDlp(query)
   }
 }

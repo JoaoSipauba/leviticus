@@ -105,9 +105,10 @@ describe('ytdlp utils', () => {
     expect(r).toEqual([])
   })
 
-  it('searchYoutube fast-path: parseia Innertube e ignora vídeos sem duração', async () => {
+  it('searchYoutube fast-path: parseia ytInitialData scraped e ignora vídeos sem duração', async () => {
     const { fetch } = await import('@tauri-apps/plugin-http')
-    const innertubePayload = {
+    // Shape do `ytInitialData` extraído da página /results.
+    const ytInitialData = {
       contents: {
         twoColumnSearchResultsRenderer: {
           primaryContents: {
@@ -123,7 +124,7 @@ describe('ytdlp utils', () => {
                         lengthText: { simpleText: '4:32' },
                       },
                     },
-                    // Sem lengthText (live stream) — deve ser descartado
+                    // Sem lengthText (live stream) — descartado
                     {
                       videoRenderer: {
                         videoId: 'bbbbbbbbbbb',
@@ -147,9 +148,12 @@ describe('ytdlp utils', () => {
         },
       },
     }
+    // Constrói um HTML mínimo que reproduz o pattern do YouTube real:
+    // `var ytInitialData = {...};</script>` embebido no script tag.
+    const html = `<html><head><script>var ytInitialData = ${JSON.stringify(ytInitialData)};</script></head><body></body></html>`
     vi.mocked(fetch).mockResolvedValueOnce(new Response(
-      JSON.stringify(innertubePayload),
-      { status: 200, headers: { 'Content-Type': 'application/json' } }
+      html,
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
     ))
     const results = await searchYoutube('worship')
     expect(results).toHaveLength(2)
