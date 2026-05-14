@@ -207,9 +207,14 @@ cd apps/desktop && pnpm vitest run src/lib/sync.test.ts
 # watch mode
 cd apps/desktop && pnpm vitest
 
-# E2E (a configurar — Linux CI ou tauri-wd no Mac)
-cd apps/desktop && pnpm test:e2e   # TODO setup
+# E2E — CI Linux (oficial, source of truth)
+cd apps/desktop && pnpm test:e2e
+
+# E2E — Mac local (rápido; requer `cargo install tauri-wd --locked` uma vez)
+cd apps/desktop && pnpm test:e2e:local
 ```
+
+Os testes E2E vivem em [apps/desktop/e2e/](apps/desktop/e2e/). Antes de rodar local, garante que o Supabase está rodando (`supabase start`) e que o app dev está buildado (`pnpm tauri build --debug --config src-tauri/tauri.conf.dev.json`).
 
 Antes de abrir PR pra `main`: `pnpm test` + `pnpm typecheck` devem passar. O workflow [`release-bump.yml`](.github/workflows/release-bump.yml) já roda `test` no Ubuntu como gate antes do bump de versão.
 
