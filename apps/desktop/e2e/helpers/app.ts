@@ -71,3 +71,18 @@ export async function setReactInputValue(cssSelector: string, value: string): Pr
     el.dispatchEvent(new Event('change', { bubbles: true }))
   }, cssSelector, value)
 }
+
+/**
+ * Replaces `window.confirm` in the running app to silently return `returnValue`,
+ * so destructive actions that gate on `confirm()` proceed (or abort) without
+ * showing a native dialog. WebDriver against wry can't reliably accept native
+ * alerts, so we sidestep the dialog entirely.
+ *
+ * Reset is not necessary between tests — the app process restarts between
+ * WebDriver sessions and gets a fresh `window`.
+ */
+export async function stubConfirm(returnValue: boolean): Promise<void> {
+  await browser.execute((v: boolean) => {
+    window.confirm = () => v
+  }, returnValue)
+}
