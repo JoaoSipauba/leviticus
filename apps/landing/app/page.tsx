@@ -16,24 +16,28 @@ import Footer from '@/components/Footer'
 import { getLatestRelease } from '@/lib/release'
 
 export default async function Home() {
+  // `release` é null quando o feed está indisponível OU algum asset não
+  // respondeu HEAD 200. Cada consumidor decide como exibir nesse caso —
+  // a landing nunca renderiza URL não-validada.
   const release = await getLatestRelease()
+  const version = release?.version
   return (
     <>
       <TopBanner />
       <Nav />
-      <Hero version={release.version} />
+      <Hero version={version} />
       <Showcase />
       <Features />
       <HowItWorks />
       <Download release={release} />
-      <Install version={release.version} />
+      <Install version={version} />
       <Comparison />
       <FAQ />
       <Donation />
       <Closer />
       <WaitlistModal />
       <Responsibility />
-      <Footer version={release.version} />
+      <Footer version={version} />
     </>
   )
 }

@@ -10,6 +10,31 @@ type Props = {
   onSuccess: () => void
 }
 
+function friendlySignUpError(rawMessage: string): string {
+  const msg = rawMessage.toLowerCase()
+  if (msg.includes('password') && (msg.includes('6 characters') || msg.includes('at least'))) {
+    return 'A senha precisa ter pelo menos 6 caracteres.'
+  }
+  if (msg.includes('already registered') || msg.includes('user already')) {
+    return 'Este e-mail já está cadastrado. Faça login.'
+  }
+  if (msg.includes('invalid email') || msg.includes('validate email')) {
+    return 'E-mail em formato inválido.'
+  }
+  return 'Algo deu errado. Tente novamente.'
+}
+
+function friendlySignInError(rawMessage: string): string {
+  const msg = rawMessage.toLowerCase()
+  if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+    return 'E-mail ou senha incorretos.'
+  }
+  if (msg.includes('email not confirmed')) {
+    return 'Confirme seu e-mail antes de entrar.'
+  }
+  return 'Algo deu errado. Tente novamente.'
+}
+
 export function Login({ onSuccess }: Props) {
   const { setSession } = useAuthStore()
   const [name, setName] = useState('')
@@ -54,11 +79,16 @@ export function Login({ onSuccess }: Props) {
       setLoading(false)
 
       if (signUpError) {
-        setError(signUpError.message)
+        console.error('signUp error', signUpError)
+        setError(friendlySignUpError(signUpError.message))
+        return
+      }
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        setError('Este e-mail já está cadastrado. Faça login.')
         return
       }
       if (!data.session) {
-        setError('Verifique seu e-mail para confirmar a conta.')
+        setError('Algo deu errado. Tente novamente.')
         return
       }
       setSession(data.session)
@@ -71,11 +101,12 @@ export function Login({ onSuccess }: Props) {
     setLoading(false)
 
     if (signInError) {
-      setError(signInError.message)
+      console.error('signIn error', signInError)
+      setError(friendlySignInError(signInError.message))
       return
     }
     if (!data.session) {
-      setError('Sessão não iniciada.')
+      setError('Algo deu errado. Tente novamente.')
       return
     }
     setSession(data.session)

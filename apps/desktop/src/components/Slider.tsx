@@ -21,17 +21,30 @@ type Props = {
    * o cursor saia do hit area do parent (ex: volume escondido em hover).
    */
   onDragChange?: (dragging: boolean) => void
+  /**
+   * Quando true, `onChange` só dispara no mouseup (com o valor final) —
+   * durante o drag a posição do thumb é renderizada a partir de estado interno,
+   * desacoplada da prop `value`. Use em sliders de seek de mídia: evita rajadas
+   * de `seekTo()` no html5 audio (que provocam glitch/scrub) e impede que o
+   * polling de posição "puxe" o thumb de volta a posições antigas durante o drag.
+   */
+  commitOnDragEnd?: boolean
   style?: CSSProperties
 }
 
-export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, formatTooltip, buffered, onDragChange, style }: Props) {
+export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, formatTooltip, buffered, onDragChange, commitOnDragEnd, style }: Props) {
   const [hoverX, setHoverX] = useState<number | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [dragValue, setDragValue] = useState<number | null>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const stateRef = useRef({ onChange, min, max, step, value })
   stateRef.current = { onChange, min, max, step, value }
 
-  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+  // Durante drag em modo commit-on-end, o slider exibe o valor local (dragValue)
+  // em vez da prop `value`. Isso isola o thumb de updates externos (ex: polling
+  // de áudio) que poderiam sobrescrever a posição que o usuário está arrastando.
+  const displayValue = dragValue ?? value
+  const pct = Math.max(0, Math.min(100, ((displayValue - min) / (max - min)) * 100))
   const bufferedPct = buffered != null
     ? Math.max(0, Math.min(100, ((buffered - min) / (max - min)) * 100))
     : null
@@ -50,23 +63,42 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
   function handleMouseDown(e: React.MouseEvent) {
     e.preventDefault()
     setIsDragging(true)
-    stateRef.current.onChange(getValFromClientX(e.clientX))
+    const initialVal = getValFromClientX(e.clientX)
+    if (commitOnDragEnd) {
+      setDragValue(initialVal)
+    } else {
+      stateRef.current.onChange(initialVal)
+    }
   }
 
   useEffect(() => {
     onDragChange?.(isDragging)
     if (!isDragging) return
     function onMove(e: MouseEvent) {
-      stateRef.current.onChange(getValFromClientX(e.clientX))
+      const newVal = getValFromClientX(e.clientX)
+      if (commitOnDragEnd) {
+        setDragValue(newVal)
+      } else {
+        stateRef.current.onChange(newVal)
+      }
     }
-    function onUp() { setIsDragging(false) }
+    function onUp() {
+      if (commitOnDragEnd) {
+        // Commit do valor final num único onChange ao soltar.
+        setDragValue(prev => {
+          if (prev !== null) stateRef.current.onChange(prev)
+          return null
+        })
+      }
+      setIsDragging(false)
+    }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  }, [isDragging, getValFromClientX, onDragChange])
+  }, [isDragging, getValFromClientX, onDragChange, commitOnDragEnd])
 
   const hoverVal = hoverX !== null && trackRef.current
     ? (() => {
@@ -126,11 +158,11 @@ export function Slider({ min = 0, max = 1, step = 0.01, value, onChange, thin, f
       }} />
 
       {/* Tooltip — renderizado via portal para escapar de containers com overflow:hidden.
-          Durante drag, mostra o `value` atual; em hover, mostra o valor da posição do cursor. */}
+          Durante drag, mostra o valor sendo arrastado; em hover, mostra o valor da posição do cursor. */}
       {formatTooltip && trackRef.current && (hoverX !== null || isDragging) && createPortal(
         (() => {
           const rect = trackRef.current!.getBoundingClientRect()
-          const showVal = isDragging ? value : (hoverVal ?? value)
+          const showVal = isDragging ? displayValue : (hoverVal ?? displayValue)
           const xOffset = isDragging
             ? rect.width * pct / 100
             : (hoverX ?? rect.width * pct / 100)

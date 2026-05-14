@@ -112,6 +112,19 @@ Always show clear, friendly error messages in Portuguese. Rules:
 - Log the raw error to `console.error` before showing the friendly version so it remains debuggable.
 - Pattern used throughout the app: `setError(insertError?.message ?? 'Fallback amigável')` — replace raw `.message` exposure with a curated message whenever the error originates from Supabase or Tauri internals.
 
+## Action feedback
+
+Toda ação do usuário precisa de feedback explícito — sucesso *e* falha. Silêncio depois de um clique deixa o usuário sem saber se algo aconteceu.
+
+Regras:
+- **Sucesso**: use `toastSuccess('Mensagem curta em pt-BR')` de `src/store/toasts.ts` logo após a ação concluir. Exemplos: "Música removida do dispositivo", "MP3 exportado", "Setlist salvo".
+- **Falha**: use `toastError('Mensagem amigável')` no `catch` — depois de logar o erro cru com `console.error`. Nunca apenas `console.error` + `return`: o usuário precisa saber que falhou.
+- **Operações longas**: mostre estado intermediário (spinner, label "Removendo…", barra de progresso) durante o `await`, e fecha com toast no fim.
+- **Operações destrutivas** (deletar música/culto/conta): além do toast de sucesso, exija confirmação inline ou modal antes — feedback ≠ substituir confirmação.
+- **Mudanças mudas ok**: filtros, edição em tempo real de campos, navegação — não precisam de toast porque a própria UI reflete o resultado.
+
+Antes de marcar uma ação como pronta, verifique: o usuário vê confirmação? Se não, adicione toast.
+
 ## Migrations checklist
 
 Toda alteração de schema no Supabase precisa ser **retrocompatível com a versão do app que está em produção**. Apps antigos continuam rodando até o usuário aceitar o auto-update — não podem quebrar enquanto isso.

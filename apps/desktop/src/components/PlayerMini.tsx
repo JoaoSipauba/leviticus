@@ -408,6 +408,7 @@ export function PlayerMini() {
               step={1}
               value={pos}
               onChange={handleSeek}
+              commitOnDragEnd
               formatTooltip={fmt}
               style={{ flex: 1 }}
             />
