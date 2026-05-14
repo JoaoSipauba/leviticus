@@ -46,7 +46,7 @@ The Sidebar gets the "Organização" link re-enabled (currently commented out at
 **List:** flat table (grid layout) with columns: Membro (avatar+name+email) · Papel · Ministérios · Entrou em · ⋯
 
 - **Avatar:** initials on a gradient picked by hash of `user_id` (reuse palette from `Groups.tsx`).
-- **Papel tag:** colored pill — Dono (amber), Admin (blue), Líder (purple), Membro (neutral). For custom roles, fall back to neutral.
+- **Papel tag:** colored pill. "Dono" is amber and is the only seeded role. All user-created roles use a neutral pill. Members without any role assignment show a dashed-border "Sem papel" pill (subtle, signals the owner that this member is waiting for a role to be assigned).
 - **Ministérios:** chips, showing first 2 + `+N more`. Hover shows full list.
 - **"você" badge** on the row of the currently authenticated user.
 
@@ -95,7 +95,9 @@ The Sidebar gets the "Organização" link re-enabled (currently commented out at
   - **Organização:** `manage_members`, `manage_roles`
 - Each toggle row: title + one-line description + iOS-style toggle. Changes save on toggle (debounced 400ms, no Save button) with optimistic UI + revert-on-error.
 
-**Default roles seeded for new orgs** (via SQL trigger, see Schema changes): "Dono" (all 7 perms, immutable), "Admin" (all 7 perms, editable), "Líder" (`add_songs`, `manage_songs`, `manage_playlists`, `add_songs_to_playlist`), "Voluntário" (no perms — read-only member).
+**Seeded roles:** only "Dono" is created automatically when an organization is created (via SQL trigger, see Schema changes). It has all 7 permissions and is non-editable / non-deletable. The owner of the org is assigned to it. Every other role is opt-in — created by the user on the Papéis sub-tab.
+
+**Empty state** (a brand new org has only Dono and no other roles): the role list shows "Dono · 1 membro · não editável" plus the "+ Novo papel" button. The right detail panel, when "Dono" is selected, shows the permissions list as read-only (all toggles on, all disabled, with a small note "Dono tem todas as permissões e não pode ser editado."). If the user clicks "+ Novo papel", a small modal asks for the name; the new role is created with all toggles off, then opens in the detail panel for permissions to be turned on.
 
 **Important note on scope:** this sub-tab manages the definition of roles. **Wiring the actual permission checks into the app's existing actions** (the "+ Novo" button in Ministérios, "Adicionar música" button, edit/delete on songs, etc.) is intentionally out of scope for this spec and tracked as a separate follow-up. v1 ships with role definitions visible but enforcement remaining permissive (anyone can do anything, same as today). This avoids coupling a UI feature to a app-wide refactor of every mutation.
 
@@ -107,7 +109,7 @@ The Sidebar gets the "Organização" link re-enabled (currently commented out at
 
 Three vertically stacked cards:
 
-1. **Transferir propriedade** (neutral border). "Passar o título de 'Dono' pra outro membro. Você continua como Admin depois da transferência." Button "Transferir…" opens modal with member picker + confirmation. Only visible if current user is the owner.
+1. **Transferir propriedade** (neutral border). "Passar o título de 'Dono' pra outro membro. Você continua como membro da organização (sem papel — o novo dono pode te atribuir um)." Button "Transferir…" opens modal with member picker + confirmation. Only visible if current user is the owner. The RPC moves the "Dono" role assignment from the old owner to the new one and updates `organizations.owner_id` in one transaction.
 
 2. **Sair da organização** (neutral border). "Você perderá acesso à biblioteca, ministérios e cultos desta organização. O dono não pode sair — precisa transferir antes." Button "Sair" opens confirmation modal. Hidden for the owner (replaced with an inline notice: "Transfira a propriedade pra poder sair.").
 
@@ -130,7 +132,7 @@ Copiar e-mail
 Remover da organização     (danger, red)
 ```
 
-- **Alterar papel** — opens small modal with radio list of roles. Apply on select.
+- **Alterar papel** — opens small modal with radio list of roles created by the org. "Dono" is shown but not selectable (use "Transferir propriedade" instead). An additional "Sem papel" option un-assigns the current role. **Empty state** (only Dono exists, no custom roles): the modal shows a friendly message "Você ainda não criou nenhum papel. [Criar papel agora]" — the link navigates to the Papéis sub-tab.
 - **Gerenciar ministérios** — opens modal with checkbox list of org ministries. Apply on Save. Inserts/deletes `user_role_assignments` rows scoped by `group_id`.
 - **Copiar e-mail** — fires immediately, no modal, toast "E-mail copiado".
 - **Remover da organização** — confirmation modal "Remover Maria Rocha? Ela perde acesso a todas as músicas, ministérios e cultos." Deletes the `organization_members` row (cascades remove all `user_role_assignments` for this user+org).
@@ -179,25 +181,35 @@ ALTER TABLE org_invite_codes
   ADD COLUMN label text;
 ```
 
-### New trigger: seed default roles
+### New trigger: seed owner role
 
-When a row is inserted into `organizations`, automatically create the four default roles (Dono / Admin / Líder / Voluntário) and their `role_permissions`. The owner of the org is assigned the "Dono" role via `user_role_assignments`.
+When a row is inserted into `organizations`, automatically create a single "Dono" role with all 7 permissions, then assign it to the org's `owner_id` via `user_role_assignments`. No other roles are seeded — users create the rest on demand from the Papéis sub-tab.
 
 ```sql
-CREATE OR REPLACE FUNCTION seed_default_roles() RETURNS TRIGGER AS $$
+CREATE OR REPLACE FUNCTION seed_owner_role() RETURNS TRIGGER AS $$
 DECLARE
-  owner_role_id uuid; admin_role_id uuid; leader_role_id uuid; volunteer_role_id uuid;
+  owner_role_id uuid;
 BEGIN
-  -- create 4 roles, insert their permissions, then assign Dono to NEW.owner_id
+  INSERT INTO roles (org_id, name) VALUES (NEW.id, 'Dono') RETURNING id INTO owner_role_id;
+  INSERT INTO role_permissions (role_id, permission)
+    SELECT owner_role_id, unnest(ARRAY[
+      'add_songs','manage_songs','manage_groups','manage_playlists',
+      'add_songs_to_playlist','manage_members','manage_roles'
+    ]);
+  INSERT INTO user_role_assignments (user_id, org_id, role_id)
+    VALUES (NEW.owner_id, NEW.id, owner_role_id);
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER seed_default_roles_trigger
+CREATE TRIGGER seed_owner_role_trigger
   AFTER INSERT ON organizations
-  FOR EACH ROW EXECUTE FUNCTION seed_default_roles();
+  FOR EACH ROW EXECUTE FUNCTION seed_owner_role();
 ```
 
-**Backfill** for existing orgs: same migration file (`20260513000003_seed_default_roles.sql`) ends with an idempotent backfill block — for each existing row in `organizations`, create the 4 default roles only if no roles exist yet for that org, then assign "Dono" to `owner_id` if no `user_role_assignments` row exists for that user+org. Since v1 keeps enforcement permissive across the rest of the app (per the "Out of scope" note), the backfill is mainly to pre-stage data for v2 — but shipping it now means legacy orgs aren't a special case later.
+**Protecting the Dono role:** because the role name "Dono" is meaningful to the app (used to identify ownership, gate the danger zone, etc.), the seeded "Dono" row must not be renamed or deleted from the UI, and its permissions must not be toggled off. The Papéis sub-tab enforces this with a `non_editable` check in the UI; the underlying DB does not prevent it (kept simple — there's no realistic UI path that triggers it).
+
+**Backfill** for existing orgs: same migration file ends with an idempotent backfill — for each existing row in `organizations`, if no "Dono" role exists for that org, create it with all 7 permissions, and ensure `user_role_assignments` has a row connecting the owner to it. Idempotent: a second run of the migration is a no-op. Since v1 keeps enforcement permissive across the rest of the app (per the "Out of scope" note), the backfill mainly pre-stages data for v2.
 
 ### New RPCs
 
@@ -233,7 +245,7 @@ Backed by a single SQLite query that joins `user_role_assignments` → `roles` �
 | File | Action |
 |---|---|
 | `supabase/migrations/20260513000002_org_settings_columns.sql` | CREATE — city, timezone, invite label |
-| `supabase/migrations/20260513000003_seed_default_roles.sql` | CREATE — trigger + backfill |
+| `supabase/migrations/20260513000003_seed_owner_role.sql` | CREATE — trigger + backfill |
 | `supabase/migrations/20260513000004_org_rpcs.sql` | CREATE — the 6 RPCs |
 | `apps/desktop/src-tauri/migrations/005_org_settings_columns.sql` | CREATE — mirror |
 | `apps/desktop/src/pages/OrgManage.tsx` | REWRITE — full tab |
@@ -296,7 +308,7 @@ All raw errors logged to `console.error` first.
 
 - **Sub-tabs vs single scrollable page** → sub-tabs (better as sections grow over time).
 - **Sections in v1** → all 5 (user explicitly approved scope including Papéis, despite my initial recommendation to defer it).
-- **Default roles** → Dono / Admin / Líder / Voluntário, with Dono immutable.
+- **Default roles** → only "Dono" is seeded automatically. All other roles are user-created from the Papéis sub-tab. (Changed from earlier draft that auto-seeded Admin / Líder / Voluntário.)
 - **Member ⋯ menu** → 3 context variants as detailed above.
 
 ---
@@ -304,5 +316,6 @@ All raw errors logged to `console.error` first.
 ## Risks
 
 - **Role definitions visible but not enforced** is a UX gap that could mislead users into thinking permissions are active. Mitigation: a one-line notice at the top of the Papéis sub-tab clarifying that permissions are being phased in, with no negative wording.
-- **Default role seeding for existing orgs** could conflict with any orgs that have manually-inserted roles (edge case — schema is there but no UI exposes it today, so empirically unlikely). Backfill should be idempotent: only seed roles where none exist for that org.
+- **Backfilling "Dono" for existing orgs.** Any existing `organizations` row that already has a role named "Dono" (edge case — schema is there but no UI exposes it today, so empirically unlikely) is left as-is. Backfill is fully idempotent.
+- **New members joining via invite arrive with no role.** Until the owner assigns one, the member sees only public reads of org content. Since v1 enforcement is permissive across the rest of the app, this doesn't lock them out functionally — but it does signal the owner (via the "Sem papel" pill) to take action.
 - **`syncOrg` now pulls 4 new tables** — incremental pull latency on first sync after upgrade. Acceptable since these tables are tiny.
