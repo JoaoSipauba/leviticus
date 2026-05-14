@@ -11,7 +11,9 @@
 // See https://danielraffel.me/2026/02/14/i-built-a-webdriver-for-wkwebview-tauri-apps-on-macos/
 
 import { spawn, type ChildProcess } from 'node:child_process'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { config as baseConfig } from './wdio.conf.js'
+import { appBinaryPath } from './helpers/env.js'
 import { takeScreenshot } from './helpers/app.js'
 
 let tauriWd: ChildProcess | null = null
@@ -19,12 +21,25 @@ let tauriWd: ChildProcess | null = null
 export const config: WebdriverIO.Config = {
   ...baseConfig,
 
-  beforeSession: () => {
+  // tauri-wd expects the binary path under `tauri:options.binary` (vs
+  // `application` used by the official tauri-driver). Override here.
+  capabilities: [
+    {
+      browserName: 'wry',
+      'tauri:options': { binary: appBinaryPath() },
+    } as WebdriverIO.Capabilities,
+  ],
+
+  beforeSession: async () => {
     // tauri-wd is the macOS WebDriver substitute. Default port is 4444 — matches
     // the base config's port so we don't need to override.
     tauriWd = spawn('tauri-wd', [], {
       stdio: [null, process.stdout, process.stderr],
     })
+    // Give tauri-wd a moment to bind the socket on 4444 before WebdriverIO
+    // attempts to connect; otherwise the first session POST races and dies
+    // with UND_ERR_SOCKET.
+    await sleep(1500)
   },
 
   afterSession: () => {
