@@ -9,6 +9,13 @@ on:
   pull_request:
     branches: [main]
 
+# Cancela runs antigos do MESMO PR quando você dá push novo (economiza
+# minutos de CI). Em push direto na main NÃO cancela — não queremos
+# abortar uma validação em curso pra main por causa de outro merge.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   changes:
     name: Detect changed paths
@@ -75,6 +82,14 @@ jobs:
       needs.changes.outputs.desktop == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      # sccache wrapper acelera builds Rust em todas as etapas. Mais detalhes
+      # no step "Setup sccache".
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+      # Incremental compilation atrapalha em CI (gera caches que não vão ser
+      # reusados) — desligar reduz tamanho de cache e tempo de I/O.
+      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -91,26 +106,38 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Setup sccache
+        # Wrapper de compilação Rust com cache global compartilhado entre
+        # workflows (não só entre runs do mesmo branch como o Swatinem).
+        # Faz hit em ~50-60% dos arquivos mesmo em cold rust-cache.
+        uses: mozilla-actions/sccache-action@9a9d136d5e0d23725fad27e4dffaba6f1eaca0fe # v0.0.9
+
       - name: Cache Rust target dir
-        # Sem isso, cada run compila ~600 crates do zero (~15-20min).
-        # Com cache: 2-3min em runs subsequentes. Primeiro run continua cold.
+        # Cacheia target/ + registry/. Cold: 15-20min build do zero.
+        # Warm: 2-3min. `save-if: main` evita que branches descartem o cache
+        # útil de main (limite de 10GB por repo).
         uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           workspaces: apps/desktop/src-tauri
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Install Tauri Linux deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            xvfb
+      - name: Cache apt packages (Tauri Linux deps)
+        # Sem cache: ~30s rodando apt-get update + install toda vez.
+        # Com cache: ~3s. `version: 1` é manual cache-buster — bumpar quando
+        # mudar a lista de pacotes.
+        uses: awalsh128/cache-apt-pkgs-action@5902b33ae29014e6ca012c5d8025d4346556bd40 # v1.4.3
+        with:
+          packages: libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xvfb
+          version: 1
+
+      - name: Install cargo-binstall
+        # cargo-binstall baixa binários pré-compilados quando disponíveis,
+        # evitando compilar tauri-driver do zero (~90s → ~5s).
+        uses: cargo-bins/cargo-binstall@b9bf4400702f721d469eec4d05be5bf0a3d9c485 # v1.10.18
 
       - name: Install tauri-driver
-        run: cargo install tauri-driver --locked
+        run: cargo binstall -y tauri-driver
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -121,10 +148,15 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # Pin explícito — `latest` quebrou Docker compose mais de uma vez
+          # em 2025. Bumpar deliberadamente após teste local.
+          version: 1.219.0
 
-      - name: Start Supabase
-        run: supabase start
+      - name: Start Supabase (apenas serviços que os testes E2E usam)
+        # Padrão `supabase start` sobe ~10 containers (storage, edge-runtime,
+        # imgproxy, inbucket, studio, etc). Nossos E2E usam só Postgres + Auth.
+        # Excluir o resto corta ~60s do startup e libera ~1.5GB de RAM.
+        run: supabase start -x studio,inbucket,imgproxy,edge-runtime,storage-api
 
       - name: Capture Supabase keys
         id: supabase-keys
@@ -144,15 +176,18 @@ jobs:
         env:
           SUPABASE_URL: http://127.0.0.1:54321
           SUPABASE_SERVICE_ROLE_KEY: ${{ steps.supabase-keys.outputs.service_role }}
-        run: xvfb-run --auto-servernum pnpm e2e
+        # --server-args explícito: defaults de xvfb usam screen depth 8,
+        # que pode quebrar paths de WebKit GPU no Ubuntu 22.04+.
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x24" pnpm e2e
 
       - name: Upload screenshots on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: e2e-screenshots
+          name: e2e-screenshots-${{ github.run_id }}
           path: apps/desktop/e2e/screenshots/
           if-no-files-found: ignore
+          retention-days: 7  # screenshots são pra debug imediato; 90d default é desperdício
 
   # Agregador: é ESTE job que a branch protection exige como required check.
   # Como ele sempre roda (if: always()) e enxerga o resultado dos demais,

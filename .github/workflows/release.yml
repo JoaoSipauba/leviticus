@@ -12,6 +12,13 @@ on:
 permissions:
   contents: write
 
+# Releases NUNCA cancelam outras releases em andamento — abortar um upload
+# de bundle no meio deixa estado corrompido no Supabase Storage e quebra
+# o auto-updater pra quem já baixou parcialmente. Queue, não cancel.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build ${{ matrix.platform_key }}
@@ -28,6 +35,13 @@ jobs:
             platform_key: windows-x86_64
             rust_target: x86_64-pc-windows-msvc
             bundles: nsis,updater
+    env:
+      # sccache acelera builds Rust mesmo em runners diferentes (cache no
+      # GitHub Actions cache backend). Em release vale especialmente porque
+      # macOS e Windows são caros — cada minuto poupado conta.
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+      CARGO_INCREMENTAL: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -44,10 +58,16 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable @ 2026-05
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@9a9d136d5e0d23725fad27e4dffaba6f1eaca0fe # v0.0.9
+
       - name: Cache cargo target
-        uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           workspaces: apps/desktop/src-tauri -> target
+          cache-on-failure: true
+          # Save sempre em release — é o único momento que vale popular o
+          # cache pras plataformas mac/windows que o CI não usa.
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile

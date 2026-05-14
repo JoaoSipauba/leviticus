@@ -27,6 +27,8 @@ on:
         options: ['', 'patch', 'minor', 'major']
 
 # Evita dois bumps concorrentes — daria duas tags lutando entre si.
+# cancel-in-progress: false porque bump+tag+push é não-idempotente:
+# cancelar no meio pode deixar tag órfã sem commit ou vice-versa.
 concurrency:
   group: release-bump
   cancel-in-progress: false
