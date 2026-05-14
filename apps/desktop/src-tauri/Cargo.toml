@@ -23,6 +23,11 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-http = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+# E2E only: plugin compilado e ativado apenas em builds debug (via
+# cfg(debug_assertions) em lib.rs). Permite que o `tauri-wd` CLI controle
+# o app via WebDriver no macOS. Em release builds, o código é compilado
+# mas nunca instanciado (dead code elimination cuida).
+tauri-plugin-webdriver-automation = "0.1"
 # Pra baixar yt-dlp/ffmpeg em $APPLOCALDATA/bin no primeiro uso. rustls
 # evita linkar OpenSSL (mais leve e cross-platform). stream pra futuro
 # progresso. flate2 descomprime os .gz do ffmpeg-static. sha2 verifica
