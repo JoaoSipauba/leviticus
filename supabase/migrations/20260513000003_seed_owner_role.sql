@@ -5,6 +5,7 @@ CREATE OR REPLACE FUNCTION seed_owner_role()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   owner_role_id uuid;
