@@ -150,7 +150,7 @@ jobs:
         with:
           # Pin explícito — `latest` quebrou Docker compose mais de uma vez
           # em 2025. Bumpar deliberadamente após teste local.
-          version: 1.219.0
+          version: 2.98.2
 
       - name: Start Supabase (apenas serviços que os testes E2E usam)
         # Padrão `supabase start` sobe ~10 containers (storage, edge-runtime,
