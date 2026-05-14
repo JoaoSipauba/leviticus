@@ -19,14 +19,12 @@ vi.mock('./supabase.js', () => ({
 function makeChain(result = { data: [] as any[], error: null as any }) {
   const chain: any = {}
   chain.select = vi.fn().mockReturnValue(chain)
-  chain.eq = vi.fn().mockReturnValue(chain)
   chain.gte = vi.fn().mockResolvedValue(result)
-  // junction queries end with .eq(), so make eq also resolve when it's the last call
+  chain.single = vi.fn().mockResolvedValue(result)
   chain.eq = vi.fn().mockImplementation(() => {
-    // return a thenable chain so it can be awaited or chained further
     const sub: any = {}
     sub.gte = vi.fn().mockResolvedValue(result)
-    // make the chain itself awaitable (for .eq() as terminal call)
+    sub.single = vi.fn().mockResolvedValue(result)
     sub.then = (resolve: any) => Promise.resolve(result).then(resolve)
     sub.catch = (reject: any) => Promise.resolve(result).catch(reject)
     sub.finally = (fn: any) => Promise.resolve(result).finally(fn)
@@ -57,6 +55,12 @@ describe('syncOrg', () => {
     expect(supabase.from).toHaveBeenCalledWith('playlists')
     expect(supabase.from).toHaveBeenCalledWith('song_groups')
     expect(supabase.from).toHaveBeenCalledWith('playlist_songs')
+    expect(supabase.from).toHaveBeenCalledWith('organizations')
+    expect(supabase.from).toHaveBeenCalledWith('organization_members')
+    expect(supabase.from).toHaveBeenCalledWith('roles')
+    expect(supabase.from).toHaveBeenCalledWith('role_permissions')
+    expect(supabase.from).toHaveBeenCalledWith('user_role_assignments')
+    expect(supabase.from).toHaveBeenCalledWith('org_invite_codes')
   })
 
   it('throws when supabase returns an error', async () => {
