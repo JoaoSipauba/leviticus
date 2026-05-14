@@ -13,10 +13,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export function appBinaryPath(): string {
   const target = path.resolve(__dirname, '../../src-tauri/target/debug')
   if (platform() === 'darwin') {
-    // macOS bundles produce a .app — the executable inside is what WebDriver launches.
+    // macOS bundles produce a .app — the executable inside follows the Cargo
+    // binary name (`leviticus-desktop`), not the productName ("Leviticus Dev")
+    // which only affects the .app folder name.
     return path.join(
       target,
-      'bundle/macos/Leviticus Dev.app/Contents/MacOS/Leviticus Dev'
+      'bundle/macos/Leviticus Dev.app/Contents/MacOS/leviticus-desktop'
     )
   }
   // Linux: the bare binary lives in the target/debug root.
