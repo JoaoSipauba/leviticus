@@ -106,7 +106,7 @@ jobs:
         env:
           SUPABASE_URL: http://127.0.0.1:54321
           SUPABASE_SERVICE_ROLE_KEY: ${{ steps.supabase-keys.outputs.service_role }}
-        run: xvfb-run --auto-servernum pnpm test
+        run: xvfb-run --auto-servernum pnpm e2e
 
       - name: Upload screenshots on failure
         if: failure()

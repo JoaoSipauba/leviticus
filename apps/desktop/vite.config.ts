@@ -34,5 +34,9 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     globals: true,
+    // Vitest discovers **/*.test.ts and **/*.spec.ts by default. The e2e
+    // folder uses WebdriverIO+Mocha — its specs would error out if loaded
+    // here. Exclude that dir from vitest's discovery.
+    exclude: ['**/node_modules/**', '**/dist/**', '**/e2e/**'],
   },
 })
