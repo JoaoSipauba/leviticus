@@ -210,7 +210,7 @@ cd apps/desktop && pnpm vitest
 # E2E — CI Linux (oficial, source of truth)
 cd apps/desktop && pnpm test:e2e
 
-# E2E — Mac local (rápido; requer `cargo install tauri-wd --locked` uma vez)
+# E2E — Mac local (rápido; requer `cargo install tauri-webdriver-automation --locked` (binary se chama `tauri-wd`) uma vez)
 cd apps/desktop && pnpm test:e2e:local
 ```
 
