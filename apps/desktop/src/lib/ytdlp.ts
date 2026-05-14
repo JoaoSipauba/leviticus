@@ -2,6 +2,7 @@ import { Command, type Child } from '@tauri-apps/plugin-shell'
 import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join, downloadDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
 // primeiro boot baixa do GitHub releases do yt-dlp; depois disso é
@@ -377,13 +378,68 @@ export async function downloadSong(
   return startDownload(songId, youtubeUrl, onProgress).promise
 }
 
-export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
+type YoutubeMetadata = {
   title: string
   artist: string
   thumbnail_url: string
   duration_seconds: number
   normalizedUrl: string
-}> {
+}
+
+// oEmbed: endpoint oficial e estável do YouTube. ~150ms vs ~2-3s do
+// yt-dlp (que tem overhead de startup + extractor handshake). Não
+// retorna `duration_seconds` — fica em 0 e é populado quando o
+// download começa (yt-dlp já extrai isso de qualquer jeito).
+const OEMBED_TIMEOUT_MS = 5_000
+
+async function fetchMetadataViaOembed(videoId: string, normalizedUrl: string): Promise<YoutubeMetadata> {
+  const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), OEMBED_TIMEOUT_MS)
+  try {
+    const res = await tauriFetch(oembedUrl, { signal: controller.signal })
+    if (!res.ok) throw new Error(`oEmbed HTTP ${res.status}`)
+    const data = await res.json() as { title?: string; author_name?: string }
+    if (!data.title) throw new Error('oEmbed payload sem title')
+    return {
+      title: data.title,
+      artist: data.author_name ?? '',
+      thumbnail_url: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      duration_seconds: 0,
+      normalizedUrl,
+    }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function fetchMetadataViaYtDlp(videoId: string, normalizedUrl: string): Promise<YoutubeMetadata> {
+  await ensureYtDlp()
+  const command = Command.create('yt-dlp', [
+    '--no-playlist',
+    '--no-download',
+    '--print', '%(title)s|||%(uploader)s|||%(duration)s',
+    normalizedUrl,
+  ])
+
+  const result = await command.execute()
+  if (result.code !== 0) {
+    console.error('[fetchMetadataViaYtDlp] yt-dlp failed:', result.stderr)
+    throw new Error('Não foi possível buscar as informações do vídeo. Tente novamente.')
+  }
+
+  const [title = videoId, artist = '', durationRaw = '0'] = result.stdout.trim().split('|||')
+
+  return {
+    title: title || videoId,
+    artist,
+    thumbnail_url: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+    duration_seconds: parseInt(durationRaw, 10) || 0,
+    normalizedUrl,
+  }
+}
+
+export async function fetchYoutubeMetadata(rawUrl: string): Promise<YoutubeMetadata> {
   const normalized = /^https?:\/\//i.test(rawUrl.trim()) ? rawUrl.trim() : `https://${rawUrl.trim()}`
   let parsed: URL
   try {
@@ -405,30 +461,14 @@ export async function fetchYoutubeMetadata(rawUrl: string): Promise<{
   if (!videoId || !/^[A-Za-z0-9_-]{11}$/.test(videoId)) {
     throw new Error('Não foi possível identificar o vídeo. Verifique se o link é válido e tente novamente.')
   }
-  const url = normalized
 
-  await ensureYtDlp()
-  const command = Command.create('yt-dlp', [
-    '--no-playlist',
-    '--no-download',
-    '--print', '%(title)s|||%(uploader)s|||%(duration)s',
-    url,
-  ])
-
-  const result = await command.execute()
-  if (result.code !== 0) {
-    console.error('[fetchYoutubeMetadata] yt-dlp failed:', result.stderr)
-    throw new Error('Não foi possível buscar as informações do vídeo. Tente novamente.')
-  }
-
-  const [title = videoId, artist = '', durationRaw = '0'] = result.stdout.trim().split('|||')
-
-  return {
-    title: title || videoId,
-    artist,
-    thumbnail_url: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-    duration_seconds: parseInt(durationRaw, 10) || 0,
-    normalizedUrl: url,
+  // Fast path (oEmbed). Cai pra yt-dlp se 404 (vídeo privado / fake ID
+  // em testes E2E), timeout, ou qualquer outro erro de rede.
+  try {
+    return await fetchMetadataViaOembed(videoId, normalized)
+  } catch (e) {
+    console.warn('[fetchYoutubeMetadata] oEmbed falhou, fallback pra yt-dlp:', e)
+    return await fetchMetadataViaYtDlp(videoId, normalized)
   }
 }
 
@@ -441,10 +481,68 @@ export type YTSearchResult = {
 }
 
 const SEARCH_TIMEOUT_MS = 15_000
+const INNERTUBE_TIMEOUT_MS = 5_000
 
-export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
-  if (!query.trim()) return []
+// Innertube é o protocolo HTTP/JSON que o próprio yt-dlp (e o YouTube Web)
+// usam por baixo. Bypassando o subprocess do yt-dlp, a busca cai de
+// ~2-3s pra ~300-500ms. clientVersion precisa estar atual senão o YouTube
+// responde com 400; bumpar quando der `INNERTUBE_FAILED`.
+const INNERTUBE_CLIENT_VERSION = '2.20240307.00.00'
 
+// Parse de "MM:SS" ou "H:MM:SS" pra segundos.
+function parseLengthText(s: string | undefined): number {
+  if (!s) return 0
+  const parts = s.split(':').map((p) => parseInt(p, 10))
+  if (parts.some((n) => Number.isNaN(n))) return 0
+  if (parts.length === 2) return parts[0] * 60 + parts[1]
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2]
+  return 0
+}
+
+async function searchViaInnertube(query: string): Promise<YTSearchResult[]> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), INNERTUBE_TIMEOUT_MS)
+  try {
+    const res = await tauriFetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        context: { client: { clientName: 'WEB', clientVersion: INNERTUBE_CLIENT_VERSION } },
+        query,
+        params: 'EgIQAQ%3D%3D',  // filtro: só vídeos (exclui canais/playlists)
+      }),
+      signal: controller.signal,
+    })
+    if (!res.ok) throw new Error(`Innertube HTTP ${res.status}`)
+    const data = await res.json() as InnertubeResponse
+
+    const items = data.contents?.twoColumnSearchResultsRenderer?.primaryContents
+      ?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents ?? []
+
+    const parsed: YTSearchResult[] = []
+    for (const it of items) {
+      const v = it.videoRenderer
+      if (!v?.videoId || !v.title) continue
+      const title = v.title.runs?.[0]?.text ?? v.title.simpleText ?? ''
+      const channel = v.ownerText?.runs?.[0]?.text ?? v.longBylineText?.runs?.[0]?.text ?? ''
+      const duration = parseLengthText(v.lengthText?.simpleText)
+      if (!title || duration <= 0) continue
+      parsed.push({
+        id: v.videoId,
+        title,
+        channel,
+        duration,
+        webpage_url: `https://www.youtube.com/watch?v=${v.videoId}`,
+      })
+      if (parsed.length >= 5) break
+    }
+    return parsed
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function searchViaYtDlp(query: string): Promise<YTSearchResult[]> {
   // --flat-playlist: usa apenas os dados da página de resultados, sem fazer
   // uma requisição extra por vídeo. Reduz de ~6 requests para 1.
   await ensureYtDlp()
@@ -477,7 +575,7 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
     command.stderr.on('data', (line: string) => { err += line + '\n' })
     command.on('close', ({ code }) => {
       if (code !== 0) {
-        console.error('[searchYoutube] yt-dlp error:', err)
+        console.error('[searchViaYtDlp] yt-dlp error:', err)
         settle(() => reject(new Error('yt-dlp failed')))
       } else {
         settle(() => resolve(out))
@@ -510,6 +608,50 @@ export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
         return []
       }
     })
+}
+
+// Tipagem mínima do response do Innertube — só os campos que a gente lê.
+// Os caminhos longos refletem a estrutura aninhada típica das respostas
+// da API. Se o YouTube mudar o shape, o `try/catch` no searchYoutube
+// cai pra yt-dlp.
+type VideoRenderer = {
+  videoId?: string
+  title?: { runs?: { text: string }[]; simpleText?: string }
+  ownerText?: { runs?: { text: string }[] }
+  longBylineText?: { runs?: { text: string }[] }
+  lengthText?: { simpleText?: string }
+}
+type InnertubeResponse = {
+  contents?: {
+    twoColumnSearchResultsRenderer?: {
+      primaryContents?: {
+        sectionListRenderer?: {
+          contents?: {
+            itemSectionRenderer?: {
+              contents?: { videoRenderer?: VideoRenderer }[]
+            }
+          }[]
+        }
+      }
+    }
+  }
+}
+
+export async function searchYoutube(query: string): Promise<YTSearchResult[]> {
+  if (!query.trim()) return []
+
+  // Fast path (Innertube direto). Cai pra yt-dlp em qualquer erro:
+  // YouTube mudou o shape, timeout, video sem duração, parse falhou, etc.
+  try {
+    const results = await searchViaInnertube(query)
+    if (results.length > 0) return results
+    // Resultado vazio do Innertube — pode ser parse desatualizado, vale
+    // tentar yt-dlp antes de devolver lista vazia ao usuário.
+    throw new Error('Innertube retornou 0 resultados')
+  } catch (e) {
+    console.warn('[searchYoutube] Innertube falhou, fallback pra yt-dlp:', e)
+    return await searchViaYtDlp(query)
+  }
 }
 
 export async function getPreviewUrl(videoId: string): Promise<string> {
