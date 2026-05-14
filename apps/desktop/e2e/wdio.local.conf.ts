@@ -33,8 +33,11 @@ export const config: WebdriverIO.Config = {
   beforeSession: async () => {
     // tauri-wd is the macOS WebDriver substitute. Default port is 4444 — matches
     // the base config's port so we don't need to override.
+    // `detached: true` puts the child in its own process group so we can later
+    // kill the whole tree, including any app process tauri-wd launches.
     tauriWd = spawn('tauri-wd', [], {
       stdio: [null, process.stdout, process.stderr],
+      detached: true,
     })
     // Give tauri-wd a moment to bind the socket on 4444 before WebdriverIO
     // attempts to connect; otherwise the first session POST races and dies
@@ -43,7 +46,12 @@ export const config: WebdriverIO.Config = {
   },
 
   afterSession: () => {
-    tauriWd?.kill()
+    if (tauriWd?.pid) {
+      // Negative pid kills the whole process group (detached above), so the
+      // launched Tauri app process dies too. Otherwise it can linger and
+      // keep port 4444 alive across runs.
+      try { process.kill(-tauriWd.pid, 'SIGKILL') } catch { /* already dead */ }
+    }
     tauriWd = null
   },
 
