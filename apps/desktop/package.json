@@ -11,6 +11,8 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev --config src-tauri/tauri.conf.dev.json",
     "test": "vitest run --passWithNoTests",
+    "test:e2e": "pnpm --filter leviticus-e2e test",
+    "test:e2e:local": "pnpm --filter leviticus-e2e test:local",
     "release": "release-it"
   },
   "dependencies": {
