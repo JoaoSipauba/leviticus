@@ -5,6 +5,10 @@ import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { hasPermission, isOwner } from '../../lib/permissions.js'
 import { MemberRow, type MemberDisplayRow } from '../../components/org/MemberRow.js'
+import { MemberMenu, type MenuVariant, type MemberMenuAction } from '../../components/org/MemberMenu.js'
+import { ChangeRoleModal } from '../../components/org/ChangeRoleModal.js'
+import { ManageMinistriesModal } from '../../components/org/ManageMinistriesModal.js'
+import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
 
 type RawRow = {
   user_id: string
@@ -21,7 +25,12 @@ export function OrgMembers({ orgId }: { orgId: string }) {
   const [roleOptions, setRoleOptions] = useState<string[]>([])
   const [ministryOptions, setMinistryOptions] = useState<string[]>([])
   const [me, setMe] = useState<string>('')
+  const [ownerUserId, setOwnerUserId] = useState<string>('')
   const [canManage, setCanManage] = useState(false)
+  const [menuFor, setMenuFor] = useState<{ row: MemberDisplayRow; anchor: HTMLElement; variant: MenuVariant } | null>(null)
+  const [openChangeRole, setOpenChangeRole] = useState<MemberDisplayRow | null>(null)
+  const [openManageMin, setOpenManageMin] = useState<MemberDisplayRow | null>(null)
+  const [openRemove, setOpenRemove] = useState<{ row: MemberDisplayRow; mode: 'remove' | 'leave' } | null>(null)
 
   async function load() {
     const db = await getDb()
@@ -30,7 +39,8 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     setMe(myId)
 
     const ownerRows = await db.select<{ owner_id: string }[]>(`SELECT owner_id FROM orgs WHERE id = ?`, [orgId])
-    const ownerUserId = ownerRows[0]?.owner_id ?? ''
+    const ownerUserIdVal = ownerRows[0]?.owner_id ?? ''
+    setOwnerUserId(ownerUserIdVal)
 
     const raw = await db.select<RawRow[]>(
       `SELECT
@@ -67,7 +77,7 @@ export function OrgMembers({ orgId }: { orgId: string }) {
       const name = u?.name ?? r.user_id.slice(0, 8)
       const email = u?.email ?? ''
       const ministries = r.ministries ? r.ministries.split(',').filter(Boolean) : []
-      const isOwnerRow = r.user_id === ownerUserId
+      const isOwnerRow = r.user_id === ownerUserIdVal
       return {
         userId: r.user_id,
         name,
@@ -108,9 +118,25 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     })
   }, [rows, search, roleFilter, ministryFilter])
 
-  function handleMenuClick(row: MemberDisplayRow, _anchor: HTMLElement) {
-    // Wired in Task 10
-    console.log('menu click', row.userId)
+  function handleMenuClick(row: MemberDisplayRow, anchor: HTMLElement) {
+    let variant: MenuVariant
+    if (row.userId === me) variant = 'self'
+    else if (row.userId === ownerUserId) variant = 'admin-on-owner'
+    else variant = 'admin-on-member'
+    setMenuFor({ row, anchor, variant })
+  }
+
+  async function handleMenuAction(row: MemberDisplayRow, action: MemberMenuAction) {
+    if (action === 'copy-email') {
+      if (row.email) {
+        await navigator.clipboard.writeText(row.email)
+      }
+      return
+    }
+    if (action === 'change-role') { setOpenChangeRole(row); return }
+    if (action === 'manage-ministries' || action === 'view-ministries') { setOpenManageMin(row); return }
+    if (action === 'remove')         { setOpenRemove({ row, mode: 'remove' }); return }
+    if (action === 'leave')          { setOpenRemove({ row, mode: 'leave' }); return }
   }
 
   const inputBase = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, color: '#f3f4f6', outline: 'none' }
@@ -179,6 +205,50 @@ export function OrgMembers({ orgId }: { orgId: string }) {
           })
         )}
       </div>
+
+      {menuFor && (
+        <MemberMenu
+          variant={menuFor.variant}
+          anchor={menuFor.anchor}
+          onAction={(a) => handleMenuAction(menuFor.row, a)}
+          onClose={() => setMenuFor(null)}
+        />
+      )}
+
+      {openChangeRole && (
+        <ChangeRoleModal
+          open={true}
+          orgId={orgId}
+          userId={openChangeRole.userId}
+          memberName={openChangeRole.name}
+          currentRoleId={null}
+          onClose={() => setOpenChangeRole(null)}
+          onSaved={() => { void load() }}
+        />
+      )}
+
+      {openManageMin && (
+        <ManageMinistriesModal
+          open={true}
+          orgId={orgId}
+          userId={openManageMin.userId}
+          memberName={openManageMin.name}
+          onClose={() => setOpenManageMin(null)}
+          onSaved={() => { void load() }}
+        />
+      )}
+
+      {openRemove && (
+        <RemoveMemberModal
+          open={true}
+          orgId={orgId}
+          userId={openRemove.row.userId}
+          memberName={openRemove.row.name}
+          mode={openRemove.mode}
+          onClose={() => setOpenRemove(null)}
+          onDone={() => { void load() }}
+        />
+      )}
     </div>
   )
 }
