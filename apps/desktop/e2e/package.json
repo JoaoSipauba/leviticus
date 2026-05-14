@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test": "wdio run ./wdio.conf.ts",
-    "test:local": "wdio run ./wdio.local.conf.ts"
+    "test:local": "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY') wdio run ./wdio.local.conf.ts"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.43.0",
