@@ -5,6 +5,16 @@
   "build": {
     "beforeDevCommand": "pnpm dev:local"
   },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "pubkey": "",
+      "endpoints": []
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
+  },
   "app": {
     "windows": [
       {
