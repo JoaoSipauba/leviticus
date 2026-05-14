@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/JoaoSipauba/leviticus/compare/v0.6.0...v0.7.0) (2026-05-14)
+
+### Funcionalidades
+
+* **landing+release:** unifica feed em latest.json + valida HEAD ([6efc8a2](https://github.com/JoaoSipauba/leviticus/commit/6efc8a21da689ca71e097dfd0d30346ee87b2f9b))
+* **library:** toast ao remover música do dispositivo ([9534320](https://github.com/JoaoSipauba/leviticus/commit/95343208a27e499db7f0b5da0ab00a9567d05ed7))
+
+### Correções
+
+* **auth:** trata e-mail duplicado e melhora mensagens de erro no signup ([c2f89d7](https://github.com/JoaoSipauba/leviticus/commit/c2f89d783343cf21ae1a4d33d92cdc014408a1df))
+* **landing:** viewport meta e overflow lateral em mobile/tablet ([ba18c03](https://github.com/JoaoSipauba/leviticus/commit/ba18c03db1ba99d9c980598a1dd4c734d502d9c4))
+* **library:** menu de ações abre pra cima quando não cabe embaixo ([e277b09](https://github.com/JoaoSipauba/leviticus/commit/e277b099f28a33b05f34c30b82246745aa41b41a))
+* **player:** seek slider commita posição só ao soltar o mouse ([4e070ff](https://github.com/JoaoSipauba/leviticus/commit/4e070ffaf340c450a4e24d99f57c68ce6ca50685))
+
 ## [0.6.0](https://github.com/JoaoSipauba/leviticus/compare/v0.5.0...v0.6.0) (2026-05-13)
 
 ### Funcionalidades
