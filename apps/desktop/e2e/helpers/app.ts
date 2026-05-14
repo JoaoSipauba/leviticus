@@ -4,8 +4,9 @@
 // the actual app process — these helpers cover ancillary state.
 
 import fs from 'node:fs/promises'
-import { platform } from 'node:os'
+import { homedir, platform } from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { localSqliteDbPath, screenshotsDir } from './env.js'
 
 /**
@@ -83,4 +84,45 @@ export async function stubConfirm(returnValue: boolean): Promise<void> {
   await browser.execute((v: boolean) => {
     window.confirm = () => v
   }, returnValue)
+}
+
+/** Resolves the path Tauri's shell capability maps to for `yt-dlp` (and `ffmpeg`). */
+export function appLocalBinDir(): string {
+  if (platform() === 'darwin') {
+    return path.join(homedir(), 'Library/Application Support/com.leviticus.app.dev/bin')
+  }
+  // Linux (CI) — Tauri uses XDG data dir
+  return path.join(homedir(), '.local/share/com.leviticus.app.dev/bin')
+}
+
+/** Audio output dir — where the app saves downloaded songs. */
+export function appAudioDir(): string {
+  return path.join(path.dirname(appLocalBinDir()), 'audio')
+}
+
+/**
+ * Copies the fake yt-dlp shell script to where the app expects the binary
+ * and sets it executable. Run once in `before()` of any test that needs yt-dlp.
+ *
+ * The mock's behavior is then mode-switched at runtime via setYtDlpMockMode.
+ */
+export async function installYtDlpMock(): Promise<void> {
+  const binDir = appLocalBinDir()
+  await fs.mkdir(binDir, { recursive: true })
+  const fixtureSrc = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../fixtures/fake-yt-dlp.sh'
+  )
+  const dest = path.join(binDir, 'yt-dlp')
+  await fs.copyFile(fixtureSrc, dest)
+  await fs.chmod(dest, 0o755)
+  // Start in happy mode by default.
+  await setYtDlpMockMode('happy')
+}
+
+/** Writes /tmp/fake-yt-dlp.mode — read by fake-yt-dlp.sh on each invocation. */
+export async function setYtDlpMockMode(
+  mode: 'happy' | 'fail-metadata' | 'fail-download'
+): Promise<void> {
+  await fs.writeFile('/tmp/fake-yt-dlp.mode', mode, 'utf-8')
 }
