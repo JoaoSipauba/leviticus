@@ -97,10 +97,15 @@ describe('Journey D — Org Roles CRUD', () => {
     await setReactInputValue('input', 'Dono')
     await salvarBtn.click()
 
-    // setError('"Dono" é reservado.') shows as <p role="alert"> in the panel
-    const alert = $('p[role=alert]')
-    await alert.waitForExist({ timeout: 5_000, timeoutMsg: 'Expected "Dono é reservado" error' })
-    expect(await alert.getText()).toContain('Dono')
+    // OrgRoles renders error as plain <p> (no role="alert").
+    // Wait for the text "Dono" to appear anywhere on the page.
+    await browser.waitUntil(
+      async () => {
+        const body = await browser.execute(() => document.body.innerText)
+        return (body as string).includes('"Dono" é reservado')
+      },
+      { timeout: 5_000, timeoutMsg: 'Expected "Dono é reservado" error on page' }
+    )
 
     // Role name unchanged
     const { data: row } = await supabase.from('roles').select('name').eq('id', roleId).single()
@@ -140,24 +145,41 @@ describe('Journey D — Org Roles CRUD', () => {
   it('T3 — deletar papel com membros: guard bloqueia, row permanece', async () => {
     const supabase = makeAdminClient()
     const roleName = `Test Role T3 ${Date.now()}`
-    const roleId = await createRoleViaUI(roleName)
 
-    // Assign role to owner via admin (bypasses RLS)
+    // Create role + assignment ALL via admin so both rows land in Supabase before
+    // any sync runs. Avoids the createRoleViaUI multi-sync timing dance.
+    const { data: roleRow, error: roleErr } = await supabase
+      .from('roles')
+      .insert({ org_id: orgId, name: roleName })
+      .select('id').single()
+    if (roleErr || !roleRow) throw new Error(`role insert failed: ${roleErr?.message}`)
+    const roleId = (roleRow as { id: string }).id
+
     const { error: assignErr } = await supabase
       .from('user_role_assignments')
       .insert({ user_id: userId, org_id: orgId, role_id: roleId })
     if (assignErr) throw new Error(`user_role_assignments insert failed: ${assignErr.message}`)
 
-    // Force re-mount of OrgRoles so memberCount reloads from SQLite via syncOrg
+    // Navigate to /library so reload boots there (App.tsx doesn't navigate
+    // when session+org exist — it stays on current URL).
     await browser.url('tauri://localhost/library')
     await browser.waitUntil(
       async () => /\/library$/.test(await browser.getUrl()),
       { timeout: 15_000 }
     )
+    // Reload to retrigger App.tsx boot syncOrg → pulls role + assignment into SQLite
+    await browser.execute(() => { window.location.reload() })
+    await browser.waitUntil(
+      async () => /\/library$/.test(await browser.getUrl()),
+      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload' }
+    )
+    await new Promise((r) => setTimeout(r, 6_000))
     await browser.url('tauri://localhost/manage?tab=roles')
 
-    // Find and select the T3 role in the left list
-    const roleItem = $(`span*=${roleName}`)
+    // Role names in the left list are inside `<div>{r.name}</div>` (the row wrapper
+    // is also a div with onClick — not a <button>). Exact-text selector targets
+    // the innermost div uniquely; click bubbles up to the wrapper's onClick.
+    const roleItem = $(`div=${roleName}`)
     await roleItem.waitForExist({ timeout: 15_000, timeoutMsg: `Role "${roleName}" not visible in list` })
     await roleItem.click()
 
@@ -167,10 +189,14 @@ describe('Journey D — Org Roles CRUD', () => {
     await deletarBtn.waitForExist({ timeout: 10_000 })
     await deletarBtn.click()
 
-    // Expect error: "Esse papel ainda tem membros"
-    const alert = $('p[role=alert]')
-    await alert.waitForExist({ timeout: 5_000, timeoutMsg: 'Expected "ainda tem membros" error' })
-    expect(await alert.getText()).toContain('ainda tem membros')
+    // OrgRoles renders error as plain <p> without role="alert".
+    await browser.waitUntil(
+      async () => {
+        const body = await browser.execute(() => document.body.innerText)
+        return (body as string).includes('ainda tem membros')
+      },
+      { timeout: 5_000, timeoutMsg: 'Expected "ainda tem membros" error on page' }
+    )
 
     // Role row still exists
     const { data } = await supabase.from('roles').select('id').eq('id', roleId)

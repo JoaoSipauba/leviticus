@@ -94,8 +94,10 @@ describe('Journey C — EditSongModal', () => {
     // Open the dropdown
     await openActionsMenu()
 
-    // Click "Editar" inside the dropdown menu
-    const editItem = $('button[role=menuitem]*=Editar')
+    // Click "Editar" inside the dropdown menu.
+    // button[role=menuitem] + text combined selectors are invalid in WebdriverIO;
+    // use text-only selector — "Editar" is unique in the DOM when dropdown is open.
+    const editItem = $('button=Editar')
     await editItem.waitForExist({ timeout: 5_000, timeoutMsg: '"Editar" menu item not found' })
     await editItem.click()
 
@@ -103,8 +105,10 @@ describe('Journey C — EditSongModal', () => {
     // Input is a ModalInput: no id, just a styled <input> inside the modal
     await $('input').waitForExist({ timeout: 5_000, timeoutMsg: 'EditSongModal did not render an input' })
 
-    // setReactInputValue by querying the first visible input (title is autoFocus)
-    await setReactInputValue('input', newTitle)
+    // Library has a search input (type="search") that appears first in DOM order.
+    // EditSongModal's ModalInput has no type attr (defaults to text), so we
+    // exclude type=search to pick the modal's title input as the first match.
+    await setReactInputValue('input:not([type="search"])', newTitle)
 
     // Click "Salvar"
     const saveBtn = $('button=Salvar')
@@ -139,8 +143,9 @@ describe('Journey C — EditSongModal', () => {
     // Open the dropdown again
     await openActionsMenu()
 
-    // Click "Excluir da biblioteca" (shows in dropdown when NOT in playlist context)
-    const deleteLibraryBtn = $('button[role=menuitem]*=Excluir da biblioteca')
+    // Click "Excluir da biblioteca" (shows in dropdown when NOT in playlist context).
+    // Text-only selector — unique in the DOM when the dropdown is open.
+    const deleteLibraryBtn = $('button=Excluir da biblioteca')
     await deleteLibraryBtn.waitForExist({ timeout: 5_000, timeoutMsg: '"Excluir da biblioteca" not found' })
     await deleteLibraryBtn.click()
 

@@ -56,10 +56,24 @@ describe('Journey F — PlaylistDetail flows', () => {
       admin, orgId, userId, `Culto F T1 ${Date.now()}`, new Date()
     )
 
-    // Navigate to the playlist detail page (triggers syncOrg so songs enter SQLite)
+    // Reload at /library to retrigger App.tsx boot syncOrg — only this pulls the
+    // admin-created playlist into SQLite (navigation alone does NOT resync).
+    await browser.url('tauri://localhost/library')
+    await browser.waitUntil(
+      async () => /\/library$/.test(await browser.getUrl()),
+      { timeout: 15_000 }
+    )
+    await browser.execute(() => { window.location.reload() })
+    await browser.waitUntil(
+      async () => /\/library$/.test(await browser.getUrl()),
+      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T1)' }
+    )
+    await new Promise((r) => setTimeout(r, 4_000))
+
+    // Now navigate to the detail page (playlist row is in SQLite)
     await browser.url(`tauri://localhost/services/${playlist.id}`)
     await browser.waitUntil(
-      async () => new URL(await browser.getUrl()).pathname.includes('/services/'),
+      async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
       { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail' }
     )
 
@@ -73,8 +87,9 @@ describe('Journey F — PlaylistDetail flows', () => {
     await avulsoTab.waitForExist({ timeout: 5_000 })
     await avulsoTab.click()
 
-    // Fill the section label
+    // Fill the section label — wait for Avulso tab content to render first
     const sectionLabel = `Test Section ${Date.now()}`
+    await $('input[placeholder*="Cantora Maria"]').waitForExist({ timeout: 5_000, timeoutMsg: 'Avulso label input did not appear' })
     await setReactInputValue('input[placeholder*="Cantora Maria"]', sectionLabel)
 
     // Submit
@@ -82,13 +97,19 @@ describe('Journey F — PlaylistDetail flows', () => {
     await criarBtn.waitForEnabled({ timeout: 5_000 })
     await criarBtn.click()
 
+    // Modal closes on successful onConfirm — assert closure first
+    await criarBtn.waitForExist({ timeout: 5_000, reverse: true, timeoutMsg: 'AddSectionModal did not close after Criar seção click' })
+
     // Section header appears in the playlist detail DOM.
     // AddSectionModal creates a UI-only draft section (not yet persisted to DB
     // until first song is added), so we assert the DOM, not the DB.
+    // SectionRow renders the label with CSS `text-transform: uppercase`, so
+    // innerText returns the uppercase form — compare case-insensitively.
+    const expectedLabel = sectionLabel.toLowerCase()
     await browser.waitUntil(
       async () => {
         const bodyText = await browser.execute(() => document.body.innerText)
-        return (bodyText as string).includes(sectionLabel)
+        return (bodyText as string).toLowerCase().includes(expectedLabel)
       },
       { timeout: 10_000, timeoutMsg: `Section header "${sectionLabel}" did not appear in DOM` }
     )
@@ -102,12 +123,29 @@ describe('Journey F — PlaylistDetail flows', () => {
       admin, orgId, userId, `Culto F T2 ${Date.now()}`, new Date()
     )
 
-    // Navigate to playlist detail (also triggers syncOrg)
-    await browser.url(`tauri://localhost/services/${playlist.id}`)
-    await browser.waitUntil(
-      async () => new URL(await browser.getUrl()).pathname.includes('/services/'),
-      { timeout: 15_000 }
-    )
+    // Reload at /library to retrigger syncOrg (pulls new playlist into SQLite).
+    // PlaylistDetail redirects to /services if the row isn't in SQLite, so we
+    // navigate to detail and retry the reload+sync cycle until it sticks.
+    let landed = false
+    for (let attempt = 0; attempt < 3 && !landed; attempt++) {
+      await browser.url('tauri://localhost/library')
+      await browser.waitUntil(
+        async () => /\/library$/.test(await browser.getUrl()),
+        { timeout: 15_000 }
+      )
+      await browser.execute(() => { window.location.reload() })
+      await browser.waitUntil(
+        async () => /\/library$/.test(await browser.getUrl()),
+        { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T2)' }
+      )
+      await new Promise((r) => setTimeout(r, 5_000))
+
+      await browser.url(`tauri://localhost/services/${playlist.id}`)
+      await new Promise((r) => setTimeout(r, 1_500))
+      const url = await browser.getUrl()
+      if (url.includes(`/services/${playlist.id}`)) landed = true
+    }
+    if (!landed) throw new Error('Did not land on PlaylistDetail (T2) after 3 reload attempts')
 
     // ─── Step 1: Create a section ──────────────────────────────────────────
     const addSectionBtn = $('button*=Adicionar seção')
@@ -119,14 +157,19 @@ describe('Journey F — PlaylistDetail flows', () => {
     await avulsoTab.click()
 
     const sectionLabel = `Section T2 ${Date.now()}`
+    await $('input[placeholder*="Cantora Maria"]').waitForExist({ timeout: 5_000, timeoutMsg: 'Avulso label input did not appear (T2)' })
     await setReactInputValue('input[placeholder*="Cantora Maria"]', sectionLabel)
-    await $('button=Criar seção').click()
+    const criarBtnT2 = $('button=Criar seção')
+    await criarBtnT2.waitForEnabled({ timeout: 5_000 })
+    await criarBtnT2.click()
+    await criarBtnT2.waitForExist({ timeout: 5_000, reverse: true, timeoutMsg: 'AddSectionModal did not close (T2)' })
 
-    // Wait for section to appear in DOM
+    // Wait for section to appear in DOM (label rendered uppercase via CSS)
+    const expectedLabelT2 = sectionLabel.toLowerCase()
     await browser.waitUntil(
       async () => {
         const bodyText = await browser.execute(() => document.body.innerText)
-        return (bodyText as string).includes(sectionLabel)
+        return (bodyText as string).toLowerCase().includes(expectedLabelT2)
       },
       { timeout: 10_000 }
     )
@@ -149,13 +192,14 @@ describe('Journey F — PlaylistDetail flows', () => {
     await concluido.waitForExist({ timeout: 5_000 })
     await concluido.click()
 
-    // Poll for playlist_songs row
+    // Poll for playlist_songs row. The table has a composite PK (playlist_id,
+    // song_id) — no `id` column — so select a real column instead.
     let found = false
     const deadline = Date.now() + 20_000
     while (Date.now() < deadline) {
       const { data } = await admin
         .from('playlist_songs')
-        .select('id')
+        .select('song_id, position')
         .eq('playlist_id', playlist.id)
         .eq('song_id', song1Id)
       if (data && data.length >= 1) { found = true; break }

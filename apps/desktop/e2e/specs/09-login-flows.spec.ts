@@ -33,12 +33,13 @@ describe('Journey A — Login flows', () => {
     // Switch to signup mode
     await $('button=Criar conta').click()
 
-    // Fill valid email + password but leave name empty
+    // Fill all fields. Name is whitespace-only — HTML's `required` treats this
+    // as filled (only checks for empty string), so the form submits and React's
+    // capitalizeName(name).trim() catches it → setError('Informe seu nome.').
+    await setReactInputValue('input#name', '   ')
     await setReactInputValue('input#email', `empty-name+${Date.now()}@leviticus.test`)
     await setReactInputValue('input#password', 'senha123')
-    // input#name is left empty
 
-    // Submit → handleSubmit checks !cleanName before calling Supabase
     await $('button[type=submit]').click()
 
     const alert = $('p[role=alert]')
