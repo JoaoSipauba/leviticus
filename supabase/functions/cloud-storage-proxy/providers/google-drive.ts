@@ -168,8 +168,74 @@ export const googleDriveProvider: CloudStorageProvider = {
     const used = parseInt(data.storageQuota.usage ?? '0', 10)
     return { total, used, available: Math.max(0, total - used) }
   },
-  createUploadSession() { throw new Error('Not yet implemented — task 11') },
-  generateDownloadUrl() { throw new Error('Not yet implemented — task 11') },
-  getFileInfo() { throw new Error('Not yet implemented — task 11') },
-  deleteFile() { throw new Error('Not yet implemented — task 11') },
+  async createUploadSession(accessToken: string, params: {
+    folderId: string
+    filename: string
+    size: number
+    mimeType: string
+  }): Promise<UploadSession> {
+    const metadata = {
+      name: params.filename,
+      parents: [params.folderId],
+    }
+    const res = await fetch(`${UPLOAD_API}/files?uploadType=resumable`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': params.mimeType,
+        'X-Upload-Content-Length': String(params.size),
+      },
+      body: JSON.stringify(metadata),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      const code = text.includes('storageQuotaExceeded') ? 'quota_exceeded' : 'unknown'
+      throw new ProviderError('google_drive', code, `Upload session failed: ${text}`)
+    }
+    const sessionUrl = res.headers.get('location')
+    if (!sessionUrl) throw new ProviderError('google_drive', 'unknown', 'Missing Location header')
+    // Extrai upload_id da URL
+    const sessionId = new URL(sessionUrl).searchParams.get('upload_id') ?? sessionUrl
+    // Sessions Google Drive expiram em 7 dias
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    return { sessionUrl, sessionId, expiresAt }
+  },
+
+  async generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; expiresAt: string }> {
+    // Google Drive não emite URLs pre-assinadas. Em vez disso, devolvemos
+    // a URL da API com access_token via querystring — válido por ~1h.
+    const url = `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&access_token=${encodeURIComponent(accessToken)}`
+    // Validade ≈ vida do access_token (refreshado pela edge function antes de expirar)
+    const expiresAt = new Date(Date.now() + 50 * 60 * 1000).toISOString()
+    return { url, expiresAt }
+  },
+
+  async getFileInfo(accessToken: string, fileId: string): Promise<FileInfo | null> {
+    const res = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=id,size,mimeType,createdTime,modifiedTime`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    )
+    if (res.status === 404) return null
+    if (!res.ok) throw new ProviderError('google_drive', 'unknown', `File info failed: ${await res.text()}`)
+    const data = await res.json() as {
+      id: string; size: string; mimeType: string; createdTime: string; modifiedTime: string
+    }
+    return {
+      fileId: data.id,
+      size: parseInt(data.size, 10),
+      mimeType: data.mimeType,
+      createdAt: data.createdTime,
+      modifiedAt: data.modifiedTime,
+    }
+  },
+
+  async deleteFile(accessToken: string, fileId: string): Promise<void> {
+    const res = await fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (res.status === 404) return // já apagado, ok
+    if (!res.ok) throw new ProviderError('google_drive', 'unknown', `Delete failed: ${await res.text()}`)
+  },
 }
