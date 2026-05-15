@@ -1,3 +1,5 @@
+import type { BackupStatus, SongSource } from './cloud-storage.js'
+
 export type SongType = 'normal' | 'playback' | 'instrumental' | 'vs'
 
 export type Song = {
@@ -12,6 +14,13 @@ export type Song = {
   song_type: SongType
   created_at: string
   updated_at: string
+  // Cloud storage backup fields
+  cloud_file_id: string | null
+  cloud_file_size: number | null
+  cloud_file_hash: string | null
+  source: SongSource
+  original_format: string | null
+  backup_status: BackupStatus
 }
 
 export type SongGroup = {
