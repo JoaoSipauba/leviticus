@@ -7,6 +7,7 @@ export type Permission =
   | 'add_songs_to_playlist'
   | 'manage_members'
   | 'manage_roles'
+  | 'manage_integrations'
 
 export type Organization = {
   id: string
