@@ -58,6 +58,12 @@ pub fn run() {
                             sql: include_str!("../migrations/005_org_settings_columns.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 6,
+                            description: "cloud_storage",
+                            sql: include_str!("../migrations/006_cloud_storage.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
