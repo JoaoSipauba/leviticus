@@ -1,3 +1,4 @@
+mod cloud_storage;
 mod ffmpeg;
 mod yt_dlp;
 
@@ -10,6 +11,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             yt_dlp::ensure_yt_dlp,
             ffmpeg::ensure_ffmpeg,
+            cloud_storage::cloud_storage_hash_file,
+            cloud_storage::cloud_storage_rename_file,
         ]);
 
     // E2E only: ativa o WebDriver plugin em builds debug pra que o
