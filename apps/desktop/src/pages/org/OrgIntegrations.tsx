@@ -4,6 +4,7 @@ import { useIntegrationsStore } from '../../store/integrations.js'
 import { hasPermission } from '../../lib/permissions.js'
 import * as cs from '../../lib/cloud-storage/client.js'
 import { getDb } from '../../lib/db.js'
+import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { ConnectDriveCard } from '../../components/integrations/ConnectDriveCard.js'
 import { ConnectedAccountCard } from '../../components/integrations/ConnectedAccountCard.js'
@@ -42,7 +43,7 @@ export function OrgIntegrations({ orgId }: Props) {
     return () => clearInterval(id)
   }, [status, orgId, refreshQuota])
 
-  // Carrega contagem de músicas com backup_status='uploaded' + lista de admins
+  // Carrega contagem de músicas com backup_status='uploaded'
   useEffect(() => {
     void (async () => {
       const db = await getDb()
@@ -51,24 +52,65 @@ export function OrgIntegrations({ orgId }: Props) {
         [orgId, 'uploaded']
       )
       setUploadedCount(rows[0]?.cnt ?? 0)
-
-      // Admins = owner + quem tem manage_integrations
-      const adminRows = await db.select<{ id: string; name: string; role_name: string }[]>(
-        `SELECT om.user_id as id, COALESCE(up.display_name, 'Membro') as name,
-                COALESCE(r.name, 'Membro') as role_name
-         FROM organization_members om
-         LEFT JOIN user_profiles_view up ON up.user_id = om.user_id
-         LEFT JOIN user_role_assignments ura ON ura.user_id = om.user_id AND ura.org_id = om.org_id
-         LEFT JOIN roles r ON r.id = ura.role_id
-         LEFT JOIN role_permissions rp ON rp.role_id = r.id
-         WHERE om.org_id = ? AND (rp.permission = 'manage_integrations' OR om.user_id IN (
-           SELECT owner_id FROM orgs WHERE id = ?
-         ))`,
-        [orgId, orgId]
-      )
-      setAdmins(adminRows.map((r) => ({ id: r.id, name: r.name, roleName: r.role_name })))
     })()
   }, [orgId, account?.account_email])
+
+  // Admins list — só busca quando o usuário NÃO tem permissão e precisa contatar admin
+  useEffect(() => {
+    if (canManage) return
+    void (async () => {
+      // Owner + role assignments com manage_integrations no SQLite local
+      const db = await getDb()
+      const adminIds = await db.select<{ user_id: string }[]>(
+        `SELECT DISTINCT user_id FROM (
+           SELECT owner_id as user_id FROM orgs WHERE id = ?
+           UNION
+           SELECT ura.user_id FROM user_role_assignments ura
+             JOIN role_permissions rp ON rp.role_id = ura.role_id
+             WHERE ura.org_id = ? AND rp.permission = 'manage_integrations'
+         )`,
+        [orgId, orgId]
+      )
+
+      if (adminIds.length === 0) {
+        setAdmins([])
+        return
+      }
+
+      // Resolve nomes via Supabase (view user_profiles existe só lá)
+      const userIds = adminIds.map((a) => a.user_id)
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('user_id, full_name')
+        .in('user_id', userIds)
+
+      const nameMap = new Map<string, string>()
+      for (const p of profiles ?? []) {
+        nameMap.set(p.user_id, p.full_name ?? 'Membro')
+      }
+
+      // Role names via SQLite (Dono é a role padrão de owners)
+      const roleRows = await db.select<{ user_id: string; role_name: string }[]>(
+        `SELECT ura.user_id, r.name as role_name
+           FROM user_role_assignments ura
+           JOIN roles r ON r.id = ura.role_id
+           WHERE ura.org_id = ? AND ura.user_id IN (${userIds.map(() => '?').join(',')})`,
+        [orgId, ...userIds]
+      )
+      const roleMap = new Map<string, string>()
+      for (const r of roleRows) {
+        roleMap.set(r.user_id, r.role_name)
+      }
+
+      setAdmins(
+        adminIds.map(({ user_id }) => ({
+          id: user_id,
+          name: nameMap.get(user_id) ?? 'Membro',
+          roleName: roleMap.get(user_id) ?? 'Dono',
+        }))
+      )
+    })()
+  }, [orgId, canManage])
 
   async function handleConnect() {
     setConnecting(true)
