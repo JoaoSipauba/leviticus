@@ -59,19 +59,39 @@ fn bin_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("bin").join(bin_name()))
 }
 
+// Tamanho mínimo razoável pra detectar truncamentos. yt-dlp_macos ~35MB,
+// yt-dlp.exe ~17MB, yt-dlp_linux ~3MB (zipapp). 1MB cobre os 3 com folga.
+const MIN_BIN_SIZE: u64 = 1_000_000;
+
+// Sidecar com a versão registrada. Escrito DEPOIS do rename atômico,
+// então só existe quando o binário ao lado já foi 100% verificado.
+// Permite detectar: (1) download truncado pré-atomic-rename (sidecar
+// nem foi criado); (2) upgrade do YT_DLP_VERSION constant (versão
+// gravada não bate com a esperada).
+fn version_marker_path(dest: &PathBuf) -> PathBuf {
+    dest.with_extension("version")
+}
+
 #[tauri::command]
 pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
     let dest = bin_path(&app)?;
+    let marker = version_marker_path(&dest);
 
-    // Caminho feliz: já baixado num boot anterior. Validação mínima
-    // (file_exists + size > 0) — não basta exists() porque um download
-    // interrompido pode ter deixado arquivo vazio/corrompido. Hash full
-    // check é dispensável aqui pq o rename atômico abaixo só publica
-    // em dest após o hash ter sido verificado (ver fluxo de escrita).
+    // Caminho feliz: já baixado num boot anterior, com tamanho razoável,
+    // e versão registrada bate com a esperada. Se qualquer um falhar
+    // (truncado, versão antiga, sidecar ausente), apaga tudo e re-baixa.
     if let Ok(meta) = tokio::fs::metadata(&dest).await {
-        if meta.is_file() && meta.len() > 0 {
+        let size_ok = meta.is_file() && meta.len() >= MIN_BIN_SIZE;
+        let version_ok = tokio::fs::read_to_string(&marker)
+            .await
+            .map(|s| s.trim() == YT_DLP_VERSION)
+            .unwrap_or(false);
+        if size_ok && version_ok {
             return Ok(dest.to_string_lossy().into_owned());
         }
+        // Estado inconsistente — limpa antes de re-baixar
+        let _ = tokio::fs::remove_file(&dest).await;
+        let _ = tokio::fs::remove_file(&marker).await;
     }
 
     let asset = asset_for_platform().ok_or_else(|| {
@@ -145,6 +165,13 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
     tokio::fs::rename(&tmp, &dest)
         .await
         .map_err(|e| format!("falha ao mover {} → {}: {e}", tmp.display(), dest.display()))?;
+
+    // Grava o sidecar .version DEPOIS do rename. Se algo crashar antes
+    // desse write, o sidecar fica ausente e o próximo boot trata como
+    // download incompleto → re-baixa.
+    tokio::fs::write(&marker, YT_DLP_VERSION)
+        .await
+        .map_err(|e| format!("falha escrevendo version marker: {e}"))?;
 
     Ok(dest.to_string_lossy().into_owned())
 }

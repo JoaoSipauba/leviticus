@@ -21,7 +21,10 @@
         { "url": "https://*.supabase.io/**" },
         { "url": "https://*.googlevideo.com/**" },
         { "url": "https://github.com/**" },
-        { "url": "https://objects.githubusercontent.com/**" }
+        { "url": "https://objects.githubusercontent.com/**" },
+        { "url": "https://www.youtube.com/**" },
+        { "url": "https://youtube.com/**" },
+        { "url": "https://img.youtube.com/**" }
       ]
     },
     "updater:default",
