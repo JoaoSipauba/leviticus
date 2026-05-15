@@ -32,18 +32,8 @@
     },
     "deep-link:default",
     "deep-link:allow-get-current",
-    {
-      "identifier": "shell:allow-open",
-      "allow": [
-        { "url": "https://accounts.google.com/**" },
-        { "url": "https://oauth2.googleapis.com/**" },
-        { "url": "https://drive.google.com/**" },
-        { "url": "https://one.google.com/**" },
-        { "url": "https://onedrive.live.com/**" },
-        { "url": "https://www.microsoft.com/**" },
-        { "url": "https://www.dropbox.com/**" }
-      ]
-    },
+    "shell:default",
+    "shell:allow-open",
     "updater:default",
     "process:default",
     "process:allow-restart"
