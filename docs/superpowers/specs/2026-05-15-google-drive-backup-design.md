@@ -154,7 +154,6 @@ Onde a especificidade vaza pro cliente: a UI mostra o nome do provedor ("Conecta
 │  src/components/LibraryBackupBanner.tsx (novo)                    │
 │  src/pages/org/OrgIntegrations.tsx     (nova tab)                 │
 │  src/components/integrations/                                     │
-│    ├── ProviderPicker.tsx     (escolhe provedor — só Drive ativo) │
 │    └── ConnectedAccountCard.tsx  (genérico por provedor)          │
 │                                                                   │
 │  src/lib/cloud-storage/        (novo módulo, provider-agnóstico)  │
@@ -463,30 +462,20 @@ Provider-agnóstico: a compressão acontece antes do upload, então o provedor r
 | AddSongModal Step 1 | Direção B (tabs Arquivo/YouTube) | Igual em todos os provedores |
 | Tab YouTube | Disclaimer amarelo no topo | Igual |
 | Biblioteca — backup status | Banner global + ponto sutil + chip filtro | Copy genérico "backup" (não "Drive") |
-| Tab Integrações (desconectada) | Card de provider picker | Lista provedores ativos (MVP só Google); inativos mostram "Em breve" |
+| Tab Integrações (desconectada) | Card único "Conectar Google Drive" com explicação do fluxo OAuth | Quando segundo provedor existir, este card vira um picker — fica fora do escopo do MVP |
 | Tab Integrações (conectada) | Card com email, pasta, barra de quota segmentada, stats | Logo do provedor + nome dele dinâmicos |
 | Tab Integrações (backup cheio) | Card vermelho + 3 ações de recuperação + lista de pendentes | URLs específicas por provedor |
-| Modal de troca de conta/provedor | Confirmação transparente com 3 passos | Texto diz "Google Drive → Google Drive" ou "Google Drive → OneDrive" |
+| Modal de troca de conta | Confirmação transparente com 3 passos | No futuro suportará troca de provedor com mesmo fluxo |
 | AddSongModal erro de espaço | Inline no Step 1 | "no Drive da igreja" → "no backup da igreja ([Provedor])" |
 | Lista da biblioteca com download | Estados play/baixar/baixando/indisponível | Igual |
 
 Os HTMLs estão em `.superpowers/brainstorm/47383-1778847037/content/`. Eles usam "Drive" no nome porque foram desenhados antes da decisão de generalizar — visualmente continuam válidos com substituição de string.
 
-### Provider picker (tela nova)
+### UI no MVP — apenas Google Drive visível
 
-Quando admin clica "Conectar" na tab Integrações pela primeira vez, mostra lista de provedores disponíveis:
+A UI **não mostra OneDrive ou Dropbox como "Em breve"** ou qualquer outro placeholder. O usuário vê só o que funciona: "Conectar Google Drive" como ação única quando desconectado.
 
-```
-┌───────────────────────────────────────────────────────────────┐
-│  Escolha um serviço de armazenamento                          │
-│                                                                │
-│  [G] Google Drive       Disponível        15 GB grátis         │
-│  [O] OneDrive          Em breve                                │
-│  [D] Dropbox           Em breve                                │
-└───────────────────────────────────────────────────────────────┘
-```
-
-No MVP só Google Drive é clicável. Os outros mostram label "Em breve" mas a UI já está pronta — mudar pra ativo é só remover o disabled e implementar o provider em `_shared/cloud-storage/`.
+A arquitetura interna fica preparada (registry, interface, types) mas isso é detalhe de implementação. Quando um segundo provedor for adicionado numa release futura, **aí sim** introduzimos o ProviderPicker — não antes. Isso evita expor ao usuário promessas que ainda não cumprimos.
 
 ## Custos previstos
 
@@ -575,7 +564,7 @@ Lançar tudo numa release única (`feat:` → minor bump):
 - Migration Supabase
 - Migration SQLite
 - Edge function com interface genérica + Google Drive concreto
-- App com nova UI (provider picker mostra só Google como ativo)
+- App com nova UI (apenas Google Drive aparece — sem placeholders de provedores futuros)
 
 Antes do rollout: confirmar que app antigo continua funcionando contra novo schema (testar manualmente com binário da versão anterior).
 
@@ -585,7 +574,7 @@ Cada novo provedor é um PR que:
 1. Adiciona arquivo `_shared/cloud-storage/{provider}.ts` implementando a interface.
 2. Registra no `registry.ts`.
 3. Adiciona secrets no Supabase.
-4. Ativa o card no `ProviderPicker.tsx` (remove "Em breve").
+4. Quando o segundo provedor entrar, introduz o `ProviderPicker.tsx` no card de Tab Integrações desconectada (não existe no MVP).
 5. Atualiza tabela de URLs de recuperação (liberar espaço / upgrade) na UI.
 6. Testes específicos do provedor.
 
@@ -595,7 +584,8 @@ Nenhuma migração de schema necessária pra novo provedor — `provider` é uma
 
 Itens conscientemente excluídos:
 
-- **Implementação concreta de OneDrive e Dropbox** — arquitetura preparada, mas os módulos `onedrive.ts` e `dropbox.ts` ficam como placeholder com `NotImplementedError`. ProviderPicker mostra ambos como "Em breve".
+- **Implementação concreta de OneDrive e Dropbox** — arquitetura preparada (interface + registry), mas os módulos `onedrive.ts` e `dropbox.ts` ficam como placeholder com `NotImplementedError`. **Não aparecem na UI** — usuário vê só Google Drive.
+- **ProviderPicker** — componente que escolhe entre múltiplos provedores. Só faz sentido a partir do segundo provedor implementado, então não entra no MVP.
 - **Múltiplos provedores ativos simultaneamente** — uma org tem um provedor de cada vez. Trocar requer migração completa.
 - **Múltiplas pastas no backup** (uma por ministério, etc.) — uma pasta única "Leviticus" por org.
 - **Sincronização entre orgs diferentes** — cada org tem seu backup isolado.
