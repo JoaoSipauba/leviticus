@@ -124,12 +124,18 @@ jobs:
 
       - name: Cache apt packages (Tauri Linux deps)
         # Sem cache: ~30s rodando apt-get update + install toda vez.
-        # Com cache: ~3s. `version: 1` é manual cache-buster — bumpar quando
+        # Com cache: ~3s. `version: N` é manual cache-buster — bumpar quando
         # mudar a lista de pacotes.
+        #
+        # webkit2gtk-driver fornece o binário WebKitWebDriver que o
+        # tauri-driver chama via spawn. Sem ele, tauri-driver morre na
+        # hora com "can not find binary WebKitWebDriver in the PATH",
+        # wdio falha em "Unable to connect to 127.0.0.1:4444" pra todos
+        # os specs. Não vem junto do libwebkit2gtk-4.1-dev no Ubuntu 24.04.
         uses: awalsh128/cache-apt-pkgs-action@5902b33ae29014e6ca012c5d8025d4346556bd40 # v1.4.3
         with:
-          packages: libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xvfb
-          version: 1
+          packages: libwebkit2gtk-4.1-dev libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev xvfb webkit2gtk-driver
+          version: 2
 
       - name: Install cargo-binstall
         # cargo-binstall baixa binários pré-compilados quando disponíveis,
