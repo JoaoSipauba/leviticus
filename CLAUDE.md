@@ -341,3 +341,84 @@ The app must always feel fast and snappy to the user. Every interaction should f
 - **State updates on user input**: update state synchronously and immediately — never make visual feedback wait for a promise to resolve when the result is already known.
 - **Audio/media**: seek and volume changes must be applied to the media element before any visual state update, so the audio never lags behind the UI.
 - When in doubt: remove the animation before shipping, rather than ship something that feels slow.
+
+## Acompanhar achados — abertura de issues
+
+Sempre que encontrar, durante o trabalho, algo que **não vai ser tratado naquela tarefa** mas tem impacto futuro, abra uma issue no GitHub. Isso impede que bugs, riscos ou melhorias se percam no histórico de PRs.
+
+**Abrir issue quando:**
+
+- Bug em código existente que não está no escopo da task atual
+- Vulnerabilidade ou risco de segurança identificado
+- Melhoria de UX/performance/DX que vale a pena mas extrapola o escopo
+- Tech debt que ficou explícito (ex: arquivo grande demais, lógica duplicada, workaround feio)
+- Gap de documentação detectado
+- Inconsistência entre módulos
+- Limitação ou edge case que pode afetar usuário em produção
+- Comportamento estranho de ferramenta/teste (flakiness, build lento, etc.) que vai ser sentido por outros devs
+
+**NÃO abrir quando:**
+
+- O item já está coberto pelo plano em execução
+- É algo a ser feito numa task imediatamente seguinte do mesmo plano
+- O "achado" é só uma observação subjetiva ("podia ser mais limpo") sem impacto concreto
+
+### Como abrir
+
+Use `gh issue create --label <cat> --label <pri> --title "..." --body "..."`. Antes, faça `gh issue list --search "<termos>"` pra evitar duplicar. O body deve responder:
+
+1. **O que** — descrição curta do problema/melhoria
+2. **Onde** — file path + linha ou módulo afetado
+3. **Por que importa** — qual o impacto se não tratado
+4. **Como reproduzir** (pra bug) ou **proposta** (pra enhancement)
+5. **Contexto** — link pro commit/PR/plano onde foi descoberto
+
+### Categorias (labels `type:*`)
+
+| Label | Quando usar |
+|---|---|
+| `type:bug` | Comportamento incorreto em código que já está em uso |
+| `type:security` | Vulnerabilidade, exposição de credencial, falha de auth/RLS |
+| `type:performance` | Lentidão, alto uso de memória, gargalo mensurável |
+| `type:ux` | Comportamento confuso, falta de feedback, copy ruim, fluxo travado |
+| `type:enhancement` | Melhoria de feature existente |
+| `type:feature` | Funcionalidade nova |
+| `type:tech-debt` | Refactor, código morto, arquitetura precisa de ajuste |
+| `type:dx` | Developer experience: testes lentos, build flaky, scripts manuais |
+| `type:docs` | Documentação faltando ou incorreta |
+
+### Prioridades (labels `priority:*`)
+
+| Label | Critério | Exemplo |
+|---|---|---|
+| `priority:critical` | Bloqueia uso ou expõe dado sensível. Tratar antes do próximo release | Token vazado em log, crash no boot, RLS quebrado |
+| `priority:high` | Afeta usuário observavelmente mas tem workaround. Próximo ciclo | Botão não dá feedback, race condition em sync ocasional |
+| `priority:medium` | Vale a pena fazer, sem urgência | Limpar warning de deprecation, melhorar mensagem de erro, refator localizado |
+| `priority:low` | Nice to have, backlog longo prazo | Refatorar componente grande sem dor atual, adicionar i18n |
+
+### Durante execução de planos (Claude Code)
+
+- Se notar algo durante uma task que não está no escopo, **abra a issue imediatamente** depois do commit principal (ou no fim da task)
+- Se um subagent reportar `DONE_WITH_CONCERNS`, avalie cada concern — se for fora do escopo do plano atual, vira issue
+- Sempre incluir link pro commit ou PR onde o achado foi descoberto no body da issue
+- Reportar pro usuário no resumo da task: "Abri issue #N pra X"
+
+### Setup inicial (uma vez)
+
+As labels precisam existir no repo. Comandos pra criar (rodar uma vez por repo):
+
+```bash
+gh label create "type:bug" --color "d73a4a" --description "Defeito em código existente"
+gh label create "type:security" --color "b60205" --description "Vulnerabilidade ou risco"
+gh label create "type:performance" --color "fbca04" --description "Performance"
+gh label create "type:ux" --color "1d76db" --description "Experiência do usuário"
+gh label create "type:enhancement" --color "a2eeef" --description "Melhoria de feature"
+gh label create "type:feature" --color "0e8a16" --description "Funcionalidade nova"
+gh label create "type:tech-debt" --color "5319e7" --description "Dívida técnica"
+gh label create "type:dx" --color "c5def5" --description "Developer experience"
+gh label create "type:docs" --color "0075ca" --description "Documentação"
+gh label create "priority:critical" --color "b60205" --description "Antes do próximo release"
+gh label create "priority:high" --color "d93f0b" --description "Próximo ciclo"
+gh label create "priority:medium" --color "fbca04" --description "Sem urgência, vale fazer"
+gh label create "priority:low" --color "c5def5" --description "Backlog longo prazo"
+```
