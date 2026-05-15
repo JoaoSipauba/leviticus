@@ -53,16 +53,34 @@ export const config: WebdriverIO.Config = {
   tsConfigPath: './tsconfig.json',
 
   beforeSession: () => {
-    // Launch tauri-driver as a sub-process before the WebdriverIO session
-    // connects. It manages WebKitGTKDriver internally on Linux.
+    // Launch tauri-driver como process group próprio (`detached: true`) pra
+    // garantir que dá pra kill em cascata o WebKitWebDriver child no fim.
+    // Sem isso, tauri-driver.kill() só mata o processo pai e o WebKitWebDriver
+    // continua segurando porta 4445 — próximo spec falha com
+    // "can not listen to address: 127.0.0.1:4444" (mesma causa raiz do issue
+    // de port leak que resolvemos pro tauri-wd no commit bcd20ef3).
     tauriDriver = spawn('tauri-driver', [], {
       stdio: [null, process.stdout, process.stderr],
+      detached: true,
     })
   },
 
-  afterSession: () => {
-    tauriDriver?.kill()
+  afterSession: async () => {
+    const proc = tauriDriver
     tauriDriver = null
+    if (!proc?.pid) return
+    try {
+      // Negativo = process group inteiro (tauri-driver + WebKitWebDriver filho).
+      process.kill(-proc.pid, 'SIGTERM')
+    } catch { /* já morto */ }
+    // Espera até 1s pelo exit limpo; depois SIGKILL pra garantir.
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        try { process.kill(-proc.pid!, 'SIGKILL') } catch { /* já morto */ }
+        resolve()
+      }, 1000)
+      proc.once('exit', () => { clearTimeout(timer); resolve() })
+    })
   },
 
   afterTest: async (test, _ctx, result) => {
