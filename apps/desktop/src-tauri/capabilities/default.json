@@ -27,6 +27,8 @@
         { "url": "https://img.youtube.com/**" }
       ]
     },
+    "deep-link:default",
+    "deep-link:allow-get-current",
     "updater:default",
     "process:default",
     "process:allow-restart"
