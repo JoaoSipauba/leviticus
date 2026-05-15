@@ -137,3 +137,53 @@ CREATE TRIGGER cloud_storage_accounts_touch
   BEFORE UPDATE ON cloud_storage_accounts
   FOR EACH ROW
   EXECUTE FUNCTION touch_cloud_storage_accounts();
+
+-- Chave gerenciada pelo Vault pra criptografar refresh_tokens
+SELECT pgsodium.create_key(name => 'cloud_storage_refresh_token');
+
+CREATE OR REPLACE FUNCTION encrypt_cloud_secret(plaintext text)
+RETURNS bytea
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pgsodium
+AS $$
+DECLARE
+  key_id uuid;
+BEGIN
+  SELECT id INTO key_id FROM pgsodium.valid_key WHERE name = 'cloud_storage_refresh_token' LIMIT 1;
+  RETURN pgsodium.crypto_aead_det_encrypt(
+    convert_to(plaintext, 'utf8'),
+    convert_to('cloud_storage', 'utf8'),  -- additional data (não criptografada, mas autenticada)
+    key_id,
+    NULL  -- nonce: NULL → pgsodium gera automaticamente e embute no ciphertext
+  );
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION decrypt_cloud_secret(ciphertext bytea)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, pgsodium
+AS $$
+DECLARE
+  key_id uuid;
+BEGIN
+  SELECT id INTO key_id FROM pgsodium.valid_key WHERE name = 'cloud_storage_refresh_token' LIMIT 1;
+  RETURN convert_from(
+    pgsodium.crypto_aead_det_decrypt(
+      ciphertext,
+      convert_to('cloud_storage', 'utf8'),
+      key_id,
+      NULL  -- nonce embutido no ciphertext
+    ),
+    'utf8'
+  );
+END;
+$$;
+
+-- Restringir execução: somente service_role pode descriptografar
+REVOKE EXECUTE ON FUNCTION decrypt_cloud_secret FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION encrypt_cloud_secret FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION encrypt_cloud_secret TO service_role;
+GRANT EXECUTE ON FUNCTION decrypt_cloud_secret TO service_role;
