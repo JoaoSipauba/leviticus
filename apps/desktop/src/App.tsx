@@ -8,6 +8,8 @@ import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
+import { listenForDeepLinks } from './lib/deep-link.js'
+import { useIntegrationsStore } from './store/integrations.js'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
@@ -85,6 +87,25 @@ export function App() {
   useEffect(() => {
     if (!loading) window.dispatchEvent(new Event('leviticus-ready'))
   }, [loading])
+
+  // Registra listener pra deep-links (OAuth callback leviticus://oauth-success?org_id=...).
+  // Quando o callback chega, refresh do store de integrações se o orgId bater.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+    void (async () => {
+      unlisten = await listenForDeepLinks((event) => {
+        if (event.kind === 'oauth-success') {
+          const orgId = localStorage.getItem('leviticus_org_id')
+          if (orgId === event.orgId) {
+            void useIntegrationsStore.getState().refreshAccount(orgId)
+          }
+        }
+      })
+    })()
+    return () => {
+      unlisten?.()
+    }
+  }, [])
 
   // Enquanto carrega, o splash do index.html cobre a tela. Aqui só
   // retornamos null pra não piscar uma tela preta vazia por baixo.
