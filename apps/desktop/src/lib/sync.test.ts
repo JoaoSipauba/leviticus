@@ -21,10 +21,12 @@ function makeChain(result = { data: [] as any[], error: null as any }) {
   chain.select = vi.fn().mockReturnValue(chain)
   chain.gte = vi.fn().mockResolvedValue(result)
   chain.single = vi.fn().mockResolvedValue(result)
+  chain.maybeSingle = vi.fn().mockResolvedValue(result)
   chain.eq = vi.fn().mockImplementation(() => {
     const sub: any = {}
     sub.gte = vi.fn().mockResolvedValue(result)
     sub.single = vi.fn().mockResolvedValue(result)
+    sub.maybeSingle = vi.fn().mockResolvedValue(result)
     sub.then = (resolve: any) => Promise.resolve(result).then(resolve)
     sub.catch = (reject: any) => Promise.resolve(result).catch(reject)
     sub.finally = (fn: any) => Promise.resolve(result).finally(fn)
@@ -36,11 +38,18 @@ function makeChain(result = { data: [] as any[], error: null as any }) {
   return chain
 }
 
+function makeNullChain() {
+  return makeChain({ data: null as any, error: null })
+}
+
 describe('syncOrg', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     const { supabase } = await import('./supabase.js')
-    vi.mocked(supabase.from).mockImplementation(() => makeChain())
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'cloud_storage_accounts_public') return makeNullChain()
+      return makeChain()
+    })
   })
 
   it('completes without throwing when data is empty', async () => {
@@ -61,6 +70,46 @@ describe('syncOrg', () => {
     expect(supabase.from).toHaveBeenCalledWith('role_permissions')
     expect(supabase.from).toHaveBeenCalledWith('user_role_assignments')
     expect(supabase.from).toHaveBeenCalledWith('org_invite_codes')
+    expect(supabase.from).toHaveBeenCalledWith('cloud_storage_accounts_public')
+  })
+
+  it('deletes local cloud_storage_accounts row when no account is connected', async () => {
+    const { getDb } = await import('./db.js')
+    const db = await getDb()
+    await syncOrg('org-1')
+    expect(vi.mocked(db.execute)).toHaveBeenCalledWith(
+      'DELETE FROM cloud_storage_accounts WHERE org_id = ?',
+      ['org-1']
+    )
+  })
+
+  it('upserts cloud_storage_accounts when account data is present', async () => {
+    const { supabase } = await import('./supabase.js')
+    const { getDb } = await import('./db.js')
+    const accountData = {
+      org_id: 'org-1',
+      provider: 'google_drive',
+      account_email: 'test@example.com',
+      account_user_id: 'guser-123',
+      app_folder_id: 'folder-abc',
+      connected_by: 'user-xyz',
+      connected_at: '2026-01-01T00:00:00Z',
+      last_quota_total: 15000000000,
+      last_quota_used: 1000000,
+      last_quota_check_at: '2026-05-01T00:00:00Z',
+      updated_at: '2026-05-01T00:00:00Z',
+    }
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === 'cloud_storage_accounts_public')
+        return makeChain({ data: accountData as any, error: null })
+      return makeChain()
+    })
+    const db = await getDb()
+    await syncOrg('org-1')
+    expect(vi.mocked(db.execute)).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT OR REPLACE INTO cloud_storage_accounts'),
+      expect.arrayContaining(['org-1', 'google_drive', 'test@example.com'])
+    )
   })
 
   it('throws when supabase returns an error', async () => {
