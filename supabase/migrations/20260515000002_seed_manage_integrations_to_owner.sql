@@ -1,3 +1,14 @@
+-- Relaxa o CHECK constraint de role_permissions.permission pra aceitar
+-- 'manage_integrations' (criada no Plano 1). Sem isso o trigger
+-- seed_owner_role falha e a criação de org cai junto.
+ALTER TABLE role_permissions DROP CONSTRAINT IF EXISTS role_permissions_permission_check;
+ALTER TABLE role_permissions ADD CONSTRAINT role_permissions_permission_check
+  CHECK (permission IN (
+    'add_songs', 'manage_songs', 'manage_groups', 'manage_playlists',
+    'add_songs_to_playlist', 'manage_members', 'manage_roles',
+    'manage_integrations'
+  ));
+
 -- Backfill: adiciona 'manage_integrations' a todas as roles "Dono" existentes
 -- (a permissão foi criada na migration 20260515000001 mas a role "Dono"
 -- só tinha as 7 permissões originais via seed_owner_role).
