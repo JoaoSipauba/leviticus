@@ -25,10 +25,10 @@ export const config: WebdriverIO.Config = {
   capabilities: [
     {
       browserName: 'wry',
-      // tauri-driver v2.0.6+ espera `binary`, não `application` (era a chave
-      // legada). Sem isso, /session POST devolve "Failed to match capabilities"
-      // e wdio aborta todos os specs. wdio.local.conf.ts já estava correto.
-      'tauri:options': { binary: appBinaryPath() },
+      // tauri-driver oficial v2.0.6 lê `application` (PathBuf).
+      // (wdio.local.conf.ts usa `binary` porque o tauri-wd community macOS
+      //  divergiu da nomenclatura — não confundir.)
+      'tauri:options': { application: appBinaryPath() },
     } as WebdriverIO.Capabilities,
   ],
 
