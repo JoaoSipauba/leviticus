@@ -107,6 +107,17 @@ export function appAudioDir(): string {
  *
  * The mock's behavior is then mode-switched at runtime via setYtDlpMockMode.
  */
+// Versão esperada pelo sidecar `.version` que o ensure_yt_dlp valida no boot.
+// PRECISA bater com YT_DLP_VERSION em src-tauri/src/yt_dlp.rs — senão o
+// Rust apaga o mock e re-baixa o yt-dlp REAL do GitHub, e os testes E2E
+// rodam contra o YouTube real (falha com fake video IDs).
+const YT_DLP_VERSION_FOR_MOCK = '2026.03.17'
+
+// Tamanho mínimo que ensure_yt_dlp aceita (MIN_BIN_SIZE no Rust). Fake script
+// tem ~1KB, então padding com comentários shell completa o tamanho. O `:` no
+// fim é um no-op safety pra garantir que o último comando não vaze.
+const MIN_BIN_SIZE_BYTES = 1_100_000
+
 export async function installYtDlpMock(): Promise<void> {
   const binDir = appLocalBinDir()
   await fs.mkdir(binDir, { recursive: true })
@@ -115,8 +126,25 @@ export async function installYtDlpMock(): Promise<void> {
     '../fixtures/fake-yt-dlp.sh'
   )
   const dest = path.join(binDir, 'yt-dlp')
-  await fs.copyFile(fixtureSrc, dest)
+
+  // Lê o script real e pad pra passar pelo size check do ensure_yt_dlp.
+  // Padding é um comentário gigante que o shell ignora — não afeta execução.
+  const scriptContent = await fs.readFile(fixtureSrc, 'utf-8')
+  const currentSize = Buffer.byteLength(scriptContent, 'utf-8')
+  const paddingNeeded = Math.max(0, MIN_BIN_SIZE_BYTES - currentSize)
+  // 80 chars de comentário + newline = 81 bytes por linha
+  const paddingLine = '# ' + 'x'.repeat(78) + '\n'
+  const paddingLines = Math.ceil(paddingNeeded / paddingLine.length)
+  const padding = paddingLine.repeat(paddingLines)
+  const padded = scriptContent + '\n# E2E mock padding (ignored by shell)\n' + padding
+
+  await fs.writeFile(dest, padded, 'utf-8')
   await fs.chmod(dest, 0o755)
+
+  // Sidecar .version exigido pelo ensure_yt_dlp. Sem ele, mesmo passando o
+  // size check, o version_ok falha e o app re-baixa.
+  await fs.writeFile(path.join(binDir, 'yt-dlp.version'), YT_DLP_VERSION_FOR_MOCK, 'utf-8')
+
   // Start in happy mode by default.
   await setYtDlpMockMode('happy')
 }
