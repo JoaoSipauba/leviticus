@@ -121,9 +121,53 @@ export const googleDriveProvider: CloudStorageProvider = {
     // Não falhamos se revoke falhar — pode ser que o token já estava inválido.
   },
 
-  // Métodos restantes implementados em tasks subsequentes
-  ensureAppFolder() { throw new Error('Not yet implemented — task 10') },
-  getQuota() { throw new Error('Not yet implemented — task 10') },
+  async ensureAppFolder(accessToken: string, folderName: string): Promise<{ folderId: string }> {
+    // 1. Procura pasta existente (criada pelo próprio app via drive.file scope)
+    const query = encodeURIComponent(
+      `name = '${folderName.replace(/'/g, "\\'")}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`
+    )
+    const searchRes = await fetch(`${DRIVE_API}/files?q=${query}&fields=files(id,name)`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!searchRes.ok) {
+      throw new ProviderError('google_drive', 'unknown', `Folder search failed: ${await searchRes.text()}`)
+    }
+    const searchData = await searchRes.json() as { files: Array<{ id: string; name: string }> }
+    if (searchData.files.length > 0) {
+      return { folderId: searchData.files[0].id }
+    }
+
+    // 2. Cria pasta
+    const createRes = await fetch(`${DRIVE_API}/files`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: folderName,
+        mimeType: 'application/vnd.google-apps.folder',
+      }),
+    })
+    if (!createRes.ok) {
+      throw new ProviderError('google_drive', 'unknown', `Folder create failed: ${await createRes.text()}`)
+    }
+    const folder = await createRes.json() as { id: string }
+    return { folderId: folder.id }
+  },
+
+  async getQuota(accessToken: string): Promise<QuotaInfo> {
+    const res = await fetch(`${DRIVE_API}/about?fields=storageQuota`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      throw new ProviderError('google_drive', 'unknown', `Quota check failed: ${await res.text()}`)
+    }
+    const data = await res.json() as { storageQuota: { limit?: string; usage?: string } }
+    const total = parseInt(data.storageQuota.limit ?? '0', 10)
+    const used = parseInt(data.storageQuota.usage ?? '0', 10)
+    return { total, used, available: Math.max(0, total - used) }
+  },
   createUploadSession() { throw new Error('Not yet implemented — task 11') },
   generateDownloadUrl() { throw new Error('Not yet implemented — task 11') },
   getFileInfo() { throw new Error('Not yet implemented — task 11') },
