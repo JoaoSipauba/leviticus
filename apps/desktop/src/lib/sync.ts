@@ -14,9 +14,7 @@ export async function syncOrg(orgId: string): Promise<void> {
     cloudAccount,
   ] = await Promise.all([
     supabase.from('songs').select(
-      'id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, ' +
-      'cloud_file_id, cloud_file_size, cloud_file_hash, source, original_format, backup_status, ' +
-      'created_at, updated_at'
+      'id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, cloud_file_id, cloud_file_size, cloud_file_hash, source, original_format, backup_status, created_at, updated_at'
     ).eq('org_id', orgId).gte('updated_at', since),
     supabase.from('groups').select('id, org_id, name, color_index, updated_at').eq('org_id', orgId).gte('updated_at', since),
     supabase.from('playlists').select('id, org_id, name, scheduled_at, scheduled_end, created_at, updated_at').eq('org_id', orgId).gte('updated_at', since),
@@ -30,8 +28,7 @@ export async function syncOrg(orgId: string): Promise<void> {
     supabase.from('org_invite_codes').select('id, org_id, code, label, created_by, expires_at, is_active').eq('org_id', orgId),
     supabase.from('roles').select('id').eq('org_id', orgId),
     supabase.from('cloud_storage_accounts_public').select(
-      'org_id, provider, account_email, account_user_id, app_folder_id, ' +
-      'connected_by, connected_at, last_quota_total, last_quota_used, last_quota_check_at, updated_at'
+      'org_id, provider, account_email, account_user_id, app_folder_id, connected_by, connected_at, last_quota_total, last_quota_used, last_quota_check_at, updated_at'
     ).eq('org_id', orgId).maybeSingle(),
   ])
 

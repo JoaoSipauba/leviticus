@@ -3,8 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../supabase.js', () => ({
   supabase: {
     auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'jwt' } } }) },
-    functions: { url: 'http://localhost:54321/functions/v1' },
   },
+}))
+
+vi.mock('../../env.js', () => ({
+  env: { supabaseUrl: 'http://localhost:54321', supabaseAnonKey: 'anon' },
 }))
 
 import { initOAuth, getQuota, createUploadSession, generateDownloadUrl } from './client.js'

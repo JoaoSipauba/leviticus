@@ -1,4 +1,5 @@
 import { supabase } from '../supabase.js'
+import { env } from '../../env.js'
 import type {
   ProviderId,
   QuotaInfo,
@@ -13,7 +14,7 @@ async function callEdge<T>(path: string, body: Record<string, unknown>, method: 
   const { data: session } = await supabase.auth.getSession()
   if (!session.session) throw new Error('Not authenticated')
 
-  const url = `${supabase.functions.url}/${FUNCTION_NAME}/${path}`
+  const url = `${env.supabaseUrl}/functions/v1/${FUNCTION_NAME}/${path}`
   const res = await fetch(url, {
     method,
     headers: {
