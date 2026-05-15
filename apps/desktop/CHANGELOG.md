@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.3](https://github.com/JoaoSipauba/leviticus/compare/v0.7.2...v0.7.3) (2026-05-15)
+
+### Correções
+
+* **add-song:** parar prévia ao trocar de aba pesquisa↔URL ([#20](https://github.com/JoaoSipauba/leviticus/issues/20)) ([72f263e](https://github.com/JoaoSipauba/leviticus/commit/72f263ef89b163dbab178ef0b547d0d25efdda44))
+
 ## [0.7.2](https://github.com/JoaoSipauba/leviticus/compare/v0.7.1...v0.7.2) (2026-05-14)
 
 ### Correções
