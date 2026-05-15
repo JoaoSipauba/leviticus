@@ -13,7 +13,7 @@ describe('QuotaBar', () => {
     const total = 1024 * 1024 * 1024
     render(<QuotaBar total={total} usedByLeviticus={0} usedByOthers={total} />)
     const freeLabel = screen.getByText((content, element) =>
-      content.includes('livres') && element?.className.includes('text-[11px]')
+      content.includes('livres') && (element?.className.includes('text-[11px]') ?? false)
     )
     expect(freeLabel).toBeInTheDocument()
     expect(freeLabel.textContent).toMatch(/0 B/)
