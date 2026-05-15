@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.0](https://github.com/JoaoSipauba/leviticus/compare/v0.7.3...v0.8.0) (2026-05-15)
+
+### Funcionalidades
+
+* aba Organização + suíte E2E completa + CI gate em main ([#17](https://github.com/JoaoSipauba/leviticus/issues/17)) ([5c32c48](https://github.com/JoaoSipauba/leviticus/commit/5c32c486beac6cfe34e55197981e85399a530de3))
+
 ## [0.7.3](https://github.com/JoaoSipauba/leviticus/compare/v0.7.2...v0.7.3) (2026-05-15)
 
 ### Correções
