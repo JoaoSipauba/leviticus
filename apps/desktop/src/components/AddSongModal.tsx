@@ -1044,6 +1044,19 @@ export function AddSongModal() {
   // ── search tab logic ──────────────────────────────────────────────────────
 
   function switchTab(t: 'search' | 'url') {
+    // Para qualquer prévia em curso antes de trocar de aba — caso contrário
+    // o áudio continua tocando "invisível" depois que a UI muda pra tela de
+    // colar URL e o usuário perde a referência de onde aquele som vem.
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.src = ''
+      audioRef.current = null
+    }
+    setPreviewId(null)
+    setPreviewPlaying(false)
+    setPreviewLoading(false)
+    setPreviewTime(0)
+
     setTab(t)
     setQuery('')
     setSearchResults([])
