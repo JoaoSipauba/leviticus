@@ -3,7 +3,18 @@
   "productName": "Leviticus Dev",
   "identifier": "com.leviticus.app.dev",
   "build": {
-    "beforeDevCommand": "pnpm dev:local"
+    "beforeDevCommand": "pnpm dev:local",
+    "beforeBuildCommand": "pnpm build:local"
+  },
+  "plugins": {
+    "updater": {
+      "active": false,
+      "pubkey": "",
+      "endpoints": []
+    }
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false
   },
   "app": {
     "windows": [

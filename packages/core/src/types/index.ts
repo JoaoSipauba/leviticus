@@ -1,5 +1,4 @@
-export * from './organization'
-export * from './role'
+export * from './org'
 export * from './group'
 export * from './song'
 export * from './playlist'

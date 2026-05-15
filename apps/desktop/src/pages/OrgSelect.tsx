@@ -47,36 +47,32 @@ export function OrgSelect() {
     if (!user) { setError('Sessão expirada. Faça login novamente.'); return }
     setLoading(true)
     setError(null)
-    const { data, error } = await supabase
-      .from('org_invite_codes')
-      .select('org_id, expires_at, is_active')
-      .eq('code', code.trim().toUpperCase())
-      .single()
 
-    if (error || !data || !data.is_active) {
-      setError('Código inválido ou expirado.')
-      setLoading(false)
-      return
-    }
-
-    if (data.expires_at && new Date(data.expires_at) < new Date()) {
-      setError('Este código expirou.')
-      setLoading(false)
-      return
-    }
-
-    const { error: insertError } = await supabase.from('organization_members').insert({
-      user_id: user!.id,
-      org_id: data.org_id,
+    const { data, error } = await supabase.rpc('redeem_invite_code', {
+      p_code: code.trim().toUpperCase(),
     })
-    if (insertError) {
-      setError('Erro ao entrar na organização.')
+
+    if (error) {
+      console.error(error)
+      setError('Algo deu errado. Tente novamente.')
       setLoading(false)
       return
     }
 
-    localStorage.setItem('leviticus_org_id', data.org_id)
-    await syncOrg(data.org_id)
+    const result = data as { ok: boolean; org_id?: string; error?: string } | null
+    if (!result || !result.ok) {
+      const errCode = result?.error
+      setError(
+        errCode === 'invalid_code' ? 'Código inválido ou expirado.' :
+        errCode === 'expired_code' ? 'Este código expirou.' :
+        'Algo deu errado. Tente novamente.'
+      )
+      setLoading(false)
+      return
+    }
+
+    localStorage.setItem('leviticus_org_id', result.org_id!)
+    await syncOrg(result.org_id!)
     setLoading(false)
     navigate('/library')
   }

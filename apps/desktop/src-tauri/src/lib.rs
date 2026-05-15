@@ -6,11 +6,22 @@ use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             yt_dlp::ensure_yt_dlp,
             ffmpeg::ensure_ffmpeg,
-        ])
+        ]);
+
+    // E2E only: ativa o WebDriver plugin em builds debug pra que o
+    // `tauri-wd` CLI consiga controlar o app durante testes E2E no macOS.
+    // Em release builds, o cfg(debug_assertions) é falso e o plugin nunca
+    // é instanciado.
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_webdriver_automation::init());
+    }
+
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -39,6 +50,12 @@ pub fn run() {
                             version: 4,
                             description: "playlist_horario_e_secao",
                             sql: include_str!("../migrations/004_playlist_horario_e_secao.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 5,
+                            description: "org_settings_columns",
+                            sql: include_str!("../migrations/005_org_settings_columns.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],
