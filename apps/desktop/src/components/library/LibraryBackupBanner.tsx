@@ -13,15 +13,17 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
   const critical = status === 'quota_full'
   const Icon = critical ? AlertCircle : CloudOff
 
+  const notConnected = status === 'disconnected' || status === 'unknown'
+
   const message =
     status === 'quota_full' ? 'Drive cheio — backup pausado'
     : status === 'token_expired' ? 'Conexão com Drive expirou'
     : status === 'folder_missing' ? 'Pasta de backup não encontrada no Drive'
-    : status === 'disconnected' ? `${pendingCount} música${pendingCount === 1 ? '' : 's'} sem backup. Configure o Drive pra guardar as músicas da igreja.`
+    : notConnected ? `${pendingCount} música${pendingCount === 1 ? '' : 's'} sem backup. Configure o Drive pra guardar as músicas da igreja.`
     : `${pendingCount} música${pendingCount === 1 ? '' : 's'} aguardando upload.`
 
   const buttonLabel =
-    status === 'disconnected' ? 'Configurar'
+    notConnected ? 'Configurar'
     : status === 'token_expired' ? 'Reconectar'
     : status === 'folder_missing' ? 'Recriar pasta'
     : 'Resolver'

@@ -86,14 +86,14 @@ describe('Journey #12 — Biblioteca backup states', () => {
     await chip.click()
 
     // Após filtrar, "Música Uploaded" não deve aparecer
-    const uploadedSong = $('div*=Música Uploaded')
+    const uploadedSong = $('p*=Música Uploaded')
     await browser.waitUntil(
       async () => !(await uploadedSong.isExisting()),
       { timeout: 5_000, timeoutMsg: '"Música Uploaded" ainda visível após filtrar' }
     )
 
     // Mas "Música Pending" e "Música Failed" devem aparecer
-    await $('div*=Música Pending').waitForExist({ timeout: 5_000 })
-    await $('div*=Música Failed').waitForExist({ timeout: 5_000 })
+    await $('p*=Música Pending').waitForExist({ timeout: 5_000 })
+    await $('p*=Música Failed').waitForExist({ timeout: 5_000 })
   })
 })
