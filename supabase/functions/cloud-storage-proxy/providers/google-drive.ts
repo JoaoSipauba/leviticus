@@ -69,6 +69,20 @@ export const googleDriveProvider: CloudStorageProvider = {
       access_token: string
       refresh_token: string
       expires_in: number
+      scope?: string
+    }
+
+    // Google permite consentimento granular — o usuário pode desmarcar
+    // scopes específicos na tela de autorização. Sem drive.file, não dá
+    // pra criar/listar arquivos, e a operação falha mais à frente com
+    // erro confuso. Validamos aqui pra dar erro acionável.
+    const grantedScopes = (tokens.scope ?? '').split(' ')
+    if (!grantedScopes.includes('https://www.googleapis.com/auth/drive.file')) {
+      throw new ProviderError(
+        'google_drive',
+        'invalid_grant',
+        'Permissão de acesso ao Google Drive não foi concedida. Tente conectar novamente e marque TODAS as caixas na tela do Google.',
+      )
     }
 
     const userRes = await fetch(USERINFO_URL, {
