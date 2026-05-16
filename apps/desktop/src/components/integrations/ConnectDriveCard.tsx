@@ -1,4 +1,4 @@
-import { Cloud } from 'lucide-react'
+import { Cloud, CheckSquare, AlertTriangle } from 'lucide-react'
 
 type Props = {
   onConnect: () => void
@@ -25,10 +25,35 @@ export function ConnectDriveCard({ onConnect, canConnect, connecting }: Props) {
         </div>
       ) : (
         <>
-          <div className="mx-auto mb-4 max-w-[360px] text-[12px] leading-relaxed"
+          <div className="mx-auto mb-4 max-w-[400px] text-[12px] leading-relaxed"
             style={{ color: 'var(--text-muted, #71717a)' }}>
-            Vai abrir o login do Google. Autorize acesso à pasta "Leviticus" que vai ser criada no seu Drive.
+            Vai abrir o login do Google. Uma pasta "Leviticus" será criada no seu Drive.
           </div>
+
+          {/* Aviso crítico sobre a checkbox do Drive */}
+          <div className="mx-auto mb-4 max-w-[420px] rounded-lg p-3 text-left"
+            style={{ background: '#422006', border: '1px solid #78350f' }}>
+            <div className="mb-1.5 flex items-center gap-2">
+              <AlertTriangle size={14} color="#fbbf24" strokeWidth={2.5} />
+              <span className="text-[12px] font-semibold" style={{ color: '#fde68a' }}>
+                Atenção na tela do Google
+              </span>
+            </div>
+            <div className="text-[11px] leading-relaxed" style={{ color: '#fde68a' }}>
+              Você verá uma caixa pra marcar:
+            </div>
+            <div className="mt-2 flex items-start gap-2 rounded-md p-2"
+              style={{ background: 'rgba(0,0,0,0.25)' }}>
+              <CheckSquare size={14} color="#fbbf24" strokeWidth={2.5} className="mt-0.5 flex-shrink-0" />
+              <span className="text-[11px] leading-snug" style={{ color: '#fde68a' }}>
+                "Ver, editar, criar e excluir apenas os arquivos do Google Drive que você usa com este app"
+              </span>
+            </div>
+            <div className="mt-2 text-[11px] leading-relaxed" style={{ color: '#fde68a' }}>
+              <strong>Marque ela antes de clicar "Continuar"</strong> — sem essa permissão o backup não funciona.
+            </div>
+          </div>
+
           {!canConnect && (
             <div className="mb-3 text-[11px]" style={{ color: 'var(--text-warning, #fbbf24)' }}>
               Você não tem permissão pra gerenciar integrações. Peça pra um admin conectar.
