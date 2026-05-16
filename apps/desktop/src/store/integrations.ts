@@ -20,6 +20,7 @@ type IntegrationsState = {
 
   refreshAccount: (orgId: string) => Promise<void>
   refreshQuota: (orgId: string) => Promise<void>
+  clearAccount: (orgId: string) => Promise<void>
   setStatus: (status: IntegrationStatus) => void
   setError: (error: string | null) => void
 }
@@ -58,6 +59,15 @@ export const useIntegrationsStore = create<IntegrationsState>((set, get) => ({
     } finally {
       set({ refreshing: false })
     }
+  },
+
+  async clearAccount(orgId: string) {
+    // Limpa cache local imediatamente após disconnect/swap. Sem isso, o
+    // próximo refreshAccount lê do SQLite cacheado e mantém status=connected
+    // com quota=null, fazendo o render condicional não casar nenhum branch.
+    const db = await getDb()
+    await db.execute('DELETE FROM cloud_storage_accounts WHERE org_id = ?', [orgId])
+    set({ account: null, quota: null, status: 'disconnected', error: null })
   },
 
   async refreshQuota(orgId: string) {

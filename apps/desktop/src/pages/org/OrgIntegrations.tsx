@@ -21,6 +21,7 @@ export function OrgIntegrations({ orgId }: Props) {
   const status = useIntegrationsStore((s) => s.status)
   const refreshAccount = useIntegrationsStore((s) => s.refreshAccount)
   const refreshQuota = useIntegrationsStore((s) => s.refreshQuota)
+  const clearAccount = useIntegrationsStore((s) => s.clearAccount)
 
   const [canManage, setCanManage] = useState(false)
   const [connecting, setConnecting] = useState(false)
@@ -129,7 +130,9 @@ export function OrgIntegrations({ orgId }: Props) {
   async function handleDisconnect() {
     try {
       await cs.disconnect(orgId)
-      await refreshAccount(orgId)
+      // clearAccount limpa cache local SQLite + reseta store pra disconnected.
+      // Sem isso, refreshAccount leria do cache estale e UI ficaria em branco.
+      await clearAccount(orgId)
       toastSuccess('Drive desconectado')
       setDisconnectOpen(false)
     } catch (err) {
