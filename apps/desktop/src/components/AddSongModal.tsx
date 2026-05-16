@@ -23,6 +23,8 @@ import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
 import { Slider } from './Slider.js'
 import { YouTubeDisclaimer } from './add-song/YouTubeDisclaimer.js'
+import { FileTab } from './add-song/FileTab.js'
+import { detectFromBytes, type DetectedFormat } from '../lib/cloud-storage/format-detection.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -653,6 +655,11 @@ export function AddSongModal() {
   // error
   const [error, setError] = useState<string | null>(null)
 
+  // Arquivo selecionado pela tab 'file' (mantém File em memória até Step 2 confirmar)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [detectedFormat, setDetectedFormat] = useState<DetectedFormat | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
   // search tab state
   // 'file' é o caminho principal (Plano 3). 'search'/'url' são YouTube secundários.
   const [tab, setTab] = useState<'file' | 'search' | 'url'>('file')
@@ -1068,6 +1075,34 @@ export function AddSongModal() {
     lastSearchedQueryRef.current = ''
   }
 
+  async function handleFileSelected(file: File) {
+    setFileError(null)
+    // Tamanho — limite 100 MB
+    if (file.size > 100 * 1024 * 1024) {
+      setFileError('Arquivo grande demais. Limite: 100 MB.')
+      setSelectedFile(null)
+      setDetectedFormat(null)
+      return
+    }
+
+    // Lê os primeiros 4 KB pra detectar magic bytes
+    const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer())
+    const detected = await detectFromBytes(head)
+
+    if (!detected || detected.kind === 'unsupported') {
+      setFileError(`Formato não suportado${detected ? ` (${detected.ext})` : ''}. Use MP3, M4A, WAV, FLAC ou OGG.`)
+      setSelectedFile(null)
+      setDetectedFormat(null)
+      return
+    }
+
+    setSelectedFile(file)
+    setDetectedFormat(detected)
+    // Pre-popula título com nome do arquivo (sem extensão)
+    const name = file.name.replace(/\.[^.]+$/, '')
+    setTitle(name)
+  }
+
   async function doSearch(q: string) {
     if (q.trim().length < 2) { setSearchResults([]); return }
     lastSearchedQueryRef.current = q
@@ -1464,6 +1499,58 @@ export function AddSongModal() {
                   </button>
                 ))}
               </div>
+
+              {/* ── Arquivo tab ── */}
+              {tab === 'file' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {!selectedFile && (
+                    <>
+                      <FileTab onFileSelected={handleFileSelected} />
+                      {fileError && (
+                        <div style={{ padding: 10, borderRadius: 8, background: '#450a0a', color: '#fca5a5', fontSize: 12 }}>
+                          {fileError}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedFile && detectedFormat && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: 12, borderRadius: 10,
+                        background: '#18181b', border: '1px solid #27272a',
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: '#fafafa', fontSize: 13, fontWeight: 500,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selectedFile.name}
+                          </div>
+                          <div style={{ color: '#71717a', fontSize: 11 }}>
+                            {(selectedFile.size / 1024 / 1024).toFixed(1)} MB &middot;{' '}
+                            {detectedFormat.ext.toUpperCase()} &middot;{' '}
+                            {detectedFormat.kind === 'lossless'
+                              ? 'Será convertido pra Opus 160k'
+                              : 'Será enviado como está'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedFile(null); setDetectedFormat(null); setTitle('') }}
+                          style={{
+                            background: 'transparent', color: '#71717a',
+                            border: 'none', cursor: 'pointer', padding: 4,
+                          }}
+                        >
+                          Trocar
+                        </button>
+                      </div>
+                      <BtnPrimary onClick={() => setStep(2)} style={{ width: '100%' }}>
+                        Continuar
+                      </BtnPrimary>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* ── Search tab ── */}
               {tab === 'search' && (
