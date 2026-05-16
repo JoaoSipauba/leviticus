@@ -125,14 +125,14 @@ serve(async (req: Request) => {
 async function handleOAuthInit(ctx: any, body: any): Promise<Response> {
   await requirePermission(ctx, 'manage_integrations')
   const provider = getProvider(body.provider as ProviderId)
-  // OAUTH_REDIRECT_BASE_URL permite override em dev (Supabase CLI bloqueia
-  // env vars começando com SUPABASE_, então não dá pra reescrever SUPABASE_URL
-  // via .env.local). Em produção, fica null e cai no SUPABASE_URL natural.
-  const supabaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
+  // OAUTH_REDIRECT_BASE_URL permite override em dev. Em prod cai no SUPABASE_URL
+  // natural. NÃO confundir com URL pra chamar Supabase (essa fica em
+  // SUPABASE_URL no edge runtime — em dev local seria http://kong:8000).
+  const oauthBaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
   const stateSecret = Deno.env.get('OAUTH_STATE_SECRET')
   if (!stateSecret) return jsonResponse({ error: 'Server misconfigured: OAUTH_STATE_SECRET missing' }, 500)
 
-  const redirectUri = `${supabaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`
+  const redirectUri = `${oauthBaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`
   const statePayload = `${crypto.randomUUID()}:${ctx.orgId}`
   const stateSig = await hmacSign(statePayload, stateSecret)
   const state = `${statePayload}|${stateSig}`
@@ -162,17 +162,19 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
   const [, orgId] = statePayload.split(':')
   if (!orgId) return new Response('Invalid state payload', { status: 400 })
 
-  // OAUTH_REDIRECT_BASE_URL permite override em dev (Supabase CLI bloqueia
-  // env vars começando com SUPABASE_, então não dá pra reescrever SUPABASE_URL
-  // via .env.local). Em produção, fica null e cai no SUPABASE_URL natural.
-  const supabaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
+  // OAUTH_REDIRECT_BASE_URL é só pra construir o redirect_uri (que precisa
+  // bater EXATAMENTE com o registrado no Google). A conexão Supabase usa o
+  // SUPABASE_URL natural (em dev local seria http://kong:8000 — hostname
+  // interno do Docker, alcançável de dentro do container da edge function).
+  const oauthBaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
   const { createClient } = await import('./deps.ts')
   const serviceClient = createClient(
     supabaseUrl,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
   const provider = getProvider('google_drive')
-  const tokens = await provider.exchangeCode(code, `${supabaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`)
+  const tokens = await provider.exchangeCode(code, `${oauthBaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`)
   const folder = await provider.ensureAppFolder(tokens.accessToken, 'Leviticus')
 
   const encryptedRefresh = await encryptSecret(serviceClient, tokens.refreshToken)
