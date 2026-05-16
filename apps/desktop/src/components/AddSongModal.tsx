@@ -1403,6 +1403,39 @@ export function AddSongModal() {
       })
       await syncOrg(orgId)
       bumpLibrary()
+
+      // Upload pro Drive (se conectado). Falha não bloqueia a música —
+      // fica em backup_status='pending' pra retry futuro (Plano 4).
+      if (cloudStatus === 'connected') {
+        try {
+          // findSongFile retorna o path real (m4a/webm/opus dependendo do yt-dlp)
+          const { findSongFile } = await import('../lib/ytdlp.js')
+          const localFilePath = await findSongFile(song.id)
+          if (localFilePath) {
+            // Detecta extensão real do arquivo baixado
+            const ext = localFilePath.split('.').pop()?.toLowerCase() ?? 'm4a'
+            const kind = (ext === 'wav' || ext === 'flac' || ext === 'aiff' || ext === 'aif')
+              ? 'lossless' as const
+              : 'lossy' as const
+
+            setProgress(0)  // Reset progress bar pra o upload
+            await uploadSongToDrive({
+              orgId,
+              songId: song.id,
+              filePath: localFilePath,
+              ext,
+              kind,
+              onProgress: (pct) => setProgress(pct),
+            })
+            toastSuccess('Música adicionada e salva no backup')
+          }
+        } catch (uploadErr) {
+          console.error('YouTube upload to Drive failed:', uploadErr)
+          toastError('Música baixada, mas backup falhou. Tente de novo depois.')
+          // status='failed' já setado em upload-song.ts
+        }
+      }
+
       // brief pause before success screen
       setTimeout(() => setStep(4), 400)
     } catch (e) {
