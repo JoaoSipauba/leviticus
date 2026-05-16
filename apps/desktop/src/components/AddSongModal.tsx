@@ -25,6 +25,10 @@ import { Slider } from './Slider.js'
 import { YouTubeDisclaimer } from './add-song/YouTubeDisclaimer.js'
 import { FileTab } from './add-song/FileTab.js'
 import { detectFromBytes, type DetectedFormat } from '../lib/cloud-storage/format-detection.js'
+import { writeFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
+import { useIntegrationsStore } from '../store/integrations.js'
+import { toastSuccess, toastError } from '../store/toasts.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -628,6 +632,7 @@ export function AddSongModal() {
   const { showAddSong, closeAddSong, bumpLibrary } = useUIStore()
   const navigate = useNavigate()
   const { setDownloading } = usePlayerStore()
+  const cloudStatus = useIntegrationsStore((s) => s.status)
 
   // animation state
   const [closing, setClosing] = useState(false)
@@ -1223,7 +1228,105 @@ export function AddSongModal() {
 
   // ── step 2 logic ──────────────────────────────────────────────────────────
 
+  async function handleConfirmFile() {
+    if (!selectedFile || !detectedFormat) return
+    if (!orgId) { setError('Sem organização selecionada'); return }
+
+    setSaving(true)
+    setError(null)
+
+    const { data: authData } = await supabase.auth.getUser()
+    if (!authData.user) { setError('Sessão expirada'); setSaving(false); return }
+
+    try {
+      // 1. Insert song row no Supabase. backup_status='pending' por padrão.
+      const { data: songRow, error: insertErr } = await supabase
+        .from('songs')
+        .insert({
+          org_id: orgId,
+          added_by: authData.user.id,
+          youtube_url: `local://upload/${Date.now()}`,  // placeholder — youtube_url é NOT NULL unique
+          title: title.trim(),
+          artist: artist.trim() || 'Desconhecido',
+          thumbnail_url: null,
+          duration_seconds: null,
+          song_type: songType,
+          source: 'upload',
+          original_format: detectedFormat.ext,
+          backup_status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (insertErr || !songRow) {
+        throw new Error(insertErr?.message ?? 'Falha ao salvar música')
+      }
+
+      const songId = songRow.id
+
+      // 2. Insert song-group associations
+      if (selectedGroups.length > 0) {
+        const sgRows = selectedGroups.map((gid) => ({ song_id: songId, group_id: gid }))
+        const { error: sgErr } = await supabase.from('song_groups').insert(sgRows)
+        if (sgErr) console.warn('song_groups insert failed:', sgErr)
+      }
+
+      // 3. Copia o arquivo pra $APPLOCALDATA/audio/{songId}.{ext}
+      setStep(3)
+      setProgress(0)
+      const ext = detectedFormat.ext
+      const localPath = `audio/${songId}.${ext}`
+      const buf = new Uint8Array(await selectedFile.arrayBuffer())
+      // Garante a pasta audio/ existe
+      try { await mkdir('audio', { baseDir: BaseDirectory.AppLocalData, recursive: true }) } catch {}
+      await writeFile(localPath, buf, { baseDir: BaseDirectory.AppLocalData })
+
+      // Resolve path absoluto pra passar pro upload
+      const { appLocalDataDir } = await import('@tauri-apps/api/path')
+      const absDir = await appLocalDataDir()
+      const absPath = `${absDir}/${localPath}`
+
+      // 4. Upload pro Drive (se conectado)
+      if (cloudStatus === 'connected') {
+        try {
+          setProgress(10)
+          await uploadSongToDrive({
+            orgId,
+            songId,
+            filePath: absPath,
+            ext,
+            kind: detectedFormat.kind,
+            onProgress: (pct) => setProgress(10 + Math.round(pct * 0.85)),
+          })
+          setProgress(100)
+          toastSuccess('Música adicionada e salva no backup')
+        } catch (uploadErr) {
+          console.error('upload failed:', uploadErr)
+          toastError('Música adicionada, mas backup falhou. Tente de novo depois.')
+          // status já foi marcado como 'failed' dentro do upload-song.ts
+        }
+      } else {
+        toastSuccess('Música adicionada — sem backup (Drive desconectado)')
+      }
+
+      // 5. Sync + UI
+      await syncOrg(orgId)
+      bumpLibrary()
+      setTimeout(() => setStep(4), 400)
+    } catch (err) {
+      console.error('handleConfirmFile failed:', err)
+      setError(err instanceof Error ? err.message : 'Falha ao adicionar música')
+      setSaving(false)
+      setStep(2)  // Volta pro form de metadata
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleConfirm() {
+    if (tab === 'file' && selectedFile && detectedFormat) {
+      return handleConfirmFile()
+    }
+
     if (!metadata) {
       setError('Dados de metadados ausentes.')
       setStep(1)
