@@ -8,6 +8,8 @@ import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { ConnectDriveCard } from '../../components/integrations/ConnectDriveCard.js'
 import { ConnectedAccountCard } from '../../components/integrations/ConnectedAccountCard.js'
+import { TokenExpiredCard } from '../../components/integrations/TokenExpiredCard.js'
+import { FolderMissingCard } from '../../components/integrations/FolderMissingCard.js'
 import { DriveFullCard } from '../../components/integrations/DriveFullCard.js'
 import { SwapAccountModal } from '../../components/integrations/SwapAccountModal.js'
 import { DisconnectModal } from '../../components/integrations/DisconnectModal.js'
@@ -162,8 +164,20 @@ export function OrgIntegrations({ orgId }: Props) {
         <ConnectDriveCard onConnect={handleConnect} canConnect={canManage} connecting={connecting} />
       )}
 
-      {(status === 'token_expired' || status === 'folder_missing') && (
-        <ConnectDriveCard onConnect={handleConnect} canConnect={canManage} connecting={connecting} />
+      {status === 'token_expired' && account && (
+        <TokenExpiredCard
+          email={account.account_email}
+          canConnect={canManage}
+          onReconnect={handleConnect}
+        />
+      )}
+
+      {status === 'folder_missing' && account && (
+        <FolderMissingCard
+          email={account.account_email}
+          canManage={canManage}
+          onRecreate={handleConnect}
+        />
       )}
 
       {status === 'connected' && account && quota && (
