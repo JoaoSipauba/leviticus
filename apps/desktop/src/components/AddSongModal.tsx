@@ -1256,7 +1256,8 @@ export function AddSongModal() {
 
   async function handleConfirmFile() {
     if (!selectedFile || !detectedFormat) return
-    if (!orgId) { setError('Sem organização selecionada'); return }
+    const currentOrgId = orgId || localStorage.getItem('leviticus_org_id') || ''
+    if (!currentOrgId) { setError('Sem organização selecionada'); return }
 
     setSaving(true)
     setError(null)
@@ -1269,7 +1270,7 @@ export function AddSongModal() {
       const { data: songRow, error: insertErr } = await supabase
         .from('songs')
         .insert({
-          org_id: orgId,
+          org_id: currentOrgId,
           added_by: authData.user.id,
           youtube_url: `local://upload/${Date.now()}`,  // placeholder — youtube_url é NOT NULL unique
           title: title.trim(),
@@ -1316,7 +1317,7 @@ export function AddSongModal() {
         try {
           setProgress(10)
           await uploadSongToDrive({
-            orgId,
+            orgId: currentOrgId,
             songId,
             filePath: absPath,
             ext,
@@ -1335,7 +1336,7 @@ export function AddSongModal() {
       }
 
       // 5. Sync + UI
-      await syncOrg(orgId)
+      await syncOrg(currentOrgId)
       bumpLibrary()
       setTimeout(() => setStep(4), 400)
     } catch (err) {
