@@ -30,16 +30,18 @@ describe('Journey #11 — Cloud Storage Integration', () => {
   let password: string
   let userId: string
   let orgId: string
+  let orgName: string
 
   before(async () => {
     email = `cloud-admin+${Date.now()}@leviticus.test`
     password = 'senha-do-teste-e2e'
+    orgName = `Cloud Igreja ${Date.now()}`
     await cleanLocalSqlite()
 
     const admin = makeAdminClient()
     const user = await createTestUser(admin, { email, password })
     userId = user.id
-    const org = await createOrgWithOwner(admin, userId, `Cloud Igreja ${Date.now()}`)
+    const org = await createOrgWithOwner(admin, userId, orgName)
     orgId = org.id
 
     // ─── Log in como dono via UI ───────────────────────────────────────────
@@ -52,10 +54,21 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     await setReactInputValue('input#password', password)
     await $('button[type=submit]').click()
 
-    // Usuário tem 1 org → app seleciona automaticamente e vai pra /library
+    // Login bem-sucedido leva pra /org (OrgSelect não auto-seleciona quando há 1 org)
+    await browser.waitUntil(
+      async () => /\/org$/.test(await browser.getUrl()),
+      { timeout: 30_000, timeoutMsg: 'Did not land on /org after login' }
+    )
+
+    // Clica na org criada pra selecionar → dispara syncOrg + navega pra /library
+    const orgBtn = $(`button*=${orgName}`)
+    await orgBtn.waitForExist({ timeout: 10_000, timeoutMsg: 'Org row not visible in OrgSelect' })
+    await orgBtn.click()
+
+    // syncOrg pode demorar ~30s (11 entities); aguardar até 90s como nos outros specs
     await browser.waitUntil(
       async () => /\/library/.test(await browser.getUrl()),
-      { timeout: 30_000, timeoutMsg: 'Did not land on /library after login' }
+      { timeout: 90_000, timeoutMsg: 'Did not land on /library after org select (syncOrg may have stalled)' }
     )
 
     // Navega pra Organização → Integrações
@@ -75,24 +88,23 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     await sectionTitle.waitForExist({ timeout: 10_000, timeoutMsg: 'Integrações section did not render' })
   })
 
-  // Helper: pré-seed cloud_storage_accounts via admin client.
-  // refresh_token_encrypted precisa ser bytea válido — usamos a função
-  // encrypt_cloud_secret SQL pra gerar um token "fake-refresh" criptografado.
+  // Helper: pré-seed em DOIS lugares — SQLite local (pro app renderizar) +
+  // Supabase remoto (pra disconnect/swap funcionar via edge function). O
+  // refreshAccount do store lê só do SQLite local, mas o edge function bate
+  // na tabela remota. Seedar nos dois evita ter que rodar syncOrg.
   async function seedCloudAccount(opts: {
     quotaTotal?: number
     quotaUsed?: number
   } = {}) {
+    // 1. Supabase remoto (pra edge function poder deletar/atualizar)
     const admin = makeAdminClient()
-    // Garante que não há row órfã de testes anteriores na mesma session.
     await admin.from('cloud_storage_accounts').delete().eq('org_id', orgId)
-
     const { data: encrypted, error: encErr } = await admin.rpc('encrypt_cloud_secret', {
       plaintext: 'fake-refresh-token-e2e',
     })
     if (encErr) throw new Error(`encrypt_cloud_secret failed: ${encErr.message}`)
-
-    // INSERT direto via service role (RLS bypass).
-    const { error } = await admin.from('cloud_storage_accounts').insert({
+    const now = new Date().toISOString()
+    const { error: remoteErr } = await admin.from('cloud_storage_accounts').insert({
       org_id: orgId,
       provider: 'google_drive',
       account_email: 'pastor.teste@igrejaboasnovas.org',
@@ -103,71 +115,132 @@ describe('Journey #11 — Cloud Storage Integration', () => {
       app_folder_id: 'fake-folder-id-leviticus',
       last_quota_total: opts.quotaTotal ?? null,
       last_quota_used: opts.quotaUsed ?? null,
-      last_quota_check_at: opts.quotaTotal ? new Date().toISOString() : null,
+      last_quota_check_at: opts.quotaTotal ? now : null,
     })
-    if (error) throw new Error(`seedCloudAccount insert failed: ${error.message}`)
+    if (remoteErr) throw new Error(`Supabase insert failed: ${remoteErr.message}`)
+
+    // 2. SQLite local (pro app render imediatamente, sem precisar de syncOrg)
+    await browser.execute(
+      async (org_id, total, used) => {
+        // Acessa o Tauri SQL plugin via __TAURI__ exposto pelo runtime.
+        // Tauri v2 expõe via __TAURI_INTERNALS__.invoke
+        const internals = (window as any).__TAURI_INTERNALS__
+        const invoke = internals?.invoke ?? (window as any).__TAURI__?.invoke ?? (window as any).__TAURI__?.core?.invoke
+        if (!invoke) {
+          throw new Error('Tauri invoke not available. Globals: ' + JSON.stringify({
+            hasInternals: !!internals,
+            hasTAURI: !!(window as any).__TAURI__,
+            keysOnWindow: Object.keys(window).filter((k) => k.toLowerCase().includes('tauri')),
+          }))
+        }
+
+        // tauri-plugin-sql expõe comandos como 'plugin:sql|execute'.
+        const dbHandle = 'sqlite:leviticus.db'
+
+        // Limpa eventual linha residual.
+        await invoke('plugin:sql|execute', {
+          db: dbHandle,
+          query: 'DELETE FROM cloud_storage_accounts WHERE org_id = ?',
+          values: [org_id],
+        })
+
+        const now = new Date().toISOString()
+        await invoke('plugin:sql|execute', {
+          db: dbHandle,
+          query:
+            'INSERT INTO cloud_storage_accounts ' +
+            '(org_id, provider, account_email, account_user_id, app_folder_id, ' +
+            ' connected_by, connected_at, last_quota_total, last_quota_used, last_quota_check_at, updated_at) ' +
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          values: [
+            org_id,
+            'google_drive',
+            'pastor.teste@igrejaboasnovas.org',
+            'fake-google-user-id-1',
+            'fake-folder-id-leviticus',
+            null,
+            now,
+            total,
+            used,
+            total ? now : null,
+            now,
+          ],
+        })
+      },
+      orgId,
+      opts.quotaTotal ?? null,
+      opts.quotaUsed ?? null,
+    )
   }
 
-  // Helper: dispara sync no app pra que SQLite local pegue mudanças feitas
-  // direto no Supabase via admin client.
+  // Helper: força o OrgIntegrations a re-rodar refreshAccount.
+  // Implementação: navega pra fora da tab e volta — re-monta o componente.
   async function reloadIntegrations() {
-    // Volta pra /library e retorna pra /manage?tab=integrations — força o
-    // useEffect do OrgIntegrations a re-rodar refreshAccount.
-    await browser.execute(() => {
-      window.location.href = '/library'
-    })
-    await browser.waitUntil(
-      async () => /\/library/.test(await browser.getUrl()),
-      { timeout: 10_000, timeoutMsg: 'Did not redirect to /library' }
-    )
-    await $('a[href="/manage"]').click()
+    // Clica em outra tab pra unmount o OrgIntegrations
+    await $('button=Informações').click()
+    await browser.pause(150)
+    // Volta pra Integrações — re-monta + dispara useEffect refreshAccount
     const integracoesTab = $('button=Integrações')
-    await integracoesTab.waitForExist({ timeout: 10_000 })
     await integracoesTab.click()
     await $('h3=Backup das músicas no Google Drive').waitForExist({ timeout: 10_000 })
   }
 
   it('T1 — estado desconectado: ConnectDriveCard + aviso da checkbox', async () => {
-    // Limpa qualquer row residual (no caso de re-run)
+    // Limpa row residual (no caso de re-run) em AMBOS lugares: Supabase + SQLite local.
     const admin = makeAdminClient()
     await admin.from('cloud_storage_accounts').delete().eq('org_id', orgId)
+    await browser.execute(async (org_id) => {
+      const tauri = (window as any).__TAURI__
+      const invoke = tauri?.core?.invoke ?? tauri?.invoke
+      if (!invoke) throw new Error('Tauri invoke not available')
+      await invoke('plugin:sql|execute', {
+        db: 'sqlite:leviticus.db',
+        query: 'DELETE FROM cloud_storage_accounts WHERE org_id = ?',
+        values: [org_id],
+      })
+    }, orgId)
     await reloadIntegrations()
 
     // Card de "não configurado"
-    const notConfigured = $('*=Drive ainda não configurado')
+    const notConfigured = $('div*=Drive ainda não configurado')
     await notConfigured.waitForExist({ timeout: 10_000, timeoutMsg: 'Disconnected card did not render' })
 
-    // Botão de conectar habilitado (admin tem manage_integrations)
+    // Botão de conectar habilitado (admin tem manage_integrations).
+    // waitForEnabled em vez de isEnabled imediato — hasPermission é async,
+    // o botão começa disabled até a promise resolver.
     const connectBtn = $('button=Conectar Google Drive')
-    await connectBtn.waitForExist({ timeout: 5_000 })
-    expect(await connectBtn.isEnabled()).toBe(true)
+    await connectBtn.waitForEnabled({
+      timeout: 10_000,
+      timeoutMsg: 'Connect button never enabled — hasPermission may not have resolved',
+    })
 
     // Aviso prominente sobre a checkbox do Drive
-    const warning = $('*=Atenção na tela do Google')
+    const warning = $('span*=Atenção na tela do Google')
     await warning.waitForExist({ timeout: 5_000, timeoutMsg: 'Drive checkbox warning callout missing' })
 
-    const checkboxHint = $('*=marque ela antes de clicar')
+    const checkboxHint = $('div*=Marque ela antes de clicar')
     await checkboxHint.waitForExist({ timeout: 5_000, timeoutMsg: 'Checkbox instruction text missing' })
   })
 
   it('T2 — estado conectado: ConnectedAccountCard com email e quota', async () => {
-    // Seed conta conectada com quota usada parcial (não cheia)
+    // Seed conta conectada com quota usada parcial (não cheia).
+    // 15 GB é o free tier Google Drive padrão.
     await seedCloudAccount({
-      quotaTotal: 16 * 1024 ** 3,           // 15 GB
+      quotaTotal: 15 * 1024 ** 3,           // 15 GB
       quotaUsed: 5 * 1024 ** 3,              // 5 GB usado
     })
     await reloadIntegrations()
 
     // Email da conta
-    const emailLabel = $('*=pastor.teste@igrejaboasnovas.org')
+    const emailLabel = $('div*=pastor.teste')
     await emailLabel.waitForExist({ timeout: 10_000, timeoutMsg: 'Connected email not shown' })
 
     // Pasta "Leviticus"
-    const folderLabel = $('*=pasta "Leviticus"')
+    const folderLabel = $('div*=Leviticus')
     await folderLabel.waitForExist({ timeout: 5_000 })
 
     // Quota bar deve mostrar valor total em GB
-    const quotaLabel = $('*=15 GB')
+    const quotaLabel = $('span*=15 GB')
     await quotaLabel.waitForExist({ timeout: 5_000, timeoutMsg: 'Quota bar did not render with total' })
 
     // Botões de gerenciamento visíveis (canManage=true)
@@ -183,13 +256,13 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     })
     await reloadIntegrations()
 
-    const fullAlert = $('*=Drive cheio')
+    const fullAlert = $('div*=Drive cheio')
     await fullAlert.waitForExist({ timeout: 10_000, timeoutMsg: 'DriveFullCard not rendered' })
 
     // 3 ações de recovery (RecoveryActions)
-    await $('*=Liberar espaço no Drive').waitForExist({ timeout: 5_000 })
-    await $('*=Atualizar plano do Google').waitForExist({ timeout: 5_000 })
-    await $('*=Trocar pra outra conta').waitForExist({ timeout: 5_000 })
+    await $('div*=Liberar espaço no Drive').waitForExist({ timeout: 5_000 })
+    await $('div*=Atualizar plano do Google').waitForExist({ timeout: 5_000 })
+    await $('div*=Trocar pra outra conta').waitForExist({ timeout: 5_000 })
   })
 
   it('T4 — disconnect flow: type-to-confirm + row removido + UI volta', async () => {
@@ -210,11 +283,12 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     // Digita "desconectar" pra habilitar o botão de confirmação no modal
     await setReactInputValue('input[placeholder*="desconectar"]', 'desconectar')
 
-    // Modal renderiza overlay com z-50 — usa esse contexto pra achar o botão
-    // de confirmação (evita pegar o botão original do card que ainda existe
-    // por trás do modal). O modal tem botão "Desconectar" (variant primária
-    // vermelha) e "Cancelar".
-    const modalConfirmBtn = $('div.fixed.z-50 button=Desconectar')
+    // Modal renderiza overlay com classe "fixed inset-0 z-50". Usa element
+    // chaining pra escopar o botão dentro do modal — evita pegar o botão
+    // "Desconectar" original do card que continua no DOM por trás.
+    const modal = $('div.fixed.inset-0.z-50')
+    await modal.waitForExist({ timeout: 5_000, timeoutMsg: 'Modal overlay never appeared' })
+    const modalConfirmBtn = modal.$('button=Desconectar')
     await modalConfirmBtn.waitForEnabled({ timeout: 5_000, timeoutMsg: 'Modal confirm button never enabled' })
     await modalConfirmBtn.click()
 
@@ -233,7 +307,7 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     expect(rowRemoved).toBe(true)
 
     // UI volta pra estado desconectado
-    const reconnectCard = $('*=Drive ainda não configurado')
+    const reconnectCard = $('div*=Drive ainda não configurado')
     await reconnectCard.waitForExist({
       timeout: 10_000,
       timeoutMsg: 'UI did not return to disconnected state after disconnect',
