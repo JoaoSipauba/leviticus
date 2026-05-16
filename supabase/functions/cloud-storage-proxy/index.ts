@@ -66,13 +66,12 @@ async function ensureFreshAccessToken(serviceClient: any, orgId: string): Promis
   // Refresh
   const refreshToken = await decryptSecret(serviceClient, acct.refresh_token_encrypted as string)
   const fresh = await provider.refreshAccessToken(refreshToken)
-  await serviceClient
-    .from('cloud_storage_accounts')
-    .update({
-      access_token: fresh.accessToken,
-      access_token_expires_at: fresh.accessTokenExpiresAt,
-    })
-    .eq('org_id', orgId)
+  const { error: updErr } = await serviceClient.rpc('update_cloud_storage_access_token', {
+    p_org_id: orgId,
+    p_access_token: fresh.accessToken,
+    p_access_token_expires_at: fresh.accessTokenExpiresAt,
+  })
+  if (updErr) throw new Error(`Update access_token failed: ${updErr.message}`)
   return { provider: acct.provider, accessToken: fresh.accessToken, appFolderId: acct.app_folder_id }
 }
 
@@ -246,12 +245,13 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
 async function handleQuota(ctx: any): Promise<Response> {
   const { provider, accessToken } = await ensureFreshAccessToken(ctx.serviceClient, ctx.orgId)
   const quota = await getProvider(provider as ProviderId).getQuota(accessToken)
-  // Cache na DB
-  await ctx.serviceClient.from('cloud_storage_accounts').update({
-    last_quota_total: quota.total,
-    last_quota_used: quota.used,
-    last_quota_check_at: new Date().toISOString(),
-  }).eq('org_id', ctx.orgId)
+  // Cache na DB via RPC (mesmo motivo do disconnect/upsert: .update() trava)
+  const { error: cacheErr } = await ctx.serviceClient.rpc('update_cloud_storage_quota', {
+    p_org_id: ctx.orgId,
+    p_total: quota.total,
+    p_used: quota.used,
+  })
+  if (cacheErr) console.warn('[quota] cache update failed (non-fatal):', cacheErr)
   return jsonResponse(quota)
 }
 
@@ -287,19 +287,28 @@ async function handleDeleteFile(ctx: any, body: any): Promise<Response> {
 
 async function handleDisconnect(ctx: any): Promise<Response> {
   await requirePermission(ctx, 'manage_integrations')
-  const { data: acct } = await ctx.serviceClient
-    .from('cloud_storage_accounts')
-    .select('refresh_token_encrypted, provider')
-    .eq('org_id', ctx.orgId)
-    .maybeSingle()
-  if (acct) {
-    const refreshToken = await decryptSecret(ctx.serviceClient, acct.refresh_token_encrypted as string)
+  console.log('[disconnect] popping account via RPC...')
+
+  // Usa RPC pra ler refresh_token + deletar atomicamente. Evita o hang do
+  // .delete() via supabase-js (mesma classe de bug do .upsert() resolvido em b506f96).
+  const { data, error } = await ctx.serviceClient.rpc('pop_cloud_storage_account', {
+    p_org_id: ctx.orgId,
+  })
+  if (error) {
+    console.error('[disconnect] pop failed:', error)
+    return jsonResponse({ error: error.message }, 500)
+  }
+
+  const row = Array.isArray(data) && data.length > 0 ? data[0] : null
+  if (row?.refresh_token && row?.provider) {
     try {
-      await getProvider(acct.provider as ProviderId).revokeToken(refreshToken)
+      await getProvider(row.provider as ProviderId).revokeToken(row.refresh_token)
+      console.log('[disconnect] token revoked at provider')
     } catch (e) {
-      console.warn('Revoke failed (ignoring):', e)
+      console.warn('[disconnect] revoke failed (ignoring):', e)
     }
   }
-  await ctx.serviceClient.from('cloud_storage_accounts').delete().eq('org_id', ctx.orgId)
+
+  console.log('[disconnect] done')
   return jsonResponse({ ok: true })
 }
