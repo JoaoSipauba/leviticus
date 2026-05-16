@@ -1,6 +1,6 @@
 # Cloud Storage Library + Sync Worker — Plano de Implementação (Plano 4 de 4)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Fechar o feature do Cloud Storage: a Biblioteca mostra indicadores claros de quais músicas têm backup (banner + badge + chip filtro), o player baixa do Drive automaticamente quando o arquivo não está local, e um sync-worker em background tenta novamente uploads pendentes que falharam. Estados de erro do Drive (token expirado, pasta sumiu) ganham UI dedicada.
 
@@ -15,7 +15,7 @@
 - [x] Plano 1 completo: schema, edge function, `download.ts`, `upload.ts`, status state machine
 - [x] Plano 2 completo: tab Integrações funcional
 - [x] Plano 3 completo: upload-song.ts, fluxo Arquivo, YouTube com upload
-- [ ] Edge function `cloud-storage-proxy` rodando (necessário pra integração real do download)
+- [x] Edge function `cloud-storage-proxy` rodando (necessário pra integração real do download)
 
 ---
 
@@ -66,7 +66,7 @@ apps/desktop/src/store/integrations.ts # pendingCount + ações para sync-worker
 - Create: `apps/desktop/src/lib/cloud-storage/pending-queue.ts`
 - Create: `apps/desktop/src/lib/cloud-storage/pending-queue.test.ts`
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/lib/cloud-storage/pending-queue.test.ts`:
 
@@ -121,13 +121,13 @@ describe('pending-queue helpers', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm vitest run src/lib/cloud-storage/pending-queue.test.ts`
 Expected: FAIL — module não existe
 
-- [ ] **Step 3: Criar pending-queue.ts**
+- [x] **Step 3: Criar pending-queue.ts**
 
 Create `apps/desktop/src/lib/cloud-storage/pending-queue.ts`:
 
@@ -181,12 +181,12 @@ export async function getPendingTotalBytes(orgId: string): Promise<number> {
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/lib/cloud-storage/pending-queue.test.ts`
 Expected: 4/4 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/lib/cloud-storage/pending-queue.ts apps/desktop/src/lib/cloud-storage/pending-queue.test.ts
@@ -203,7 +203,7 @@ git commit -m "feat(cloud-storage): helpers pra contar músicas com backup pende
 
 Make sure `apps/desktop/src/components/library/` exists (mkdir -p).
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/components/library/LibraryBackupBanner.test.tsx`:
 
@@ -240,12 +240,12 @@ describe('LibraryBackupBanner', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run: `pnpm vitest run src/components/library/LibraryBackupBanner.test.tsx`
 Expected: FAIL
 
-- [ ] **Step 3: Criar componente**
+- [x] **Step 3: Criar componente**
 
 Create `apps/desktop/src/components/library/LibraryBackupBanner.tsx`:
 
@@ -309,12 +309,12 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/components/library/LibraryBackupBanner.test.tsx`
 Expected: 4/4 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/components/library/LibraryBackupBanner.tsx \
@@ -330,7 +330,7 @@ git commit -m "feat(library): LibraryBackupBanner com estados conditional"
 - Create: `apps/desktop/src/components/library/BackupStatusBadge.tsx`
 - Create: `apps/desktop/src/components/library/BackupStatusBadge.test.tsx`
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/components/library/BackupStatusBadge.test.tsx`:
 
@@ -365,12 +365,12 @@ describe('BackupStatusBadge', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run: `pnpm vitest run src/components/library/BackupStatusBadge.test.tsx`
 Expected: FAIL
 
-- [ ] **Step 3: Criar componente**
+- [x] **Step 3: Criar componente**
 
 Create `apps/desktop/src/components/library/BackupStatusBadge.tsx`:
 
@@ -412,12 +412,12 @@ export function BackupStatusBadge({ status }: Props) {
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/components/library/BackupStatusBadge.test.tsx`
 Expected: 4/4 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/components/library/BackupStatusBadge.tsx \
@@ -433,7 +433,7 @@ git commit -m "feat(library): BackupStatusBadge — ponto colorido por status"
 - Create: `apps/desktop/src/components/library/BackupFilterChip.tsx`
 - Create: `apps/desktop/src/components/library/BackupFilterChip.test.tsx`
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/components/library/BackupFilterChip.test.tsx`:
 
@@ -463,12 +463,12 @@ describe('BackupFilterChip', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run: `pnpm vitest run src/components/library/BackupFilterChip.test.tsx`
 Expected: FAIL
 
-- [ ] **Step 3: Criar componente**
+- [x] **Step 3: Criar componente**
 
 Create `apps/desktop/src/components/library/BackupFilterChip.tsx`:
 
@@ -512,12 +512,12 @@ export function BackupFilterChip({ count, active, onToggle }: Props) {
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/components/library/BackupFilterChip.test.tsx`
 Expected: 3/3 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/components/library/BackupFilterChip.tsx \
@@ -532,7 +532,7 @@ git commit -m "feat(library): BackupFilterChip pra filtrar músicas sem backup"
 **Files:**
 - Modify: `apps/desktop/src/pages/Library.tsx`
 
-- [ ] **Step 1: Adicionar imports e hooks**
+- [x] **Step 1: Adicionar imports e hooks**
 
 Edit `apps/desktop/src/pages/Library.tsx`. Adicionar imports:
 
@@ -544,7 +544,7 @@ import { countPendingBackup } from '../lib/cloud-storage/pending-queue.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 ```
 
-- [ ] **Step 2: Adicionar estado pra pending count + filtro**
+- [x] **Step 2: Adicionar estado pra pending count + filtro**
 
 Dentro do componente, próximo às outras useState declarations:
 
@@ -555,7 +555,7 @@ const [pendingCount, setPendingCount] = useState(0)
 const [showOnlyPending, setShowOnlyPending] = useState(false)
 ```
 
-- [ ] **Step 3: Carregar pendingCount no useEffect existente**
+- [x] **Step 3: Carregar pendingCount no useEffect existente**
 
 Localizar o `useEffect` que carrega `songs` (~linha 22-51). Após `setSongs(rows)` e similares, adicionar a contagem:
 
@@ -566,7 +566,7 @@ setPendingCount(count)
 
 (Ainda dentro da função `load()` antes de `setLoading(false)`)
 
-- [ ] **Step 4: Refresh do pendingCount quando integrations status muda**
+- [x] **Step 4: Refresh do pendingCount quando integrations status muda**
 
 Adicionar useEffect separado pra reagir a mudanças no cloudStatus:
 
@@ -577,7 +577,7 @@ useEffect(() => {
 }, [orgId, cloudStatus, librarySeed])
 ```
 
-- [ ] **Step 5: Modificar filtragem pra incluir pending**
+- [x] **Step 5: Modificar filtragem pra incluir pending**
 
 Modificar o cálculo de `filtered`:
 
@@ -594,7 +594,7 @@ const filtered = songs.filter((s) => {
 })
 ```
 
-- [ ] **Step 6: Renderizar banner antes do search/filters**
+- [x] **Step 6: Renderizar banner antes do search/filters**
 
 Localizar onde o input de busca está renderizado (`<input type="search"...` na linha ~131). ANTES do `<div className="flex gap-3 mb-4">` que envolve search+filtro, adicionar:
 
@@ -606,7 +606,7 @@ Localizar onde o input de busca está renderizado (`<input type="search"...` na 
 />
 ```
 
-- [ ] **Step 7: Renderizar chip ao lado do select de ministérios**
+- [x] **Step 7: Renderizar chip ao lado do select de ministérios**
 
 Localizar o `<select>` do groupFilter. Após o `</select>` mas DENTRO do mesmo `<div className="flex gap-3 mb-4">`, adicionar:
 
@@ -618,13 +618,13 @@ Localizar o `<select>` do groupFilter. Após o `</select>` mas DENTRO do mesmo `
 />
 ```
 
-- [ ] **Step 8: Typecheck**
+- [x] **Step 8: Typecheck**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm tsc --noEmit`
 Expected: 0 erros
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 git add apps/desktop/src/pages/Library.tsx
@@ -638,14 +638,14 @@ git commit -m "feat(library): integra BackupBanner + FilterChip + filtragem por 
 **Files:**
 - Modify: `apps/desktop/src/components/SongCard.tsx`
 
-- [ ] **Step 1: Localizar o thumbnail da capa**
+- [x] **Step 1: Localizar o thumbnail da capa**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus`:
 `grep -n "thumbnail_url\|cover\|capa\|position:.*relative" apps/desktop/src/components/SongCard.tsx | head -10`
 
 Identificar onde a capa (thumbnail) é renderizada. Normalmente um `<img>` ou `<div>` com fundo cover.
 
-- [ ] **Step 2: Adicionar import**
+- [x] **Step 2: Adicionar import**
 
 Edit `apps/desktop/src/components/SongCard.tsx`. Adicionar no topo:
 
@@ -653,7 +653,7 @@ Edit `apps/desktop/src/components/SongCard.tsx`. Adicionar no topo:
 import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 ```
 
-- [ ] **Step 3: Renderizar badge sobre a capa**
+- [x] **Step 3: Renderizar badge sobre a capa**
 
 Localizar o container da capa (geralmente um `<div>` ou `<img>` em volta da thumbnail). Envolvê-lo num wrapper com `position: relative` (se ainda não tiver) e renderizar `<BackupStatusBadge status={song.backup_status} />` dentro do wrapper.
 
@@ -672,12 +672,12 @@ Padrão recomendado: encontrar o `<img>` ou `<div>` de capa e mudar o pai pra te
 
 Adapte o exato estilo/marker já usado no SongCard.
 
-- [ ] **Step 4: Typecheck**
+- [x] **Step 4: Typecheck**
 
 Run: `pnpm tsc --noEmit`
 Expected: 0 erros
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/components/SongCard.tsx
@@ -692,7 +692,7 @@ git commit -m "feat(library): SongCard mostra badge de backup status"
 - Create: `apps/desktop/src/lib/cloud-storage/download-song.ts`
 - Create: `apps/desktop/src/lib/cloud-storage/download-song.test.ts`
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/lib/cloud-storage/download-song.test.ts`:
 
@@ -752,12 +752,12 @@ describe('downloadSongFromDrive', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run: `pnpm vitest run src/lib/cloud-storage/download-song.test.ts`
 Expected: FAIL — module não existe
 
-- [ ] **Step 3: Criar download-song.ts**
+- [x] **Step 3: Criar download-song.ts**
 
 Create `apps/desktop/src/lib/cloud-storage/download-song.ts`:
 
@@ -800,12 +800,12 @@ export async function downloadSongFromDrive(opts: DownloadSongOpts): Promise<str
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/lib/cloud-storage/download-song.test.ts`
 Expected: 2/2 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/lib/cloud-storage/download-song.ts \
@@ -820,7 +820,7 @@ git commit -m "feat(cloud-storage): download-song orquestrador (URL + downloadTo
 **Files:**
 - Modify: `apps/desktop/src/lib/audio.ts` (ou onde `playSong` é chamado a partir do SongCard)
 
-- [ ] **Step 1: Localizar onde música é tocada**
+- [x] **Step 1: Localizar onde música é tocada**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus`:
 `grep -n "playSong\|currentSong\|setCurrentSong\|setIsPlaying" apps/desktop/src/components/SongCard.tsx | head -10`
@@ -830,7 +830,7 @@ E:
 
 Identifica o callsite de play (botão na SongCard que dispara o player). Provavelmente em SongCard.tsx tem um handler `handlePlay` ou similar que faz `usePlayerStore.getState().play(song)` ou similar.
 
-- [ ] **Step 2: Adicionar download lazy antes do play**
+- [x] **Step 2: Adicionar download lazy antes do play**
 
 Edit o handler de play (provavelmente em `SongCard.tsx`). Antes de iniciar o playback, verificar se arquivo local existe; se não, baixar do Drive:
 
@@ -876,13 +876,13 @@ async function handlePlay() {
 
 **IMPORTANT**: ajuste pra encaixar na lógica existente do `handlePlay` — não substitua, apenas adicione o download lazy ANTES do código de play.
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm tsc --noEmit`
 Expected: 0 erros
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/desktop/src/components/SongCard.tsx
@@ -897,7 +897,7 @@ git commit -m "feat(library): play baixa do Drive automaticamente quando local s
 - Create: `apps/desktop/src/lib/cloud-storage/sync-worker.ts`
 - Create: `apps/desktop/src/lib/cloud-storage/sync-worker.test.ts`
 
-- [ ] **Step 1: Escrever teste**
+- [x] **Step 1: Escrever teste**
 
 Create `apps/desktop/src/lib/cloud-storage/sync-worker.test.ts`:
 
@@ -964,12 +964,12 @@ describe('sync-worker', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar teste, ver falha**
+- [x] **Step 2: Rodar teste, ver falha**
 
 Run: `pnpm vitest run src/lib/cloud-storage/sync-worker.test.ts`
 Expected: FAIL — module não existe
 
-- [ ] **Step 3: Criar sync-worker.ts**
+- [x] **Step 3: Criar sync-worker.ts**
 
 Create `apps/desktop/src/lib/cloud-storage/sync-worker.ts`:
 
@@ -1051,12 +1051,12 @@ export async function _runPassForTest(orgId: string, status: string): Promise<vo
 }
 ```
 
-- [ ] **Step 4: Rodar teste**
+- [x] **Step 4: Rodar teste**
 
 Run: `pnpm vitest run src/lib/cloud-storage/sync-worker.test.ts`
 Expected: 3/3 pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/desktop/src/lib/cloud-storage/sync-worker.ts \
@@ -1071,7 +1071,7 @@ git commit -m "feat(cloud-storage): sync-worker pra retry de uploads pendentes"
 **Files:**
 - Modify: `apps/desktop/src/App.tsx`
 
-- [ ] **Step 1: Adicionar imports**
+- [x] **Step 1: Adicionar imports**
 
 Edit `apps/desktop/src/App.tsx`. Adicionar:
 
@@ -1079,7 +1079,7 @@ Edit `apps/desktop/src/App.tsx`. Adicionar:
 import { startSyncWorker, stopSyncWorker } from './lib/cloud-storage/sync-worker.js'
 ```
 
-- [ ] **Step 2: Adicionar useEffect que reage a mudança de orgId/status**
+- [x] **Step 2: Adicionar useEffect que reage a mudança de orgId/status**
 
 Localizar dentro do componente App o `useEffect` que já lida com deep-link (criado em Plano 2 Task 3). Logo após, adicionar:
 
@@ -1109,12 +1109,12 @@ useEffect(() => {
 }, [])
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `pnpm tsc --noEmit`
 Expected: 0 erros
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/desktop/src/App.tsx
@@ -1132,7 +1132,7 @@ git commit -m "feat(cloud-storage): bootstrap do sync-worker no boot do app"
 - Create: `apps/desktop/src/components/integrations/FolderMissingCard.tsx`
 - Create: `apps/desktop/src/components/integrations/FolderMissingCard.test.tsx`
 
-- [ ] **Step 1: Criar TokenExpiredCard + teste**
+- [x] **Step 1: Criar TokenExpiredCard + teste**
 
 Create `apps/desktop/src/components/integrations/TokenExpiredCard.test.tsx`:
 
@@ -1210,7 +1210,7 @@ export function TokenExpiredCard({ email, canConnect, onReconnect }: Props) {
 
 Run: tests pass.
 
-- [ ] **Step 2: Criar FolderMissingCard + teste**
+- [x] **Step 2: Criar FolderMissingCard + teste**
 
 Create `apps/desktop/src/components/integrations/FolderMissingCard.test.tsx`:
 
@@ -1278,7 +1278,7 @@ export function FolderMissingCard({ email, canManage, onRecreate }: Props) {
 }
 ```
 
-- [ ] **Step 3: Integrar em OrgIntegrations**
+- [x] **Step 3: Integrar em OrgIntegrations**
 
 Edit `apps/desktop/src/pages/org/OrgIntegrations.tsx`. Adicionar imports:
 
@@ -1307,7 +1307,7 @@ Localizar onde tem `{(status === 'token_expired' || status === 'folder_missing')
 )}
 ```
 
-- [ ] **Step 4: Typecheck + commit**
+- [x] **Step 4: Typecheck + commit**
 
 Run: `pnpm tsc --noEmit` → 0 erros
 
@@ -1327,7 +1327,7 @@ git commit -m "feat(integrations): UI dedicada pra token_expired e folder_missin
 **Files:**
 - Create: `apps/desktop/e2e/specs/16-library-backup-states.spec.ts`
 
-- [ ] **Step 1: Escrever spec**
+- [x] **Step 1: Escrever spec**
 
 Create `apps/desktop/e2e/specs/16-library-backup-states.spec.ts`:
 
@@ -1433,7 +1433,7 @@ describe('Journey #12 — Biblioteca backup states', () => {
 })
 ```
 
-- [ ] **Step 2: Rodar spec**
+- [x] **Step 2: Rodar spec**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop/e2e`:
 ```
@@ -1444,7 +1444,7 @@ Expected: 3/3 passing. Se algum selector falhar, ajuste com base nos mesmos prin
 
 **IMPORTANTE**: lembrar de rebuildar o bundle dev antes (`pnpm tauri build --debug --config src-tauri/tauri.conf.dev.json`) — o spec roda contra o `.app` instalado, não o `tauri dev`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/desktop/e2e/specs/16-library-backup-states.spec.ts
@@ -1457,13 +1457,13 @@ git commit -m "test(e2e): spec 16 — biblioteca backup states (banner + chip + 
 
 **Files:** (sem mudanças de código — validação)
 
-- [ ] **Step 1: Typecheck monorepo**
+- [x] **Step 1: Typecheck monorepo**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus`:
 `pnpm typecheck`
 Expected: 0 erros
 
-- [ ] **Step 2: Testes vitest**
+- [x] **Step 2: Testes vitest**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm test`
@@ -1507,7 +1507,7 @@ Manualmente validar:
 - [ ] Token expired: revogar permissão no https://myaccount.google.com/permissions → próximo refresh do quota dispara estado → UI mostra TokenExpiredCard
 - [ ] Folder missing: apagar pasta "Leviticus" no Drive manualmente → próxima operação detecta → FolderMissingCard
 
-- [ ] **Step 6: Commit final**
+- [x] **Step 6: Commit final**
 
 Editar este plano marcando todos os checkboxes como `[x]`.
 
@@ -1522,16 +1522,16 @@ git commit -m "docs(plan): marca Plano 4 como completo — feature Cloud Storage
 
 Antes de fechar a feature:
 
-- [ ] LibraryBackupBanner aparece quando há músicas com backup != uploaded
-- [ ] BackupStatusBadge mostra ponto colorido no canto da capa (amarelo=pending, vermelho=failed, cinza=no_account)
-- [ ] BackupFilterChip filtra biblioteca pra mostrar só pendentes
-- [ ] Click play em música sem arquivo local com cloud_file_id → baixa do Drive automaticamente
-- [ ] sync-worker roda no boot + a cada 5 min, tenta upload das pendentes
-- [ ] Sync-worker pula quando Drive desconectado
-- [ ] TokenExpiredCard renderiza em status='token_expired' com botão Reconectar
-- [ ] FolderMissingCard renderiza em status='folder_missing' com botão Recriar
-- [ ] `pnpm typecheck` 0 erros monorepo
-- [ ] `pnpm test` todos passam (Plano 4 adiciona ~25+ testes)
+- [x] LibraryBackupBanner aparece quando há músicas com backup != uploaded
+- [x] BackupStatusBadge mostra ponto colorido no canto da capa (amarelo=pending, vermelho=failed, cinza=no_account)
+- [x] BackupFilterChip filtra biblioteca pra mostrar só pendentes
+- [x] Click play em música sem arquivo local com cloud_file_id → baixa do Drive automaticamente
+- [x] sync-worker roda no boot + a cada 5 min, tenta upload das pendentes
+- [x] Sync-worker pula quando Drive desconectado
+- [x] TokenExpiredCard renderiza em status='token_expired' com botão Reconectar
+- [x] FolderMissingCard renderiza em status='folder_missing' com botão Recriar
+- [x] `pnpm typecheck` 0 erros monorepo
+- [x] `pnpm test` todos passam (Plano 4 adiciona ~25+ testes)
 - [ ] `pnpm --filter leviticus-e2e e2e:local` — 16/16 specs verdes
 - [ ] Bundle dev rebuildado + registrado no LaunchServices
 - [ ] Cobertura visual manual: 6 cenários acima
