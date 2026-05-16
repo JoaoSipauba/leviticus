@@ -1101,9 +1101,35 @@ export function AddSongModal() {
       return
     }
 
+    // Pre-check quota se Drive conectado. Margem 1.5x pra compressão temp.
+    if (cloudStatus === 'connected') {
+      try {
+        const { getQuota } = await import('../lib/cloud-storage/client.js')
+        const orgId = localStorage.getItem('leviticus_org_id')
+        if (orgId) {
+          const q = await getQuota(orgId)
+          const need = file.size * 1.5
+          if (q.available < need) {
+            const needMb = Math.round(need / 1024 / 1024)
+            const availMb = Math.round(q.available / 1024 / 1024)
+            setFileError(
+              `Não cabe no Drive. Arquivo precisa ~${needMb} MB mas só sobram ${availMb} MB. ` +
+              `Libere espaço ou troque a conta na tab Integrações.`
+            )
+            setSelectedFile(null)
+            setDetectedFormat(null)
+            return
+          }
+        }
+      } catch (e) {
+        // Falha na checagem de quota não bloqueia — só loga (upload pode falhar
+        // depois e cair em backup_status='pending'/failed).
+        console.warn('quota pre-check failed:', e)
+      }
+    }
+
     setSelectedFile(file)
     setDetectedFormat(detected)
-    // Pre-popula título com nome do arquivo (sem extensão)
     const name = file.name.replace(/\.[^.]+$/, '')
     setTitle(name)
   }
