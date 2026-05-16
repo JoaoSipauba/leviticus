@@ -2,7 +2,7 @@ import { serve } from './deps.ts'
 import { getProvider } from './providers/registry.ts'
 import { ProviderId, ProviderError, NotImplementedError } from './providers/types.ts'
 import { authenticate, requirePermission, UnauthorizedError, ForbiddenError } from './auth.ts'
-import { encryptSecret, decryptSecret, bytesToHex } from './crypto.ts'
+import { decryptSecret } from './crypto.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -182,21 +182,24 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
   const folder = await provider.ensureAppFolder(tokens.accessToken, 'Leviticus')
   console.log('[oauth-callback] step: folder ok, id=', folder.folderId)
 
-  console.log('[oauth-callback] step: encrypting refresh token...')
-  const encryptedRefresh = await encryptSecret(serviceClient, tokens.refreshToken)
-  console.log('[oauth-callback] step: upserting cloud_storage_accounts...')
-  // PostgREST espera bytea como hex literal "\xHHHH..." em INSERT/UPDATE.
-  // supabase-js não converte Uint8Array automaticamente — fazemos manual.
-  await serviceClient.from('cloud_storage_accounts').upsert({
-    org_id: orgId,
-    provider: 'google_drive',
-    account_email: tokens.account.email,
-    account_user_id: tokens.account.userId,
-    refresh_token_encrypted: bytesToHex(encryptedRefresh),
-    access_token: tokens.accessToken,
-    access_token_expires_at: tokens.accessTokenExpiresAt,
-    app_folder_id: folder.folderId,
+  console.log('[oauth-callback] step: upserting via RPC...')
+  // Usa RPC dedicado em vez de .upsert() pra evitar problemas com encoding
+  // bytea via supabase-js/PostgREST (que travava infinitamente).
+  const { error: upsertErr } = await serviceClient.rpc('set_cloud_storage_account', {
+    p_org_id: orgId,
+    p_provider: 'google_drive',
+    p_account_email: tokens.account.email,
+    p_account_user_id: tokens.account.userId,
+    p_refresh_token: tokens.refreshToken,
+    p_access_token: tokens.accessToken,
+    p_access_token_expires_at: tokens.accessTokenExpiresAt,
+    p_app_folder_id: folder.folderId,
   })
+  if (upsertErr) {
+    console.error('[oauth-callback] upsert failed:', upsertErr)
+    return new Response(`Upsert failed: ${upsertErr.message}`, { status: 500 })
+  }
+  console.log('[oauth-callback] step: upsert ok, redirecting...')
 
   // Redireciona pro app via deep link
   return new Response(null, {
