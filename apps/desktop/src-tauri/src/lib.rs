@@ -13,6 +13,7 @@ pub fn run() {
             ffmpeg::ensure_ffmpeg,
             cloud_storage::cloud_storage_hash_file,
             cloud_storage::cloud_storage_rename_file,
+            cloud_storage::cloud_storage_file_size,
         ]);
 
     // E2E only: ativa o WebDriver plugin em builds debug pra que o

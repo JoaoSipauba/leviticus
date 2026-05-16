@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[tauri::command]
 pub async fn cloud_storage_hash_file(path: String) -> Result<String, String> {
@@ -28,6 +28,15 @@ pub async fn cloud_storage_rename_file(from: String, to: String) -> Result<(), S
     tokio::fs::rename(&from_path, &to_path)
         .await
         .map_err(|e| format!("rename {from} -> {to}: {e}"))
+}
+
+/// Retorna o tamanho em bytes de um arquivo no filesystem. Usado como
+/// preflight do upload (sem precisar ler o arquivo todo no JS via Tauri fs).
+#[tauri::command]
+pub async fn cloud_storage_file_size(path: String) -> Result<u64, String> {
+    let p = Path::new(&path);
+    let meta = tokio::fs::metadata(p).await.map_err(|e| format!("stat {path}: {e}"))?;
+    Ok(meta.len())
 }
 
 #[cfg(test)]
