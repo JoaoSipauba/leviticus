@@ -125,7 +125,10 @@ serve(async (req: Request) => {
 async function handleOAuthInit(ctx: any, body: any): Promise<Response> {
   await requirePermission(ctx, 'manage_integrations')
   const provider = getProvider(body.provider as ProviderId)
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  // OAUTH_REDIRECT_BASE_URL permite override em dev (Supabase CLI bloqueia
+  // env vars começando com SUPABASE_, então não dá pra reescrever SUPABASE_URL
+  // via .env.local). Em produção, fica null e cai no SUPABASE_URL natural.
+  const supabaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
   const stateSecret = Deno.env.get('OAUTH_STATE_SECRET')
   if (!stateSecret) return jsonResponse({ error: 'Server misconfigured: OAUTH_STATE_SECRET missing' }, 500)
 
@@ -159,7 +162,10 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
   const [, orgId] = statePayload.split(':')
   if (!orgId) return new Response('Invalid state payload', { status: 400 })
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+  // OAUTH_REDIRECT_BASE_URL permite override em dev (Supabase CLI bloqueia
+  // env vars começando com SUPABASE_, então não dá pra reescrever SUPABASE_URL
+  // via .env.local). Em produção, fica null e cai no SUPABASE_URL natural.
+  const supabaseUrl = Deno.env.get('OAUTH_REDIRECT_BASE_URL') ?? Deno.env.get('SUPABASE_URL')!
   const { createClient } = await import('./deps.ts')
   const serviceClient = createClient(
     supabaseUrl,
