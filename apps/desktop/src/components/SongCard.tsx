@@ -14,6 +14,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
+import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 
 function fmtDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
@@ -557,10 +558,11 @@ export function SongCard({
       )}
 
       {/* Thumbnail com play/pause overlay */}
-      <div
-        className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
-        style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
-      >
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div
+          className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
+          style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
+        >
         {song.thumbnail_url ? (
           <img src={song.thumbnail_url} alt="" draggable={false} className="w-full h-full object-cover" />
         ) : (
@@ -600,6 +602,8 @@ export function SongCard({
             onDownload={() => enqueueDownload(song.id, song.youtube_url)}
           />
         )}
+        </div>
+        <BackupStatusBadge status={song.backup_status} />
       </div>
 
       <div className="flex-1 min-w-0">
