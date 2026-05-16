@@ -10,6 +10,7 @@ import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
+import { startSyncWorker, stopSyncWorker } from './lib/cloud-storage/sync-worker.js'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
@@ -105,6 +106,28 @@ export function App() {
     return () => {
       unlisten?.()
     }
+  }, [])
+
+  useEffect(() => {
+    const orgId = localStorage.getItem('leviticus_org_id')
+    if (!orgId) return
+    const status = useIntegrationsStore.getState().status
+    startSyncWorker(orgId, { status })
+    return () => { stopSyncWorker() }
+  }, [])
+
+  useEffect(() => {
+    let prevStatus = useIntegrationsStore.getState().status
+    const unsub = useIntegrationsStore.subscribe((state) => {
+      if (state.status !== prevStatus) {
+        prevStatus = state.status
+        const orgId = localStorage.getItem('leviticus_org_id')
+        if (!orgId) return
+        stopSyncWorker()
+        startSyncWorker(orgId, { status: state.status })
+      }
+    })
+    return unsub
   }, [])
 
   // Enquanto carrega, o splash do index.html cobre a tela. Aqui só
