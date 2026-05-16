@@ -36,7 +36,7 @@ describe('compressToOpus', () => {
     const { Command: MockCommand } = await import('@tauri-apps/plugin-shell')
     vi.mocked(MockCommand.create).mockImplementationOnce(() => ({
       execute: vi.fn().mockResolvedValue({ code: 1, stdout: '', stderr: 'fail' }),
-    }))
+    } as unknown as ReturnType<typeof MockCommand.create>))
     await expect(compressToOpus({ inputPath: '/a', outputPath: '/b' }))
       .rejects.toThrow(/fail/i)
   })

@@ -305,7 +305,7 @@ export function startDownload(
 // Cache pra ensure_ffmpeg: só baixa 1x por sessão. Reset em erro pra
 // próxima tentativa rebaixar.
 let ensureFfmpegPromise: Promise<string> | null = null
-function ensureFfmpeg(): Promise<string> {
+export function ensureFfmpeg(): Promise<string> {
   if (!ensureFfmpegPromise) {
     ensureFfmpegPromise = invoke<string>('ensure_ffmpeg').catch((e) => {
       ensureFfmpegPromise = null
