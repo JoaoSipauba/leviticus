@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
 import { supabase } from '../lib/supabase.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
@@ -408,12 +409,36 @@ export function SongCard({
   }, [song.id, subscribeCanceled])
 
   async function handlePlay() {
-    if (!downloaded) return
     if (isCurrentlyPlaying) {
       pauseAudio()
       usePlayerStore.getState().pause()
       return
     }
+
+    if (!downloaded) {
+      if (!song.cloud_file_id) {
+        toastError('Música sem backup e sem arquivo local. Adicione novamente.')
+        return
+      }
+      try {
+        toastSuccess('Baixando do Drive…')
+        const ext = song.original_format ?? 'mp3'
+        await downloadSongFromDrive({
+          orgId: localStorage.getItem('leviticus_org_id') ?? '',
+          songId: song.id,
+          cloudFileId: song.cloud_file_id,
+          ext,
+          expectedHash: song.cloud_file_hash ?? undefined,
+          expectedSize: song.cloud_file_size ?? undefined,
+        })
+        setDownloaded(true)
+      } catch (err) {
+        console.error('Drive download failed:', err)
+        toastError('Não foi possível baixar do Drive. Tente novamente.')
+        return
+      }
+    }
+
     const filePath = await getSongFilename(song.id)
     playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
     if (playlistContext) {
