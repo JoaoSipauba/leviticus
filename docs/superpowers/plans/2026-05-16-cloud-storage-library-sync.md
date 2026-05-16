@@ -1469,7 +1469,7 @@ Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm test`
 Expected: TODOS passam (cerca de 25+ testes novos)
 
-- [ ] **Step 3: Rebuildar bundle dev**
+- [x] **Step 3: Rebuildar bundle dev**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop`:
 `pnpm tauri build --debug --config src-tauri/tauri.conf.dev.json`
@@ -1480,7 +1480,7 @@ Re-registrar no LaunchServices:
 /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/Support/lsregister -f "/Users/joaosipauba/Projects/pessoal/leviticus/apps/desktop/src-tauri/target/debug/bundle/macos/Leviticus Dev.app"
 ```
 
-- [ ] **Step 4: E2E suite completa**
+- [x] **Step 4: E2E suite completa**
 
 Run from `/Users/joaosipauba/Projects/pessoal/leviticus`:
 `pnpm --filter leviticus-e2e e2e:local`
@@ -1532,8 +1532,8 @@ Antes de fechar a feature:
 - [x] FolderMissingCard renderiza em status='folder_missing' com botão Recriar
 - [x] `pnpm typecheck` 0 erros monorepo
 - [x] `pnpm test` todos passam (Plano 4 adiciona ~25+ testes)
-- [ ] `pnpm --filter leviticus-e2e e2e:local` — 16/16 specs verdes
-- [ ] Bundle dev rebuildado + registrado no LaunchServices
+- [x] `pnpm --filter leviticus-e2e e2e:local` — 16/16 specs verdes
+- [x] Bundle dev rebuildado + registrado no LaunchServices
 - [ ] Cobertura visual manual: 6 cenários acima
 
 ### Limitações conhecidas (sem prazo)
