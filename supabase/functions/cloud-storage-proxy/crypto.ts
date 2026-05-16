@@ -18,7 +18,7 @@ function hexToBytes(hex: string): Uint8Array {
 }
 
 /** Converte Uint8Array para string hex "\xHHHH..." esperada pelo PostgREST como bytea */
-function bytesToHex(bytes: Uint8Array): string {
+export function bytesToHex(bytes: Uint8Array): string {
   return '\\x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
@@ -30,8 +30,17 @@ export async function encryptSecret(client: SupabaseClient, plaintext: string): 
   return hexToBytes(String(data))
 }
 
-export async function decryptSecret(client: SupabaseClient, ciphertext: Uint8Array): Promise<string> {
-  const { data, error } = await client.rpc('decrypt_cloud_secret', { ciphertext: bytesToHex(ciphertext) })
+/**
+ * Aceita ciphertext em qualquer um dos formatos que aparecem no fluxo:
+ * - Uint8Array (retornado por encryptSecret) — converte pra hex
+ * - string "\xHHHH..." (retornada pelo PostgREST ao SELECT bytea) — usa direto
+ */
+export async function decryptSecret(
+  client: SupabaseClient,
+  ciphertext: Uint8Array | string
+): Promise<string> {
+  const hex = typeof ciphertext === 'string' ? ciphertext : bytesToHex(ciphertext)
+  const { data, error } = await client.rpc('decrypt_cloud_secret', { ciphertext: hex })
   if (error) throw new Error(`Decryption failed: ${error.message}`)
   if (!data) throw new Error('Decryption returned no data')
   return String(data)

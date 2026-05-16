@@ -2,7 +2,7 @@ import { serve } from './deps.ts'
 import { getProvider } from './providers/registry.ts'
 import { ProviderId, ProviderError, NotImplementedError } from './providers/types.ts'
 import { authenticate, requirePermission, UnauthorizedError, ForbiddenError } from './auth.ts'
-import { encryptSecret, decryptSecret } from './crypto.ts'
+import { encryptSecret, decryptSecret, bytesToHex } from './crypto.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -64,7 +64,7 @@ async function ensureFreshAccessToken(serviceClient: any, orgId: string): Promis
   }
 
   // Refresh
-  const refreshToken = await decryptSecret(serviceClient, new Uint8Array(acct.refresh_token_encrypted))
+  const refreshToken = await decryptSecret(serviceClient, acct.refresh_token_encrypted as string)
   const fresh = await provider.refreshAccessToken(refreshToken)
   await serviceClient
     .from('cloud_storage_accounts')
@@ -174,16 +174,25 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
   const provider = getProvider('google_drive')
+  console.log('[oauth-callback] step: state validated, orgId=', orgId, 'redirect=', `${oauthBaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`)
+  console.log('[oauth-callback] step: exchanging code with Google...')
   const tokens = await provider.exchangeCode(code, `${oauthBaseUrl}/functions/v1/cloud-storage-proxy/oauth-callback`)
+  console.log('[oauth-callback] step: tokens received, email=', tokens.account.email)
+  console.log('[oauth-callback] step: ensuring app folder...')
   const folder = await provider.ensureAppFolder(tokens.accessToken, 'Leviticus')
+  console.log('[oauth-callback] step: folder ok, id=', folder.folderId)
 
+  console.log('[oauth-callback] step: encrypting refresh token...')
   const encryptedRefresh = await encryptSecret(serviceClient, tokens.refreshToken)
+  console.log('[oauth-callback] step: upserting cloud_storage_accounts...')
+  // PostgREST espera bytea como hex literal "\xHHHH..." em INSERT/UPDATE.
+  // supabase-js não converte Uint8Array automaticamente — fazemos manual.
   await serviceClient.from('cloud_storage_accounts').upsert({
     org_id: orgId,
     provider: 'google_drive',
     account_email: tokens.account.email,
     account_user_id: tokens.account.userId,
-    refresh_token_encrypted: encryptedRefresh,
+    refresh_token_encrypted: bytesToHex(encryptedRefresh),
     access_token: tokens.accessToken,
     access_token_expires_at: tokens.accessTokenExpiresAt,
     app_folder_id: folder.folderId,
@@ -246,7 +255,7 @@ async function handleDisconnect(ctx: any): Promise<Response> {
     .eq('org_id', ctx.orgId)
     .maybeSingle()
   if (acct) {
-    const refreshToken = await decryptSecret(ctx.serviceClient, new Uint8Array(acct.refresh_token_encrypted))
+    const refreshToken = await decryptSecret(ctx.serviceClient, acct.refresh_token_encrypted as string)
     try {
       await getProvider(acct.provider as ProviderId).revokeToken(refreshToken)
     } catch (e) {
