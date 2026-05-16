@@ -22,6 +22,7 @@ import {
 import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
 import { Slider } from './Slider.js'
+import { YouTubeDisclaimer } from './add-song/YouTubeDisclaimer.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -653,7 +654,8 @@ export function AddSongModal() {
   const [error, setError] = useState<string | null>(null)
 
   // search tab state
-  const [tab, setTab] = useState<'search' | 'url'>('search')
+  // 'file' é o caminho principal (Plano 3). 'search'/'url' são YouTube secundários.
+  const [tab, setTab] = useState<'file' | 'search' | 'url'>('file')
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<YTSearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -1043,7 +1045,7 @@ export function AddSongModal() {
 
   // ── search tab logic ──────────────────────────────────────────────────────
 
-  function switchTab(t: 'search' | 'url') {
+  function switchTab(t: 'file' | 'search' | 'url') {
     // Para qualquer prévia em curso antes de trocar de aba — caso contrário
     // o áudio continua tocando "invisível" depois que a UI muda pra tela de
     // colar URL e o usuário perde a referência de onde aquele som vem.
@@ -1352,7 +1354,11 @@ export function AddSongModal() {
               {step === 4 && 'Concluído'}
             </div>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              {step === 1 && (tab === 'search' ? 'Pesquise por nome ou artista' : 'Cole o link do YouTube')}
+              {step === 1 && (
+                tab === 'file' ? 'Escolha um arquivo de áudio'
+                : tab === 'search' ? 'Pesquise por nome ou artista'
+                : 'Cole o link do YouTube'
+              )}
               {step === 2 && 'Edite se precisar'}
               {step === 3 && 'Não feche esta janela'}
               {step === 4 && 'Pronta para tocar na biblioteca'}
@@ -1412,6 +1418,26 @@ export function AddSongModal() {
                   gap: 2,
                 }}
               >
+                {/* Tab principal: Arquivo */}
+                <button
+                  onClick={() => switchTab('file')}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: tab === 'file' ? 'rgba(167,139,250,0.25)' : 'transparent',
+                    color: tab === 'file' ? '#a78bfa' : '#6b7280',
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  Arquivo
+                </button>
+                {/* Tabs secundários YouTube */}
                 {(['search', 'url'] as const).map((t) => (
                   <button
                     key={t}
@@ -1427,9 +1453,14 @@ export function AddSongModal() {
                       background: tab === t ? 'rgba(37,99,235,0.25)' : 'transparent',
                       color: tab === t ? '#93c5fd' : '#6b7280',
                       transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
                     {t === 'search' ? 'Buscar' : 'Colar URL'}
+                    <span style={{
+                      background: '#422006', color: '#fbbf24',
+                      fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 700,
+                    }}>!</span>
                   </button>
                 ))}
               </div>
@@ -1437,6 +1468,7 @@ export function AddSongModal() {
               {/* ── Search tab ── */}
               {tab === 'search' && (
                 <>
+                  <YouTubeDisclaimer />
                   <div>
                     <ModalInput
                       value={query}
@@ -1697,6 +1729,7 @@ export function AddSongModal() {
               {/* ── URL tab ── */}
               {tab === 'url' && (
                 <>
+                  <YouTubeDisclaimer />
                   <div
                     style={{
                       background: 'rgba(30,58,138,0.15)',
