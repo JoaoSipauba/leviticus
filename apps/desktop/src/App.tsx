@@ -10,7 +10,7 @@ import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
-import { startSyncWorker, stopSyncWorker } from './lib/cloud-storage/sync-worker.js'
+import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
@@ -120,11 +120,19 @@ export function App() {
     let prevStatus = useIntegrationsStore.getState().status
     const unsub = useIntegrationsStore.subscribe((state) => {
       if (state.status !== prevStatus) {
+        const wasNotConnected = prevStatus !== 'connected'
         prevStatus = state.status
         const orgId = localStorage.getItem('leviticus_org_id')
         if (!orgId) return
         stopSyncWorker()
         startSyncWorker(orgId, { status: state.status })
+        // Transição → connected: dispara initial sync paralelo pra acelerar
+        // o backup das músicas pré-existentes. O sync-worker normal (5min,
+        // sequencial) continua rodando em background como retry/safety net.
+        // Issue #44.
+        if (state.status === 'connected' && wasNotConnected) {
+          void startInitialSync(orgId)
+        }
       }
     })
     return unsub
