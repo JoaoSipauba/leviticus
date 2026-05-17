@@ -341,3 +341,28 @@ The app must always feel fast and snappy to the user. Every interaction should f
 - **State updates on user input**: update state synchronously and immediately — never make visual feedback wait for a promise to resolve when the result is already known.
 - **Audio/media**: seek and volume changes must be applied to the media element before any visual state update, so the audio never lags behind the UI.
 - When in doubt: remove the animation before shipping, rather than ship something that feels slow.
+
+## Status das issues — automação
+
+Issues têm 3 estados visíveis: backlog (sem label de status), `status:in-review`, `status:in-dev`, e closed (= em produção).
+
+Transições automáticas via [.github/workflows/issue-status.yml](.github/workflows/issue-status.yml) + [.github/workflows/release-close-issues.yml](.github/workflows/release-close-issues.yml):
+
+| Quando | Estado da issue |
+|---|---|
+| Issue criada | sem label de status (backlog) |
+| PR aberta com `Closes #N` / `Fixes #N` no body, base `dev` ou `main` | `status:in-review` |
+| PR mergeada em `dev` | `status:in-dev` + comentário "Mergeada via #X" |
+| PR fechada sem merge | status removido (volta pro backlog) |
+| Release `v*` publicada (após PR de `dev → main` + release-bump) | todas as `status:in-dev` viram closed + comentário "Publicado em vX.Y.Z" |
+
+### Convenção pro PR body
+
+Toda PR que resolve issue deve incluir `Closes #N` no body (ou `Fixes #N` / `Resolves #N`). Caso resolva múltiplas, repita: `Closes #44, Closes #45, Closes #46`. Sem isso, o workflow não consegue mapear PR → issue.
+
+PR que faz parte do trabalho mas não fecha a issue (ex: refactor parcial): mencione `Refs #N` em vez de `Closes` — não dispara label change.
+
+### Edge cases
+
+- **Hotfix direto em main** (raro): a issue só fecha se tiver `status:in-dev` na próxima release. Se não, fechar manualmente.
+- **Issue reaberta após release**: precisa re-label manual se aplicável.
