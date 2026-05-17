@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { CloudOff, AlertCircle, UploadCloud } from 'lucide-react'
+import { CloudOff, AlertCircle, UploadCloud, WifiOff } from 'lucide-react'
 import type { IntegrationStatus } from '../../store/integrations.js'
 import {
   getInitialSyncProgress, subscribeInitialSyncProgress,
   type InitialSyncProgress,
 } from '../../lib/cloud-storage/sync-worker.js'
+import { useOnlineStatus } from '../../lib/useOnlineStatus.js'
 
 type Props = {
   pendingCount: number
@@ -18,6 +19,29 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
   // de Drive recém-conectado. Issue #44.
   const [progress, setProgress] = useState<InitialSyncProgress>(getInitialSyncProgress())
   useEffect(() => subscribeInitialSyncProgress(setProgress), [])
+
+  // Status de rede (navigator.onLine + listeners de online/offline events).
+  // Quando offline, sobrescreve o banner com mensagem clara. Issue #46.
+  const online = useOnlineStatus()
+
+  // Estado offline tem prioridade sobre tudo: usuário sabe que o problema
+  // é a internet, não algo do app/Drive. Backup retoma quando reconectar.
+  if (!online && pendingCount > 0) {
+    return (
+      <div
+        className="rounded-xl px-3.5 py-3 mb-3 flex items-center gap-3"
+        style={{ background: '#1c1917', border: '1px solid #44403c' }}
+      >
+        <WifiOff size={18} color="#a8a29e" strokeWidth={2} className="flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold" style={{ color: '#e7e5e4' }}>
+            Sem internet — backup vai retomar quando conectar
+            {pendingCount > 0 && ` (${pendingCount} pendente${pendingCount === 1 ? '' : 's'})`}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // Initial sync rodando tem prioridade sobre tudo — mostra progresso mesmo
   // se pendingCount=0 (o pendingCount externo pode estar stale durante o sync).

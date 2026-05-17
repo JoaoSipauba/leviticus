@@ -18,15 +18,22 @@ import {
 import { listPendingBackupSongs } from './pending-queue.js'
 import { uploadSongToDrive } from './upload-song.js'
 
+// Helper pra simular offline/online. jsdom default é true.
+function setOnline(value: boolean) {
+  Object.defineProperty(navigator, 'onLine', { value, configurable: true })
+}
+
 describe('sync-worker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
+    setOnline(true)
   })
 
   afterEach(() => {
     stopSyncWorker()
     vi.useRealTimers()
+    setOnline(true) // restaura pra próximos testes
   })
 
   it('startSyncWorker dispara primeira execução imediatamente', async () => {
@@ -48,6 +55,17 @@ describe('sync-worker', () => {
     ])
     startSyncWorker('org-1', { status: 'disconnected' })
     await vi.runOnlyPendingTimersAsync()
+    expect(uploadSongToDrive).not.toHaveBeenCalled()
+  })
+
+  it('offline: runPass pula sem chamar listPendingBackupSongs nem uploadSongToDrive (issue #46)', async () => {
+    setOnline(false)
+    vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
+      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3' },
+    ])
+    startSyncWorker('org-1', { status: 'connected' })
+    await vi.runOnlyPendingTimersAsync()
+    expect(listPendingBackupSongs).not.toHaveBeenCalled()
     expect(uploadSongToDrive).not.toHaveBeenCalled()
   })
 
@@ -134,6 +152,17 @@ describe('sync-worker', () => {
 
       // Deve ter subido a música só uma vez (a segunda chamada virou no-op)
       expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+    })
+
+    it('offline: startInitialSync aborta cedo sem chamar uploadSongToDrive (issue #46)', async () => {
+      setOnline(false)
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
+        { id: 's0', title: 'T', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' },
+      ])
+      await startInitialSync('org-1')
+      expect(uploadSongToDrive).not.toHaveBeenCalled()
+      // Estado deve ficar limpo (não trava em inProgress)
+      expect(getInitialSyncProgress().inProgress).toBe(false)
     })
 
     it('pula músicas sem arquivo local (esses sobem por outro device)', async () => {
