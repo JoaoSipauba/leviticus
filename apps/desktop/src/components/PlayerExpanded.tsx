@@ -624,7 +624,7 @@ function QueueRow({
         </Tooltip>
 
         <span className="text-muted text-xs font-mono flex-shrink-0 w-9 text-right">
-          {song.duration_seconds ? fmt(song.duration_seconds) : ''}
+          {song.duration_seconds ? fmt(song.duration_seconds) : '--:--'}
         </span>
       </div>
     </>

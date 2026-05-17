@@ -657,11 +657,12 @@ export function SongCard({
         </button>
       )}
 
-      {song.duration_seconds != null && (
-        <span className="text-body text-sm font-medium font-mono flex-shrink-0">
-          {fmtDuration(song.duration_seconds)}
-        </span>
-      )}
+      {/* Duração: mostra valor real ou placeholder "--:--" quando faltando.
+          Sem o placeholder o card colapsa e desalinha visualmente, e o
+          usuário não percebe que é dado faltando vs intencional. Issue #27. */}
+      <span className="text-body text-sm font-medium font-mono flex-shrink-0">
+        {song.duration_seconds != null ? fmtDuration(song.duration_seconds) : '--:--'}
+      </span>
 
       <ActionsMenu
         online={online}

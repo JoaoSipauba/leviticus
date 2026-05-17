@@ -105,6 +105,17 @@ vi.mock('./PlayerExpanded.js', () => ({
 }))
 
 // Tauri plugin stubs (transitive imports)
+// Mock do supabase pra cobrir backfill de duration_seconds (issue #27).
+const { supabaseFromMock, supabaseUpdateMock } = vi.hoisted(() => {
+  const supabaseEqMock = vi.fn().mockResolvedValue({ error: null })
+  const supabaseUpdateMock = vi.fn(() => ({ eq: supabaseEqMock }))
+  const supabaseFromMock = vi.fn(() => ({ update: supabaseUpdateMock }))
+  return { supabaseFromMock, supabaseUpdateMock }
+})
+vi.mock('../lib/supabase.js', () => ({
+  supabase: { from: supabaseFromMock },
+}))
+
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (p: string) => p, invoke: vi.fn() }))
@@ -273,6 +284,55 @@ describe('PlayerMini', () => {
 
     act(() => { vi.advanceTimersByTime(500) })
     expect(getPositionMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('regressão #27: backfill de duration_seconds quando DB é null e Howl reporta valor', () => {
+    vi.useFakeTimers()
+    // currentSong sem duration_seconds (legacy/órfão)
+    playerState.currentSong = { ...baseSong, duration_seconds: undefined as unknown as number }
+    playerState.isPlaying = true
+    getPositionMock.mockReturnValue(5)
+    getDurationMock.mockReturnValue(263) // valor sane do Howl
+
+    render(<PlayerMini />)
+
+    act(() => { vi.advanceTimersByTime(500) })
+
+    // supabase.from('songs').update({duration_seconds: 263}).eq('id', baseSong.id) deve ter sido chamado
+    expect(supabaseFromMock).toHaveBeenCalledWith('songs')
+    expect(supabaseUpdateMock).toHaveBeenCalledWith({ duration_seconds: 263 })
+  })
+
+  it('regressão #29: wakeLock.request("screen") é chamado quando isPlaying=true', async () => {
+    const releaseMock = vi.fn().mockResolvedValue(undefined)
+    const requestMock = vi.fn().mockResolvedValue({ release: releaseMock })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(navigator as any).wakeLock = { request: requestMock }
+
+    playerState.currentSong = { ...baseSong }
+    playerState.isPlaying = true
+    render(<PlayerMini />)
+
+    // Flush microtasks (acquire é async dentro de useEffect)
+    await act(async () => { await Promise.resolve() })
+    expect(requestMock).toHaveBeenCalledWith('screen')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (navigator as any).wakeLock
+  })
+
+  it('regressão #29: wakeLock NÃO é chamado quando isPlaying=false', async () => {
+    const requestMock = vi.fn().mockResolvedValue({ release: vi.fn() })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(navigator as any).wakeLock = { request: requestMock }
+
+    playerState.currentSong = { ...baseSong }
+    playerState.isPlaying = false
+    render(<PlayerMini />)
+
+    await act(async () => { await Promise.resolve() })
+    expect(requestMock).not.toHaveBeenCalled()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (navigator as any).wakeLock
   })
 
   it('regressão #30: visibilitychange dispara re-sync imediato (corrige slider congelado pós-dim)', () => {

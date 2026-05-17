@@ -179,6 +179,19 @@ describe('SongCard', () => {
     localStorage.clear()
   })
 
+  it('regressão #27: duration_seconds presente exibe formatado; ausente exibe "--:--"', async () => {
+    isDownloadedMock.mockResolvedValue(true)
+    // Caso 1: com duration
+    const { unmount } = render(<SongCard song={baseSong} />)
+    expect(screen.getByText('4:00')).toBeInTheDocument() // 240s
+    unmount()
+
+    // Caso 2: sem duration
+    const noDur = { ...baseSong, duration_seconds: null as unknown as number }
+    render(<SongCard song={noDur} />)
+    expect(screen.getByText('--:--')).toBeInTheDocument()
+  })
+
   it('renderiza title, artist e thumbnail', async () => {
     isDownloadedMock.mockResolvedValue(true)
     render(<SongCard song={baseSong} />)

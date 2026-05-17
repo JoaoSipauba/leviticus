@@ -13,6 +13,7 @@ import {
 } from '../lib/playback.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
+import { supabase } from '../lib/supabase.js'
 import * as mediaSession from '../lib/mediaSession.js'
 
 function fmt(s: number): string {
@@ -104,6 +105,53 @@ export function PlayerMini() {
   useEffect(() => { playNextRef.current = playNext }, [playNext])
   useEffect(() => { playPreviousRef.current = playPrevious }, [playPrevious])
 
+  // Wake lock — previne dimming/sleep do display enquanto música toca.
+  // WKWebView no macOS suporta `navigator.wakeLock.request('screen')`.
+  // Sem este lock, o display escurece após o timeout do SO, o áudio continua
+  // mas o slider de progresso congela (Issue #30) e o operador acha que
+  // travou. Issue #29.
+  //
+  // Lock é auto-liberado pelo browser quando a aba/janela perde visibilidade,
+  // então re-adquirimos no `visibilitychange` se ainda estamos tocando.
+  useEffect(() => {
+    let sentinel: { release: () => Promise<void> } | null = null
+    let cancelled = false
+    const supported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
+
+    async function acquire() {
+      if (!supported || sentinel) return
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sentinel = await (navigator as any).wakeLock.request('screen')
+        if (cancelled && sentinel) { await sentinel.release(); sentinel = null }
+      } catch (err) {
+        // navigator.wakeLock pode falhar (permissões, plataforma). Não é fatal.
+        console.warn('[player] wakeLock acquire failed', err)
+      }
+    }
+    async function release() {
+      if (!sentinel) return
+      try { await sentinel.release() } catch { /* ignore */ }
+      sentinel = null
+    }
+
+    if (isPlaying) {
+      void acquire()
+      // Re-acquire se volta a visibility após estar oculto (lock é liberado
+      // automaticamente quando page fica hidden).
+      const onVisible = () => {
+        if (document.visibilityState === 'visible' && !sentinel) void acquire()
+      }
+      document.addEventListener('visibilitychange', onVisible)
+      return () => {
+        cancelled = true
+        document.removeEventListener('visibilitychange', onVisible)
+        void release()
+      }
+    }
+    return () => { cancelled = true; void release() }
+  }, [isPlaying])
+
   // Botões de mídia do macOS (F7 / F8 / F9)
   useEffect(() => {
     const unlisten = Promise.all([
@@ -154,6 +202,10 @@ export function PlayerMini() {
     setDuration(currentSong?.duration_seconds ?? 0)
   }, [currentSong?.id])
 
+  // Set de songIds que já tentamos backfill nesta sessão — evita disparar
+  // múltiplos UPDATEs pra mesma música. Issue #27.
+  const backfilledRef = useRef<Set<string>>(new Set())
+
   // Polling de posição
   useEffect(() => {
     if (!isPlaying) return
@@ -173,6 +225,25 @@ export function PlayerMini() {
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
       mediaSession.updatePosition({ position: p, duration: chosen })
+
+      // Backfill: música sem duration_seconds no DB mas Howl reportou valor
+      // sane. Atualiza fire-and-forget (RLS bloqueia se user não tem
+      // manage_songs — silent failure aceitável). Issue #27.
+      if (
+        currentSong &&
+        !currentSong.duration_seconds &&
+        howlD > 0 &&
+        !backfilledRef.current.has(currentSong.id)
+      ) {
+        backfilledRef.current.add(currentSong.id)
+        void supabase
+          .from('songs')
+          .update({ duration_seconds: Math.round(howlD) })
+          .eq('id', currentSong.id)
+          .then(({ error }) => {
+            if (error) console.warn('[player] backfill duration failed', error.message)
+          })
+      }
     }
 
     const interval = setInterval(tick, 500)
