@@ -14,6 +14,7 @@ import {
   createTestUser,
   createOrgWithOwner,
   createSongForOrg,
+  E2E_FIXTURE_PASSWORD,
 } from '../helpers/supabase.js'
 import { cleanLocalSqlite, setReactInputValue } from '../helpers/app.js'
 
@@ -27,7 +28,7 @@ describe('Journey #12 — Biblioteca backup states', () => {
 
   before(async () => {
     email = `lib-backup+${Date.now()}@leviticus.test`
-    password = 'senha-do-teste-e2e'
+    password = E2E_FIXTURE_PASSWORD
     orgName = `Lib Igreja ${Date.now()}`
     await cleanLocalSqlite()
 

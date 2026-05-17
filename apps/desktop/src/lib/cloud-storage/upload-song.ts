@@ -90,8 +90,8 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
   } catch (err) {
     try {
       await setBackupStatus(opts.songId, 'failed')
-    } catch {
-      // ignora — não quer ofuscar o erro original
+    } catch { // NOSONAR S2486 — intencional: o erro original (err) é o relevante; falha em setBackupStatus não pode ofuscar
+      // sem-op deliberado
     }
     throw err
   }

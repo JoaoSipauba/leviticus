@@ -22,6 +22,7 @@ import {
   makeAdminClient,
   createTestUser,
   createOrgWithOwner,
+  E2E_FIXTURE_PASSWORD,
 } from '../helpers/supabase.js'
 import { cleanLocalSqlite, setReactInputValue } from '../helpers/app.js'
 
@@ -34,7 +35,7 @@ describe('Journey #11 — Cloud Storage Integration', () => {
 
   before(async () => {
     email = `cloud-admin+${Date.now()}@leviticus.test`
-    password = 'senha-do-teste-e2e'
+    password = E2E_FIXTURE_PASSWORD
     orgName = `Cloud Igreja ${Date.now()}`
     await cleanLocalSqlite()
 

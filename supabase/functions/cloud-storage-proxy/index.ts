@@ -41,6 +41,31 @@ async function hmacSign(payload: string, secret: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, '0')).join('')
 }
 
+/**
+ * Verifica HMAC em tempo constante (resistente a timing attacks).
+ * Importa a key com permissão de `verify` e usa `crypto.subtle.verify`,
+ * que internamente faz comparação constante. Não usar === / !== em sigs
+ * crypto — mesmo com strings curtas, o early-exit de comparação por
+ * caracter vaza informação por timing.
+ */
+async function hmacVerify(payload: string, expectedHexSig: string, secret: string): Promise<boolean> {
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify']
+  )
+  // expectedHexSig vem do client (atacante-controlado). Converte hex pra
+  // Uint8Array; se mal-formado, retorna false sem chamar verify.
+  if (!/^[0-9a-f]+$/i.test(expectedHexSig) || expectedHexSig.length % 2 !== 0) return false
+  const sigBytes = new Uint8Array(expectedHexSig.length / 2)
+  for (let i = 0; i < sigBytes.length; i++) {
+    sigBytes[i] = parseInt(expectedHexSig.substr(i * 2, 2), 16)
+  }
+  return crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(payload))
+}
+
 // Renova access_token se expirado. Retorna token válido pra uso imediato.
 async function ensureFreshAccessToken(serviceClient: any, orgId: string): Promise<{
   provider: ProviderId
@@ -154,8 +179,9 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
 
   const [statePayload, stateSig] = state.split('|')
   if (!statePayload || !stateSig) return new Response('Malformed state', { status: 400 })
-  const expectedSig = await hmacSign(statePayload, stateSecret)
-  if (expectedSig !== stateSig) return new Response('Invalid state signature', { status: 400 })
+  // Verificação em tempo constante via crypto.subtle.verify (não usar !== em HMAC).
+  const validSig = await hmacVerify(statePayload, stateSig, stateSecret)
+  if (!validSig) return new Response('Invalid state signature', { status: 400 })
 
   // statePayload = "nonce:orgId"
   const [, orgId] = statePayload.split(':')

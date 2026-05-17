@@ -21,7 +21,7 @@ export function listImplementedProviderIds(): ProviderId[] {
       // initOAuth nos placeholders lança NotImplementedError
       REGISTRY[id].initOAuth('test', 'test')
       return true
-    } catch {
+    } catch { // NOSONAR S2486 — captura intencional: o erro É o sinal de "não implementado"
       return false
     }
   })
