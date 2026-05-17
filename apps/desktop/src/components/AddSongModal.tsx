@@ -22,6 +22,13 @@ import {
 import type { SongType } from '@leviticus/core'
 import { useNavigate } from 'react-router-dom'
 import { Slider } from './Slider.js'
+import { YouTubeDisclaimer } from './add-song/YouTubeDisclaimer.js'
+import { FileTab } from './add-song/FileTab.js'
+import { detectFromBytes, type DetectedFormat } from '../lib/cloud-storage/format-detection.js'
+import { writeFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
+import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
+import { useIntegrationsStore } from '../store/integrations.js'
+import { toastSuccess, toastError } from '../store/toasts.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -625,6 +632,7 @@ export function AddSongModal() {
   const { showAddSong, closeAddSong, bumpLibrary } = useUIStore()
   const navigate = useNavigate()
   const { setDownloading } = usePlayerStore()
+  const cloudStatus = useIntegrationsStore((s) => s.status)
 
   // animation state
   const [closing, setClosing] = useState(false)
@@ -652,8 +660,14 @@ export function AddSongModal() {
   // error
   const [error, setError] = useState<string | null>(null)
 
+  // Arquivo selecionado pela tab 'file' (mantém File em memória até Step 2 confirmar)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [detectedFormat, setDetectedFormat] = useState<DetectedFormat | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
   // search tab state
-  const [tab, setTab] = useState<'search' | 'url'>('search')
+  // 'file' é o caminho principal (Plano 3). 'search'/'url' são YouTube secundários.
+  const [tab, setTab] = useState<'file' | 'search' | 'url'>('file')
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<YTSearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -1043,7 +1057,7 @@ export function AddSongModal() {
 
   // ── search tab logic ──────────────────────────────────────────────────────
 
-  function switchTab(t: 'search' | 'url') {
+  function switchTab(t: 'file' | 'search' | 'url') {
     // Para qualquer prévia em curso antes de trocar de aba — caso contrário
     // o áudio continua tocando "invisível" depois que a UI muda pra tela de
     // colar URL e o usuário perde a referência de onde aquele som vem.
@@ -1064,6 +1078,60 @@ export function AddSongModal() {
     setError(null)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     lastSearchedQueryRef.current = ''
+  }
+
+  async function handleFileSelected(file: File) {
+    setFileError(null)
+    // Tamanho — limite 100 MB
+    if (file.size > 100 * 1024 * 1024) {
+      setFileError('Arquivo grande demais. Limite: 100 MB.')
+      setSelectedFile(null)
+      setDetectedFormat(null)
+      return
+    }
+
+    // Lê os primeiros 4 KB pra detectar magic bytes
+    const head = new Uint8Array(await file.slice(0, 4096).arrayBuffer())
+    const detected = await detectFromBytes(head)
+
+    if (!detected || detected.kind === 'unsupported') {
+      setFileError(`Formato não suportado${detected ? ` (${detected.ext})` : ''}. Use MP3, M4A, WAV, FLAC ou OGG.`)
+      setSelectedFile(null)
+      setDetectedFormat(null)
+      return
+    }
+
+    // Pre-check quota se Drive conectado. Margem 1.5x pra compressão temp.
+    if (cloudStatus === 'connected') {
+      try {
+        const { getQuota } = await import('../lib/cloud-storage/client.js')
+        const orgId = localStorage.getItem('leviticus_org_id')
+        if (orgId) {
+          const q = await getQuota(orgId)
+          const need = file.size * 1.5
+          if (q.available < need) {
+            const needMb = Math.round(need / 1024 / 1024)
+            const availMb = Math.round(q.available / 1024 / 1024)
+            setFileError(
+              `Não cabe no Drive. Arquivo precisa ~${needMb} MB mas só sobram ${availMb} MB. ` +
+              `Libere espaço ou troque a conta na tab Integrações.`
+            )
+            setSelectedFile(null)
+            setDetectedFormat(null)
+            return
+          }
+        }
+      } catch (e) {
+        // Falha na checagem de quota não bloqueia — só loga (upload pode falhar
+        // depois e cair em backup_status='pending'/failed).
+        console.warn('quota pre-check failed:', e)
+      }
+    }
+
+    setSelectedFile(file)
+    setDetectedFormat(detected)
+    const name = file.name.replace(/\.[^.]+$/, '')
+    setTitle(name)
   }
 
   async function doSearch(q: string) {
@@ -1186,7 +1254,106 @@ export function AddSongModal() {
 
   // ── step 2 logic ──────────────────────────────────────────────────────────
 
+  async function handleConfirmFile() {
+    if (!selectedFile || !detectedFormat) return
+    const currentOrgId = orgId || localStorage.getItem('leviticus_org_id') || ''
+    if (!currentOrgId) { setError('Sem organização selecionada'); return }
+
+    setSaving(true)
+    setError(null)
+
+    const { data: authData } = await supabase.auth.getUser()
+    if (!authData.user) { setError('Sessão expirada'); setSaving(false); return }
+
+    try {
+      // 1. Insert song row no Supabase. backup_status='pending' por padrão.
+      const { data: songRow, error: insertErr } = await supabase
+        .from('songs')
+        .insert({
+          org_id: currentOrgId,
+          added_by: authData.user.id,
+          youtube_url: `local://upload/${Date.now()}`,  // placeholder — youtube_url é NOT NULL unique
+          title: title.trim(),
+          artist: artist.trim() || 'Desconhecido',
+          thumbnail_url: null,
+          duration_seconds: null,
+          song_type: songType,
+          source: 'upload',
+          original_format: detectedFormat.ext,
+          backup_status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (insertErr || !songRow) {
+        throw new Error(insertErr?.message ?? 'Falha ao salvar música')
+      }
+
+      const songId = songRow.id
+
+      // 2. Insert song-group associations
+      if (selectedGroups.length > 0) {
+        const sgRows = selectedGroups.map((gid) => ({ song_id: songId, group_id: gid }))
+        const { error: sgErr } = await supabase.from('song_groups').insert(sgRows)
+        if (sgErr) console.warn('song_groups insert failed:', sgErr)
+      }
+
+      // 3. Copia o arquivo pra $APPLOCALDATA/audio/{songId}.{ext}
+      setStep(3)
+      setProgress(0)
+      const ext = detectedFormat.ext
+      const localPath = `audio/${songId}.${ext}`
+      const buf = new Uint8Array(await selectedFile.arrayBuffer())
+      // Garante a pasta audio/ existe
+      try { await mkdir('audio', { baseDir: BaseDirectory.AppLocalData, recursive: true }) } catch {}
+      await writeFile(localPath, buf, { baseDir: BaseDirectory.AppLocalData })
+
+      // Resolve path absoluto pra passar pro upload
+      const { appLocalDataDir } = await import('@tauri-apps/api/path')
+      const absDir = await appLocalDataDir()
+      const absPath = `${absDir}/${localPath}`
+
+      // 4. Upload pro Drive (se conectado)
+      if (cloudStatus === 'connected') {
+        try {
+          setProgress(10)
+          await uploadSongToDrive({
+            orgId: currentOrgId,
+            songId,
+            filePath: absPath,
+            ext,
+            kind: detectedFormat.kind,
+            onProgress: (pct) => setProgress(10 + Math.round(pct * 0.85)),
+          })
+          setProgress(100)
+          toastSuccess('Música adicionada e salva no backup')
+        } catch (uploadErr) {
+          console.error('upload failed:', uploadErr)
+          toastError('Música adicionada, mas backup falhou. Tente de novo depois.')
+          // status já foi marcado como 'failed' dentro do upload-song.ts
+        }
+      } else {
+        toastSuccess('Música adicionada — sem backup (Drive desconectado)')
+      }
+
+      // 5. Sync + UI
+      await syncOrg(currentOrgId)
+      bumpLibrary()
+      setTimeout(() => setStep(4), 400)
+    } catch (err) {
+      console.error('handleConfirmFile failed:', err)
+      setError(err instanceof Error ? err.message : 'Falha ao adicionar música')
+      setSaving(false)
+      setStep(2)  // Volta pro form de metadata
+    } finally {
+      setSaving(false)
+    }
+  }
+
   async function handleConfirm() {
+    if (tab === 'file' && selectedFile && detectedFormat) {
+      return handleConfirmFile()
+    }
+
     if (!metadata) {
       setError('Dados de metadados ausentes.')
       setStep(1)
@@ -1263,6 +1430,39 @@ export function AddSongModal() {
       })
       await syncOrg(orgId)
       bumpLibrary()
+
+      // Upload pro Drive (se conectado). Falha não bloqueia a música —
+      // fica em backup_status='pending' pra retry futuro (Plano 4).
+      if (cloudStatus === 'connected') {
+        try {
+          // findSongFile retorna o path real (m4a/webm/opus dependendo do yt-dlp)
+          const { findSongFile } = await import('../lib/ytdlp.js')
+          const localFilePath = await findSongFile(song.id)
+          if (localFilePath) {
+            // Detecta extensão real do arquivo baixado
+            const ext = localFilePath.split('.').pop()?.toLowerCase() ?? 'm4a'
+            const kind = (ext === 'wav' || ext === 'flac' || ext === 'aiff' || ext === 'aif')
+              ? 'lossless' as const
+              : 'lossy' as const
+
+            setProgress(0)  // Reset progress bar pra o upload
+            await uploadSongToDrive({
+              orgId,
+              songId: song.id,
+              filePath: localFilePath,
+              ext,
+              kind,
+              onProgress: (pct) => setProgress(pct),
+            })
+            toastSuccess('Música adicionada e salva no backup')
+          }
+        } catch (uploadErr) {
+          console.error('YouTube upload to Drive failed:', uploadErr)
+          toastError('Música baixada, mas backup falhou. Tente de novo depois.')
+          // status='failed' já setado em upload-song.ts
+        }
+      }
+
       // brief pause before success screen
       setTimeout(() => setStep(4), 400)
     } catch (e) {
@@ -1352,7 +1552,11 @@ export function AddSongModal() {
               {step === 4 && 'Concluído'}
             </div>
             <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
-              {step === 1 && (tab === 'search' ? 'Pesquise por nome ou artista' : 'Cole o link do YouTube')}
+              {step === 1 && (
+                tab === 'file' ? 'Escolha um arquivo de áudio'
+                : tab === 'search' ? 'Pesquise por nome ou artista'
+                : 'Cole o link do YouTube'
+              )}
               {step === 2 && 'Edite se precisar'}
               {step === 3 && 'Não feche esta janela'}
               {step === 4 && 'Pronta para tocar na biblioteca'}
@@ -1412,6 +1616,26 @@ export function AddSongModal() {
                   gap: 2,
                 }}
               >
+                {/* Tab principal: Arquivo */}
+                <button
+                  onClick={() => switchTab('file')}
+                  style={{
+                    flex: 1,
+                    padding: '7px 10px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    border: 'none',
+                    cursor: 'pointer',
+                    background: tab === 'file' ? 'rgba(167,139,250,0.25)' : 'transparent',
+                    color: tab === 'file' ? '#a78bfa' : '#6b7280',
+                    transition: 'all 0.15s',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  }}
+                >
+                  Arquivo
+                </button>
+                {/* Tabs secundários YouTube */}
                 {(['search', 'url'] as const).map((t) => (
                   <button
                     key={t}
@@ -1427,16 +1651,74 @@ export function AddSongModal() {
                       background: tab === t ? 'rgba(37,99,235,0.25)' : 'transparent',
                       color: tab === t ? '#93c5fd' : '#6b7280',
                       transition: 'all 0.15s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                     }}
                   >
                     {t === 'search' ? 'Buscar' : 'Colar URL'}
+                    <span style={{
+                      background: '#422006', color: '#fbbf24',
+                      fontSize: 9, padding: '1px 5px', borderRadius: 3, fontWeight: 700,
+                    }}>!</span>
                   </button>
                 ))}
               </div>
 
+              {/* ── Arquivo tab ── */}
+              {tab === 'file' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {!selectedFile && (
+                    <>
+                      <FileTab onFileSelected={handleFileSelected} />
+                      {fileError && (
+                        <div style={{ padding: 10, borderRadius: 8, background: '#450a0a', color: '#fca5a5', fontSize: 12 }}>
+                          {fileError}
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {selectedFile && detectedFormat && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: 10,
+                        padding: 12, borderRadius: 10,
+                        background: '#18181b', border: '1px solid #27272a',
+                      }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ color: '#fafafa', fontSize: 13, fontWeight: 500,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {selectedFile.name}
+                          </div>
+                          <div style={{ color: '#71717a', fontSize: 11 }}>
+                            {(selectedFile.size / 1024 / 1024).toFixed(1)} MB &middot;{' '}
+                            {detectedFormat.ext.toUpperCase()} &middot;{' '}
+                            {detectedFormat.kind === 'lossless'
+                              ? 'Será convertido pra Opus 160k'
+                              : 'Será enviado como está'}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedFile(null); setDetectedFormat(null); setTitle('') }}
+                          style={{
+                            background: 'transparent', color: '#71717a',
+                            border: 'none', cursor: 'pointer', padding: 4,
+                          }}
+                        >
+                          Trocar
+                        </button>
+                      </div>
+                      <BtnPrimary onClick={() => setStep(2)} style={{ width: '100%' }}>
+                        Continuar
+                      </BtnPrimary>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* ── Search tab ── */}
               {tab === 'search' && (
                 <>
+                  <YouTubeDisclaimer />
                   <div>
                     <ModalInput
                       value={query}
@@ -1697,6 +1979,7 @@ export function AddSongModal() {
               {/* ── URL tab ── */}
               {tab === 'url' && (
                 <>
+                  <YouTubeDisclaimer />
                   <div
                     style={{
                       background: 'rgba(30,58,138,0.15)',

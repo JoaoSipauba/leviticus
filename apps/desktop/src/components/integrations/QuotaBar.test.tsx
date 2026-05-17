@@ -1,0 +1,24 @@
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { QuotaBar } from './QuotaBar.js'
+
+describe('QuotaBar', () => {
+  it('mostra total formatado em GB', () => {
+    render(<QuotaBar total={16106127360} usedByLeviticus={142 * 1024 * 1024} usedByOthers={5 * 1024 * 1024 * 1024} />)
+    // 16106127360 bytes = 15 GB
+    expect(screen.getByText(/15 GB/)).toBeInTheDocument()
+  })
+
+  it('mostra "sem espaço" quando uso = total', () => {
+    const total = 1024 * 1024 * 1024
+    render(<QuotaBar total={total} usedByLeviticus={0} usedByOthers={total} />)
+    expect(screen.getByText('sem espaço')).toBeInTheDocument()
+  })
+
+  it('exibe legenda dos 3 segmentos', () => {
+    render(<QuotaBar total={1000 * 1024 * 1024} usedByLeviticus={200 * 1024 * 1024} usedByOthers={300 * 1024 * 1024} />)
+    expect(screen.getByText('Leviticus')).toBeInTheDocument()
+    expect(screen.getByText(/Outros arquivos/)).toBeInTheDocument()
+    expect(screen.getByText(/Livre/)).toBeInTheDocument()
+  })
+})

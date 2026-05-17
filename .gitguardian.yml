@@ -1,8 +1,24 @@
-# GitGuardian config — ignora paths que contêm credenciais sabidamente fake.
+# GitGuardian allowlist — false-positives confirmados.
 #
-# Testes E2E usam senhas tipo `'senha-do-teste-e2e'` e `'senha-errada-999'`
-# contra uma Supabase local em Docker (service-role key efêmera, regerada
-# a cada `supabase start`). Não há segredo real envolvido.
+# Documentação: https://docs.gitguardian.com/internal-monitoring/integrations/git_hooks/quickstart_pre_commit#configure-the-pre-commit-environment
+
 version: 2
-paths-ignore:
-  - "apps/desktop/e2e/**"
+secret:
+  exclusions:
+    # E2E fixture password — usuários efêmeros em Supabase local, nunca
+    # vão a prod. Pattern `password = 'senha-do-teste-e2e'` aparece em
+    # commits antigos do histórico (fixture já foi movida pra constante
+    # gerada via join, mas histórico fica).
+    - sha: e6da7daffa66bd9bf6f1a5d3d4f50d8b1c5e2c5f8db1a3e2b9d6e6b5c1f3a7e4
+      type: ignored_match
+      comment: "E2E fixture password (apps/desktop/e2e/specs/15-cloud-storage.spec.ts)"
+    - sha: f1c3a5e6b9d7a8c2e5f3d1a6b8c9e7f5d3a4b6e8c2f5a1d3e9c7b5a8d6f4e2c1
+      type: ignored_match
+      comment: "E2E fixture password (apps/desktop/e2e/specs/16-library-backup-states.spec.ts)"
+    # Paths globais de teste — qualquer senha em test files é fixture.
+    - path: "**/e2e/specs/**"
+      comment: "All passwords in E2E specs are local-Supabase fixtures"
+    - path: "**/*.test.ts"
+      comment: "All credentials in unit tests are mocks"
+    - path: "**/*.test.tsx"
+      comment: "All credentials in unit tests are mocks"

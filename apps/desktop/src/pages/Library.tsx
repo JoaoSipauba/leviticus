@@ -5,6 +5,11 @@ import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useNavigate } from 'react-router-dom'
+import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.js'
+import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
+import { countPendingBackup } from '../lib/cloud-storage/pending-queue.js'
+import { useIntegrationsStore } from '../store/integrations.js'
 
 
 export function Library() {
@@ -18,6 +23,10 @@ export function Library() {
   const { openAddSong, librarySeed, openEditSong } = useUIStore()
   const online = useOnlineStatus()
   const listRef = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+  const cloudStatus = useIntegrationsStore((s) => s.status)
+  const [pendingCount, setPendingCount] = useState(0)
+  const [showOnlyPending, setShowOnlyPending] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -45,10 +54,17 @@ export function Library() {
       setSongs(rows)
       setGroups(grps)
       setSongGroupMap(map)
+      const count = await countPendingBackup(orgId)
+      setPendingCount(count)
       setLoading(false)
     }
     load()
   }, [orgId, librarySeed])
+
+  useEffect(() => {
+    if (!orgId) return
+    void countPendingBackup(orgId).then(setPendingCount)
+  }, [orgId, cloudStatus, librarySeed])
 
   useEffect(() => {
     const el = listRef.current
@@ -70,7 +86,8 @@ export function Library() {
       s.artist.toLowerCase().includes(search.toLowerCase())
     const matchesGroup =
       !groupFilter || (songGroupMap.get(s.id) ?? []).includes(groupFilter)
-    return matchesSearch && matchesGroup
+    const matchesBackup = !showOnlyPending || s.backup_status !== 'uploaded'
+    return matchesSearch && matchesGroup && matchesBackup
   })
 
   if (loading) {
@@ -127,6 +144,12 @@ export function Library() {
         </button>
       </div>
 
+      <LibraryBackupBanner
+        pendingCount={pendingCount}
+        status={cloudStatus}
+        onConfigure={() => navigate('/manage?tab=integrations')}
+      />
+
       <div className="flex gap-3 mb-4">
         <input
           type="search"
@@ -157,6 +180,11 @@ export function Library() {
             <option key={g.id} value={g.id}>{g.name}</option>
           ))}
         </select>
+        <BackupFilterChip
+          count={pendingCount}
+          active={showOnlyPending}
+          onToggle={() => setShowOnlyPending((v) => !v)}
+        />
       </div>
 
       <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">

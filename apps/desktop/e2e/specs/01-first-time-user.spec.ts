@@ -158,7 +158,7 @@ describe('Journey #1 — First-time user', () => {
     expect(assignmentsRes.data ?? []).toHaveLength(1)
     expect(assignmentsRes.data![0].role_id).toBe(donoRoleId)
 
-    // Verify Dono has all 7 permissions.
+    // Verify Dono has all 8 permissions.
     const permsRes = await supabase
       .from('role_permissions')
       .select('permission')
@@ -169,6 +169,7 @@ describe('Journey #1 — First-time user', () => {
       'add_songs',
       'add_songs_to_playlist',
       'manage_groups',
+      'manage_integrations',
       'manage_members',
       'manage_playlists',
       'manage_roles',

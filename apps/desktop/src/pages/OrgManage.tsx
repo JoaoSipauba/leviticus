@@ -1,15 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Info, Users, Mail, Shield, Settings } from 'lucide-react'
+import { Info, Users, Mail, Shield, Settings, Plug } from 'lucide-react'
 import { getDb } from '../lib/db.js'
 import { hasPermission } from '../lib/permissions.js'
 import { OrgInfo } from './org/OrgInfo.js'
 import { OrgMembers } from './org/OrgMembers.js'
 import { OrgInvites } from './org/OrgInvites.js'
 import { OrgRoles } from './org/OrgRoles.js'
+import { OrgIntegrations } from './org/OrgIntegrations.js'
 import { OrgDanger } from './org/OrgDanger.js'
 
-type TabKey = 'info' | 'members' | 'invites' | 'roles' | 'danger'
+type TabKey = 'info' | 'members' | 'invites' | 'roles' | 'integrations' | 'danger'
 
 type Tab = {
   key: TabKey
@@ -19,11 +20,12 @@ type Tab = {
 }
 
 const ALL_TABS: Tab[] = [
-  { key: 'info',    label: 'Informações',  Icon: Info,     requires: null },
-  { key: 'members', label: 'Membros',      Icon: Users,    requires: null },
-  { key: 'invites', label: 'Convites',     Icon: Mail,     requires: 'manage_members' },
-  { key: 'roles',   label: 'Papéis',       Icon: Shield,   requires: 'manage_roles' },
-  { key: 'danger',  label: 'Configurações', Icon: Settings, requires: null },
+  { key: 'info',         label: 'Informações',  Icon: Info,     requires: null },
+  { key: 'members',      label: 'Membros',      Icon: Users,    requires: null },
+  { key: 'invites',      label: 'Convites',     Icon: Mail,     requires: 'manage_members' },
+  { key: 'roles',        label: 'Papéis',       Icon: Shield,   requires: 'manage_roles' },
+  { key: 'integrations', label: 'Integrações',  Icon: Plug,     requires: null },
+  { key: 'danger',       label: 'Configurações', Icon: Settings, requires: null },
 ]
 
 export function OrgManage() {
@@ -32,7 +34,7 @@ export function OrgManage() {
   const initial = (searchParams.get('tab') as TabKey) ?? 'members'
   const [tab, setTab] = useState<TabKey>(initial)
   const [orgName, setOrgName] = useState<string>('')
-  const [allowedKeys, setAllowedKeys] = useState<Set<TabKey>>(new Set(['info', 'members', 'danger']))
+  const [allowedKeys, setAllowedKeys] = useState<Set<TabKey>>(new Set(['info', 'members', 'integrations', 'danger']))
   const [memberCount, setMemberCount] = useState<number>(0)
   const [inviteCount, setInviteCount] = useState<number>(0)
   const [roleCount, setRoleCount] = useState<number>(0)
@@ -46,7 +48,7 @@ export function OrgManage() {
       )
       setOrgName(orgRows[0]?.name ?? '')
 
-      const allowed = new Set<TabKey>(['info', 'members', 'danger'])
+      const allowed = new Set<TabKey>(['info', 'members', 'integrations', 'danger'])
       if (await hasPermission('manage_members', orgId)) allowed.add('invites')
       if (await hasPermission('manage_roles', orgId)) allowed.add('roles')
       setAllowedKeys(allowed)
@@ -127,6 +129,7 @@ export function OrgManage() {
         {effectiveTab === 'members' && <OrgMembers orgId={orgId} />}
         {effectiveTab === 'invites' && <OrgInvites orgId={orgId} />}
         {effectiveTab === 'roles' && <OrgRoles orgId={orgId} />}
+        {effectiveTab === 'integrations' && <OrgIntegrations orgId={orgId} />}
         {effectiveTab === 'danger' && <OrgDanger orgId={orgId} />}
       </div>
     </div>

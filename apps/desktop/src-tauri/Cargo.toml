@@ -23,6 +23,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-http = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-deep-link = "2"
 # E2E only: plugin compilado e ativado apenas em builds debug (via
 # cfg(debug_assertions) em lib.rs). Permite que o `tauri-wd` CLI controle
 # o app via WebDriver no macOS. Em release builds, o código é compilado
@@ -38,3 +39,6 @@ futures-util = "0.3"
 flate2 = "1"
 sha2 = "0.10"
 hex = "0.4"
+
+[dev-dependencies]
+tempfile = "3"

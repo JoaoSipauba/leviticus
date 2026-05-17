@@ -43,8 +43,13 @@
     }
   },
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["leviticus"]
+      }
+    },
     "shell": {
-      "open": false
+      "open": true
     },
     "updater": {
       "endpoints": [

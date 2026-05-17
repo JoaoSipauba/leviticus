@@ -1,3 +1,4 @@
+mod cloud_storage;
 mod ffmpeg;
 mod yt_dlp;
 
@@ -10,6 +11,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             yt_dlp::ensure_yt_dlp,
             ffmpeg::ensure_ffmpeg,
+            cloud_storage::cloud_storage_hash_file,
+            cloud_storage::cloud_storage_rename_file,
+            cloud_storage::cloud_storage_file_size,
         ]);
 
     // E2E only: ativa o WebDriver plugin em builds debug pra que o
@@ -22,6 +26,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -56,6 +61,12 @@ pub fn run() {
                             version: 5,
                             description: "org_settings_columns",
                             sql: include_str!("../migrations/005_org_settings_columns.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 6,
+                            description: "cloud_storage",
+                            sql: include_str!("../migrations/006_cloud_storage.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],

@@ -24,9 +24,16 @@
         { "url": "https://objects.githubusercontent.com/**" },
         { "url": "https://www.youtube.com/**" },
         { "url": "https://youtube.com/**" },
-        { "url": "https://img.youtube.com/**" }
+        { "url": "https://img.youtube.com/**" },
+        { "url": "https://www.googleapis.com/**" },
+        { "url": "https://accounts.google.com/**" },
+        { "url": "https://oauth2.googleapis.com/**" }
       ]
     },
+    "deep-link:default",
+    "deep-link:allow-get-current",
+    "shell:default",
+    "shell:allow-open",
     "updater:default",
     "process:default",
     "process:allow-restart"

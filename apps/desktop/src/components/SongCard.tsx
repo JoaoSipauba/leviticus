@@ -9,11 +9,13 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
 import { supabase } from '../lib/supabase.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
+import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 
 function fmtDuration(seconds: number): string {
   const h = Math.floor(seconds / 3600)
@@ -407,12 +409,36 @@ export function SongCard({
   }, [song.id, subscribeCanceled])
 
   async function handlePlay() {
-    if (!downloaded) return
     if (isCurrentlyPlaying) {
       pauseAudio()
       usePlayerStore.getState().pause()
       return
     }
+
+    if (!downloaded) {
+      if (!song.cloud_file_id) {
+        toastError('Música sem backup e sem arquivo local. Adicione novamente.')
+        return
+      }
+      try {
+        toastSuccess('Baixando do Drive…')
+        const ext = song.original_format ?? 'mp3'
+        await downloadSongFromDrive({
+          orgId: localStorage.getItem('leviticus_org_id') ?? '',
+          songId: song.id,
+          cloudFileId: song.cloud_file_id,
+          ext,
+          expectedHash: song.cloud_file_hash ?? undefined,
+          expectedSize: song.cloud_file_size ?? undefined,
+        })
+        setDownloaded(true)
+      } catch (err) {
+        console.error('Drive download failed:', err)
+        toastError('Não foi possível baixar do Drive. Tente novamente.')
+        return
+      }
+    }
+
     const filePath = await getSongFilename(song.id)
     playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
     if (playlistContext) {
@@ -557,10 +583,11 @@ export function SongCard({
       )}
 
       {/* Thumbnail com play/pause overlay */}
-      <div
-        className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
-        style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
-      >
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div
+          className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
+          style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
+        >
         {song.thumbnail_url ? (
           <img src={song.thumbnail_url} alt="" draggable={false} className="w-full h-full object-cover" />
         ) : (
@@ -600,6 +627,8 @@ export function SongCard({
             onDownload={() => enqueueDownload(song.id, song.youtube_url)}
           />
         )}
+        </div>
+        <BackupStatusBadge status={song.backup_status} />
       </div>
 
       <div className="flex-1 min-w-0">
