@@ -32,7 +32,12 @@ export function PlayerMini() {
   } = usePlayerStore()
 
   const [expanded, setExpanded] = useState(false)
-  const [duration, setDuration] = useState(0)
+  // Inicializa com a duração vinda da DB row (metadata do YouTube / upload).
+  // Esse valor é confiável e evita o "flash" de duration do song anterior
+  // até o polling de 500ms ler getDuration() do Howl. Em VBR mp3 sem tag TLEN,
+  // Howler.duration() ocasionalmente reporta 2× o real — então preferimos
+  // o valor da DB sempre que possível. Issue #42.
+  const [duration, setDuration] = useState(currentSong?.duration_seconds ?? 0)
   const [pos, setPos] = useState(0)
   const [muted, setMuted] = useState(false)
   const [lastVolume, setLastVolume] = useState(1)
@@ -139,20 +144,37 @@ export function PlayerMini() {
     return unregister
   }, [])
 
+  // Reset imediato de pos/duration ao trocar de música. Sem isso, a UI mostra
+  // o valor da faixa anterior até o próximo tick do polling (até 500ms),
+  // causando o "flash" reportado na issue #42. Inicializa com a duração da
+  // DB (metadata confiável) — getDuration() do Howl só sobrescreve quando
+  // a faixa carrega e reporta valor válido > 0.
+  useEffect(() => {
+    setPos(0)
+    setDuration(currentSong?.duration_seconds ?? 0)
+  }, [currentSong?.id])
+
   // Polling de posição
   useEffect(() => {
     if (!isPlaying) return
+    const dbDuration = currentSong?.duration_seconds ?? 0
     const interval = setInterval(() => {
       const p = getPosition()
-      const d = getDuration()
+      const howlD = getDuration()
       setPos(p)
-      setDuration(d)
+      // Priorize Howl quando reporta valor sane (> 0 e dentro de 30% da DB).
+      // Caso Howler retorne lixo (VBR mp3 sem tag TLEN ocasionalmente reporta
+      // 2× o real), fica com a duração da DB. Issue #42.
+      const chosen = (howlD > 0 && (dbDuration === 0 || Math.abs(howlD - dbDuration) / dbDuration < 0.3))
+        ? howlD
+        : dbDuration || howlD
+      setDuration(chosen)
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
-      mediaSession.updatePosition({ position: p, duration: d })
+      mediaSession.updatePosition({ position: p, duration: chosen })
     }, 500)
     return () => clearInterval(interval)
-  }, [isPlaying, setPosition, currentSong?.id])
+  }, [isPlaying, setPosition, currentSong?.id, currentSong?.duration_seconds])
 
   // Atalhos de teclado — só funcionam quando o player full está aberto
   // (exceção: F sempre, pra abrir/fechar a tela cheia). Evita toques acidentais

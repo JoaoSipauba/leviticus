@@ -17,11 +17,11 @@ const {
   const previousInPlaylistMock = vi.fn().mockReturnValue(null)
 
   const playerState = {
-    currentSong: null as null | { id: string; title: string; artist: string; thumbnail_url: string | null },
+    currentSong: null as null | { id: string; title: string; artist: string; thumbnail_url: string | null; duration_seconds?: number },
     currentPlaylist: null as null | { id: string },
     isPlaying: false,
     volume: 0.8,
-    playlistSongs: [] as { id: string; title: string; artist: string; thumbnail_url: string | null }[],
+    playlistSongs: [] as { id: string; title: string; artist: string; thumbnail_url: string | null; duration_seconds?: number }[],
     playlistPosition: null as null | number,
     pause: pauseMock,
     resume: resumeMock,
@@ -160,6 +160,34 @@ describe('PlayerMini', () => {
 
     expect(screen.getByText('Amazing Grace')).toBeInTheDocument()
     expect(screen.getByText('John Newton')).toBeInTheDocument()
+  })
+
+  it('regressão #42: usa song.duration_seconds (DB) imediatamente, mesmo antes do polling rodar', () => {
+    playerState.currentSong = { ...baseSong, duration_seconds: 263 } // 4:23
+    // Howler ainda não carregou — retorna 0
+    getDurationMock.mockReturnValue(0)
+    render(<PlayerMini />)
+
+    // A duração 4:23 deve aparecer no display total (não 0:00) — vem da DB.
+    expect(screen.getByText('4:23')).toBeInTheDocument()
+  })
+
+  it('regressão #42: ignora Howler.duration() quando dispara valor irreal (VBR mp3 sem TLEN)', async () => {
+    vi.useFakeTimers()
+    playerState.currentSong = { ...baseSong, duration_seconds: 263 } // 4:23 real
+    playerState.isPlaying = true
+    // Howler reporta 526s (8:46 = 2× real) — glitch típico de VBR
+    getDurationMock.mockReturnValue(526)
+    getPositionMock.mockReturnValue(10)
+    render(<PlayerMini />)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600) // dispara um tick do polling
+    })
+
+    // Deve continuar mostrando 4:23 (DB), não 8:46 (Howler glitch).
+    expect(screen.getByText('4:23')).toBeInTheDocument()
+    expect(screen.queryByText('8:46')).not.toBeInTheDocument()
   })
 
   it('renderiza ícone de música quando thumbnail_url é null', () => {
