@@ -130,15 +130,39 @@ describe('Library', () => {
     expect(screen.getByText('Quão Grande é Deus')).toBeInTheDocument()
   })
 
-  it('empty state quando lista vem vazia', async () => {
+  it('biblioteca vazia: CTA grande + esconde search/filtros (issue #34)', async () => {
     setupDbSelect([])
 
     render(<Library />)
 
     await waitFor(() => {
-      expect(screen.getByText('Nenhuma música encontrada')).toBeInTheDocument()
+      expect(screen.getByText('Sua biblioteca está vazia')).toBeInTheDocument()
     })
-    expect(screen.queryByTestId('song-card')).not.toBeInTheDocument()
+    // CTA primária
+    expect(screen.getByRole('button', { name: /Adicionar primeira música/i })).toBeInTheDocument()
+    // Search input não renderiza quando biblioteca está vazia
+    expect(screen.queryByPlaceholderText(/Buscar/i)).not.toBeInTheDocument()
+    // Botão "Adicionar" do header também escondido (CTA grande é o caminho)
+    expect(screen.queryByRole('button', { name: /^Adicionar$/i })).not.toBeInTheDocument()
+  })
+
+  it('filtered-empty: search sem matches mostra "Nenhuma música encontrada" + Limpar filtros (issue #34)', async () => {
+    setupDbSelect([makeSong({ id: 's1', title: 'Oceanos' })])
+    render(<Library />)
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('song-card')).toHaveLength(1)
+    })
+
+    const searchInput = screen.getByPlaceholderText('Buscar nas suas músicas…')
+    fireEvent.change(searchInput, { target: { value: 'inexistente' } })
+
+    expect(screen.getByText('Nenhuma música encontrada')).toBeInTheDocument()
+    const clearBtn = screen.getByRole('button', { name: /Limpar filtros/i })
+    expect(clearBtn).toBeInTheDocument()
+
+    fireEvent.click(clearBtn)
+    expect(screen.getAllByTestId('song-card')).toHaveLength(1)
   })
 
   it('filtrar por search (digitar no input filtra lista)', async () => {
@@ -153,7 +177,7 @@ describe('Library', () => {
       expect(screen.getAllByTestId('song-card')).toHaveLength(2)
     })
 
-    const searchInput = screen.getByPlaceholderText('Buscar por título ou artista…')
+    const searchInput = screen.getByPlaceholderText('Buscar nas suas músicas…')
     fireEvent.change(searchInput, { target: { value: 'Oceanos' } })
 
     expect(screen.getAllByTestId('song-card')).toHaveLength(1)
