@@ -1,5 +1,6 @@
 import { listPendingBackupSongs } from './pending-queue.js'
 import { uploadSongToDrive } from './upload-song.js'
+import { setBackupStatus } from './status.js'
 import { findSongFile } from '../ytdlp.js'
 import { isLossless, type AudioCategory } from './format-detection.js'
 
@@ -161,6 +162,19 @@ async function runPass(orgId: string, status: string): Promise<void> {
       // Skip se está em backoff ou marcada como permanent. Issue #45.
       if (shouldSkipForBackoff(song.id)) continue
 
+      // Dedup entre devices: se outro device já subiu pro Drive (cloud_file_id
+      // setado por sync remoto), reconcilia o estado local pra 'uploaded' sem
+      // re-upload. Issue #47.
+      if (song.cloud_file_id) {
+        try {
+          await setBackupStatus(song.id, 'uploaded')
+          recordSuccess(song.id)
+        } catch (err) {
+          console.warn('[sync-worker] failed to reconcile uploaded status', song.id, err)
+        }
+        continue
+      }
+
       try {
         const localPath = await findSongFile(song.id)
         if (!localPath) {
@@ -250,9 +264,15 @@ export async function startInitialSync(orgId: string): Promise<void> {
 
   try {
     // Resolve quais têm arquivo local antes de começar (só conta essas no total).
+    // Dedup entre devices: skip também as que já têm cloud_file_id (outro
+    // device já subiu) — reconcilia estado local pra 'uploaded'. Issue #47.
     const candidates = await listPendingBackupSongs(orgId)
     const local: Array<{ id: string; filePath: string; ext: string }> = []
     for (const s of candidates) {
+      if (s.cloud_file_id) {
+        try { await setBackupStatus(s.id, 'uploaded') } catch { /* segue */ }
+        continue
+      }
       const path = await findSongFile(s.id)
       if (!path) continue
       const ext = s.original_format ?? path.split('.').pop()?.toLowerCase() ?? 'mp3'

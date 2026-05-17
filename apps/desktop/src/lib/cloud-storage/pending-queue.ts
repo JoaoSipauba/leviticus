@@ -6,6 +6,10 @@ export type PendingSong = {
   artist: string
   backup_status: 'pending' | 'failed' | 'no_account'
   original_format: string | null
+  // Quando setado (por outro device da org), significa que o backup já existe
+  // no Drive — não precisamos subir de novo. Usado pra dedup entre devices.
+  // Issue #47.
+  cloud_file_id: string | null
 }
 
 /**
@@ -25,7 +29,7 @@ export async function countPendingBackup(orgId: string): Promise<number> {
 export async function listPendingBackupSongs(orgId: string): Promise<PendingSong[]> {
   const db = await getDb()
   return db.select<PendingSong[]>(
-    "SELECT id, title, artist, backup_status, original_format FROM songs " +
+    "SELECT id, title, artist, backup_status, original_format, cloud_file_id FROM songs " +
     "WHERE org_id = ? AND backup_status != 'uploaded' ORDER BY created_at ASC",
     [orgId]
   )

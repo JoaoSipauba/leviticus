@@ -7,6 +7,9 @@ vi.mock('./pending-queue.js', () => ({
 vi.mock('./upload-song.js', () => ({
   uploadSongToDrive: vi.fn().mockResolvedValue(undefined),
 }))
+vi.mock('./status.js', () => ({
+  setBackupStatus: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('../ytdlp.js', () => ({
   findSongFile: vi.fn().mockResolvedValue('/local/audio.mp3'),
 }))
@@ -18,6 +21,7 @@ import {
 } from './sync-worker.js'
 import { listPendingBackupSongs } from './pending-queue.js'
 import { uploadSongToDrive } from './upload-song.js'
+import { setBackupStatus } from './status.js'
 
 // Helper pra simular offline/online. jsdom default é true.
 function setOnline(value: boolean) {
@@ -39,7 +43,7 @@ describe('sync-worker', () => {
 
   it('startSyncWorker dispara primeira execução imediatamente', async () => {
     vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
-      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3' },
+      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3', cloud_file_id: null },
     ])
     startSyncWorker('org-1', { status: 'connected' })
     // Tick microtasks pra completar
@@ -52,7 +56,7 @@ describe('sync-worker', () => {
 
   it('NÃO sobe quando Drive desconectado', async () => {
     vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
-      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3' },
+      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3', cloud_file_id: null },
     ])
     startSyncWorker('org-1', { status: 'disconnected' })
     await vi.runOnlyPendingTimersAsync()
@@ -88,7 +92,7 @@ describe('sync-worker', () => {
     })
 
     it('após falha transient, song fica em backoff e é pulada no próximo pass', async () => {
-      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null }]
       vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
       vi.mocked(uploadSongToDrive).mockRejectedValueOnce(new Error('429 Rate limit'))
 
@@ -102,7 +106,7 @@ describe('sync-worker', () => {
     })
 
     it('falha permanent NÃO entra em retry (entra em estado terminal)', async () => {
-      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null }]
       vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
       vi.mocked(uploadSongToDrive).mockRejectedValue(new Error('403 Forbidden'))
 
@@ -115,7 +119,7 @@ describe('sync-worker', () => {
     })
 
     it('sucesso limpa o retry state da song', async () => {
-      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null }]
       vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
       vi.mocked(uploadSongToDrive)
         .mockRejectedValueOnce(new Error('429'))
@@ -130,10 +134,50 @@ describe('sync-worker', () => {
     })
   })
 
+  describe('dedup entre devices (issue #47)', () => {
+    beforeEach(() => {
+      _resetRetryStateForTest()
+      vi.useRealTimers()
+    })
+
+    it('runPass: skip upload quando song já tem cloud_file_id (outro device subiu)', async () => {
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
+        { id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: 'drive-file-from-A' },
+      ])
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).not.toHaveBeenCalled()
+      // Reconcilia estado local pra 'uploaded'
+      expect(setBackupStatus).toHaveBeenCalledWith('s1', 'uploaded')
+    })
+
+    it('runPass: sobe normalmente quando cloud_file_id é null (nenhum device subiu ainda)', async () => {
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
+        { id: 's2', title: 'B', artist: 'Y', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null },
+      ])
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).toHaveBeenCalledWith(expect.objectContaining({ songId: 's2' }))
+      expect(setBackupStatus).not.toHaveBeenCalled()
+    })
+
+    it('startInitialSync: skip songs com cloud_file_id; sobe apenas as órfãs locais', async () => {
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
+        { id: 'a', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: 'remote-a' },
+        { id: 'b', title: 'B', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null },
+        { id: 'c', title: 'C', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: 'remote-c' },
+      ])
+      await startInitialSync('org-1')
+      // Só 'b' faz upload — 'a' e 'c' são reconciliados
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+      expect(uploadSongToDrive).toHaveBeenCalledWith(expect.objectContaining({ songId: 'b' }))
+      expect(setBackupStatus).toHaveBeenCalledWith('a', 'uploaded')
+      expect(setBackupStatus).toHaveBeenCalledWith('c', 'uploaded')
+    })
+  })
+
   it('offline: runPass pula sem chamar listPendingBackupSongs nem uploadSongToDrive (issue #46)', async () => {
     setOnline(false)
     vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
-      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3' },
+      { id: 's1', title: 'A', artist: 'X', backup_status: 'pending', original_format: 'mp3', cloud_file_id: null },
     ])
     startSyncWorker('org-1', { status: 'connected' })
     await vi.runOnlyPendingTimersAsync()
@@ -160,7 +204,7 @@ describe('sync-worker', () => {
     it('startInitialSync sobe TODAS as músicas pendentes em paralelo (até 3 concorrentes)', async () => {
       const songs = Array.from({ length: 7 }, (_, i) => ({
         id: `s${i}`, title: `T${i}`, artist: 'X',
-        backup_status: 'pending' as const, original_format: 'mp3',
+        backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null,
       }))
       vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
 
@@ -174,7 +218,7 @@ describe('sync-worker', () => {
     it('reporta progresso via subscribe (uploaded incrementa a cada música)', async () => {
       const songs = Array.from({ length: 3 }, (_, i) => ({
         id: `s${i}`, title: `T${i}`, artist: 'X',
-        backup_status: 'pending' as const, original_format: 'mp3',
+        backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null,
       }))
       vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
 
@@ -198,7 +242,7 @@ describe('sync-worker', () => {
     it('quando upload falha, incrementa failed mas continua o resto', async () => {
       const songs = Array.from({ length: 3 }, (_, i) => ({
         id: `s${i}`, title: `T${i}`, artist: 'X',
-        backup_status: 'pending' as const, original_format: 'mp3',
+        backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null,
       }))
       vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
       vi.mocked(uploadSongToDrive)
@@ -215,7 +259,7 @@ describe('sync-worker', () => {
     })
 
     it('chamadas concorrentes são idempotentes (segunda chamada vira no-op)', async () => {
-      const songs = [{ id: 's0', title: 'T', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      const songs = [{ id: 's0', title: 'T', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null }]
       vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
 
       const p1 = startInitialSync('org-1')
@@ -229,7 +273,7 @@ describe('sync-worker', () => {
     it('offline: startInitialSync aborta cedo sem chamar uploadSongToDrive (issue #46)', async () => {
       setOnline(false)
       vi.mocked(listPendingBackupSongs).mockResolvedValueOnce([
-        { id: 's0', title: 'T', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' },
+        { id: 's0', title: 'T', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null },
       ])
       await startInitialSync('org-1')
       expect(uploadSongToDrive).not.toHaveBeenCalled()
@@ -239,8 +283,8 @@ describe('sync-worker', () => {
 
     it('pula músicas sem arquivo local (esses sobem por outro device)', async () => {
       const songs = [
-        { id: 's0', title: 'T0', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' },
-        { id: 's1', title: 'T1', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' },
+        { id: 's0', title: 'T0', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null },
+        { id: 's1', title: 'T1', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null },
       ]
       vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
       const { findSongFile } = await import('../ytdlp.js')
