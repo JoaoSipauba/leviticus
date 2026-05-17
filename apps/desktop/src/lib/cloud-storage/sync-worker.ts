@@ -72,3 +72,97 @@ async function runPass(orgId: string, status: string): Promise<void> {
 export async function _runPassForTest(orgId: string, status: string): Promise<void> {
   return runPass(orgId, status)
 }
+
+// ─── Initial sync mode ────────────────────────────────────────────────────────
+//
+// Quando o usuário conecta o Drive pela primeira vez, a biblioteca local pode
+// ter dezenas de músicas pra subir. O sync-worker normal roda a cada 5min e
+// sequencial — onboarding fica lento (issue #44). startInitialSync sobe TUDO
+// em paralelo com semáforo de 3 e expõe progresso pra UI.
+//
+// Distinção do runPass:
+//   - runPass: retry recorrente (5min), sequencial, silencioso
+//   - startInitialSync: one-shot, paralelo, com observable progress
+
+const INITIAL_SYNC_CONCURRENCY = 3
+
+export type InitialSyncProgress = {
+  total: number
+  uploaded: number
+  failed: number
+  inProgress: boolean
+}
+
+let initialSyncState: InitialSyncProgress = { total: 0, uploaded: 0, failed: 0, inProgress: false }
+const initialSyncListeners = new Set<(s: InitialSyncProgress) => void>()
+
+function notifyInitialSync() {
+  for (const fn of initialSyncListeners) fn({ ...initialSyncState })
+}
+
+export function getInitialSyncProgress(): InitialSyncProgress {
+  return { ...initialSyncState }
+}
+
+export function subscribeInitialSyncProgress(fn: (s: InitialSyncProgress) => void): () => void {
+  initialSyncListeners.add(fn)
+  return () => { initialSyncListeners.delete(fn) }
+}
+
+/**
+ * One-shot upload paralelo de TODAS as pendentes locais. Idempotente —
+ * uma segunda chamada concorrente vira no-op.
+ */
+export async function startInitialSync(orgId: string): Promise<void> {
+  // Guard idempotente — set inProgress SÍNCRONO antes de qualquer await, senão
+  // chamadas concorrentes passam pelo `if` antes de qualquer estado mudar.
+  if (initialSyncState.inProgress) return
+  initialSyncState = { total: 0, uploaded: 0, failed: 0, inProgress: true }
+  notifyInitialSync()
+
+  try {
+    // Resolve quais têm arquivo local antes de começar (só conta essas no total).
+    const candidates = await listPendingBackupSongs(orgId)
+    const local: Array<{ id: string; filePath: string; ext: string }> = []
+    for (const s of candidates) {
+      const path = await findSongFile(s.id)
+      if (!path) continue
+      const ext = s.original_format ?? path.split('.').pop()?.toLowerCase() ?? 'mp3'
+      local.push({ id: s.id, filePath: path, ext })
+    }
+
+    if (local.length === 0) return
+
+    initialSyncState = { ...initialSyncState, total: local.length }
+    notifyInitialSync()
+
+    // Semáforo manual: N workers consomem da queue compartilhada.
+    const queue = [...local]
+    const workers = Array.from({ length: Math.min(INITIAL_SYNC_CONCURRENCY, local.length) }, async () => {
+      while (queue.length > 0) {
+        const item = queue.shift()
+        if (!item) break
+        try {
+          const kind: AudioCategory = isLossless(item.ext) ? 'lossless' : 'lossy'
+          await uploadSongToDrive({
+            orgId,
+            songId: item.id,
+            filePath: item.filePath,
+            ext: item.ext,
+            kind,
+          })
+          initialSyncState = { ...initialSyncState, uploaded: initialSyncState.uploaded + 1 }
+        } catch (err) {
+          console.warn('[initial-sync] upload failed for song', item.id, err)
+          initialSyncState = { ...initialSyncState, failed: initialSyncState.failed + 1 }
+        }
+        notifyInitialSync()
+      }
+    })
+
+    await Promise.all(workers)
+  } finally {
+    initialSyncState = { ...initialSyncState, inProgress: false }
+    notifyInitialSync()
+  }
+}

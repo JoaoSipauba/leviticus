@@ -1,5 +1,10 @@
-import { CloudOff, AlertCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CloudOff, AlertCircle, UploadCloud } from 'lucide-react'
 import type { IntegrationStatus } from '../../store/integrations.js'
+import {
+  getInitialSyncProgress, subscribeInitialSyncProgress,
+  type InitialSyncProgress,
+} from '../../lib/cloud-storage/sync-worker.js'
 
 type Props = {
   pendingCount: number
@@ -8,6 +13,31 @@ type Props = {
 }
 
 export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props) {
+  // Subscribe ao progresso do initial-sync. Quando rodando, sobrescreve a
+  // copy do banner pra "Subindo X/Y…" — feedback claro durante onboarding
+  // de Drive recém-conectado. Issue #44.
+  const [progress, setProgress] = useState<InitialSyncProgress>(getInitialSyncProgress())
+  useEffect(() => subscribeInitialSyncProgress(setProgress), [])
+
+  // Initial sync rodando tem prioridade sobre tudo — mostra progresso mesmo
+  // se pendingCount=0 (o pendingCount externo pode estar stale durante o sync).
+  if (progress.inProgress && progress.total > 0) {
+    return (
+      <div
+        className="rounded-xl px-3.5 py-3 mb-3 flex items-center gap-3"
+        style={{ background: '#1e3a8a', border: '1px solid #3b82f6' }}
+      >
+        <UploadCloud size={18} color="#93c5fd" strokeWidth={2} className="flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold" style={{ color: '#dbeafe' }}>
+            Subindo pro Drive: {progress.uploaded}/{progress.total}
+            {progress.failed > 0 && ` · ${progress.failed} falharam`}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   if (pendingCount === 0) return null
 
   const critical = status === 'quota_full'
