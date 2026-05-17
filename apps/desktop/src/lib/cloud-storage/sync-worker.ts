@@ -29,9 +29,28 @@ export function stopSyncWorker(): void {
   }
 }
 
+/**
+ * Detecta se estamos offline. Usa `navigator.onLine` que reflete o estado
+ * da NIC do sistema operacional. Em ambiente de teste (jsdom) defaults a
+ * `true` — testes que querem simular offline devem mockar.
+ *
+ * Issue #46: sem este check, o sync-worker tentava upload em modo offline,
+ * falhava silenciosamente e marcava as músicas como `failed` — quando o
+ * estado real é só "aguardando reconexão".
+ */
+function isOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false
+}
+
 async function runPass(orgId: string, status: string): Promise<void> {
   if (running) return
   if (status !== 'connected' && status !== 'quota_full') return
+  // Skip pass quando offline — não adianta tentar e marcar como failed.
+  // O próximo pass de 5min vai re-checar. Issue #46.
+  if (isOffline()) {
+    console.info('[sync-worker] pulando pass — offline')
+    return
+  }
   // Pra simplificar — quando status='quota_full', tentamos mesmo assim
   // (pode ter havido limpeza no Drive e ainda não recheckou). Falha cai em
   // backup_status='failed' e fica pra próxima.
@@ -117,6 +136,12 @@ export async function startInitialSync(orgId: string): Promise<void> {
   // Guard idempotente — set inProgress SÍNCRONO antes de qualquer await, senão
   // chamadas concorrentes passam pelo `if` antes de qualquer estado mudar.
   if (initialSyncState.inProgress) return
+  // Offline: abort cedo. UI reflete via banner offline; quando reconectar,
+  // o sync-worker normal pega as pendentes no próximo pass. Issue #46.
+  if (isOffline()) {
+    console.info('[initial-sync] abortando — offline')
+    return
+  }
   initialSyncState = { total: 0, uploaded: 0, failed: 0, inProgress: true }
   notifyInitialSync()
 

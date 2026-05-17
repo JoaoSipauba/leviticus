@@ -18,11 +18,18 @@ vi.mock('../../lib/cloud-storage/sync-worker.js', () => ({
   startInitialSync: vi.fn(),
 }))
 
+// Mock useOnlineStatus pra controlar estado de rede nos testes.
+const { onlineRef } = vi.hoisted(() => ({ onlineRef: { current: true } }))
+vi.mock('../../lib/useOnlineStatus.js', () => ({
+  useOnlineStatus: () => onlineRef.current,
+}))
+
 import { LibraryBackupBanner } from './LibraryBackupBanner.js'
 
 describe('LibraryBackupBanner', () => {
   beforeEach(() => {
     progressRef.current = { total: 0, uploaded: 0, failed: 0, inProgress: false }
+    onlineRef.current = true
   })
 
   it('não renderiza quando count = 0', () => {
@@ -61,6 +68,28 @@ describe('LibraryBackupBanner', () => {
     progressRef.current = { total: 10, uploaded: 7, failed: 2, inProgress: true }
     render(<LibraryBackupBanner pendingCount={0} status="connected" onConfigure={() => {}} />)
     expect(screen.getByText(/Subindo pro Drive: 7\/10.*2 falharam/i)).toBeInTheDocument()
+  })
+
+  it('offline com pendingCount > 0: mostra "Sem internet" e omite CTA (issue #46)', () => {
+    onlineRef.current = false
+    render(<LibraryBackupBanner pendingCount={4} status="connected" onConfigure={() => {}} />)
+    expect(screen.getByText(/Sem internet/i)).toBeInTheDocument()
+    expect(screen.getByText(/4 pendentes/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it('offline com pendingCount = 0: não renderiza nada', () => {
+    onlineRef.current = false
+    const { container } = render(<LibraryBackupBanner pendingCount={0} status="connected" onConfigure={() => {}} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('offline tem prioridade sobre initial sync inProgress (UI não confunde sync com problema de rede)', () => {
+    onlineRef.current = false
+    progressRef.current = { total: 10, uploaded: 4, failed: 0, inProgress: true }
+    render(<LibraryBackupBanner pendingCount={5} status="connected" onConfigure={() => {}} />)
+    expect(screen.getByText(/Sem internet/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Subindo pro Drive/i)).not.toBeInTheDocument()
   })
 
   it('initial sync inProgress=false: volta pra render normal (não mostra progresso)', () => {
