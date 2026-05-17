@@ -105,15 +105,12 @@ vi.mock('./PlayerExpanded.js', () => ({
 }))
 
 // Tauri plugin stubs (transitive imports)
-// Mock do supabase pra cobrir backfill de duration_seconds (issue #27).
-const { supabaseFromMock, supabaseUpdateMock } = vi.hoisted(() => {
-  const supabaseEqMock = vi.fn().mockResolvedValue({ error: null })
-  const supabaseUpdateMock = vi.fn(() => ({ eq: supabaseEqMock }))
-  const supabaseFromMock = vi.fn(() => ({ update: supabaseUpdateMock }))
-  return { supabaseFromMock, supabaseUpdateMock }
-})
-vi.mock('../lib/supabase.js', () => ({
-  supabase: { from: supabaseFromMock },
+// Mock do helper de backfill — issue #27.
+const { backfillMock } = vi.hoisted(() => ({
+  backfillMock: vi.fn().mockResolvedValue(263),
+}))
+vi.mock('../lib/audio-meta.js', () => ({
+  backfillDurationFromFile: backfillMock,
 }))
 
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
@@ -286,21 +283,21 @@ describe('PlayerMini', () => {
     expect(getPositionMock.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
-  it('regressão #27: backfill de duration_seconds quando DB é null e Howl reporta valor', () => {
+  it('regressão #27: backfill é disparado quando duration_seconds é null', () => {
     vi.useFakeTimers()
     // currentSong sem duration_seconds (legacy/órfão)
     playerState.currentSong = { ...baseSong, duration_seconds: undefined as unknown as number }
     playerState.isPlaying = true
     getPositionMock.mockReturnValue(5)
-    getDurationMock.mockReturnValue(263) // valor sane do Howl
+    getDurationMock.mockReturnValue(0) // Howl ainda não carregou
 
     render(<PlayerMini />)
 
     act(() => { vi.advanceTimersByTime(500) })
 
-    // supabase.from('songs').update({duration_seconds: 263}).eq('id', baseSong.id) deve ter sido chamado
-    expect(supabaseFromMock).toHaveBeenCalledWith('songs')
-    expect(supabaseUpdateMock).toHaveBeenCalledWith({ duration_seconds: 263 })
+    // Helper de backfill foi chamado com o songId — ele cuida de ler do
+    // arquivo local + atualizar SQLite + Supabase.
+    expect(backfillMock).toHaveBeenCalledWith(baseSong.id)
   })
 
   it('regressão #29: wakeLock.request("screen") é chamado quando isPlaying=true', async () => {

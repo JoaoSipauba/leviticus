@@ -10,6 +10,7 @@ import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.j
 import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
 import { countPendingBackup } from '../lib/cloud-storage/pending-queue.js'
 import { useIntegrationsStore } from '../store/integrations.js'
+import { backfillDurationFromFile } from '../lib/audio-meta.js'
 
 
 export function Library() {
@@ -57,6 +58,25 @@ export function Library() {
       const count = await countPendingBackup(orgId)
       setPendingCount(count)
       setLoading(false)
+
+      // Backfill assíncrono de duration_seconds: pra cada música sem duração
+      // que tem arquivo local, lê o arquivo, atualiza SQLite + Supabase, e
+      // rebumpa librarySeed pro re-render mostrar o novo valor. Issue #27.
+      // Fire-and-forget — não bloqueia o load inicial da página.
+      void (async () => {
+        const missing = rows.filter((s) => s.duration_seconds == null)
+        if (missing.length === 0) return
+        let anyFilled = false
+        for (const song of missing) {
+          const result = await backfillDurationFromFile(song.id)
+          if (result) anyFilled = true
+        }
+        if (anyFilled) {
+          // Re-lê do SQLite pra mostrar os novos valores na UI sem precisar
+          // de refresh da página.
+          useUIStore.getState().bumpLibrary()
+        }
+      })()
     }
     load()
   }, [orgId, librarySeed])

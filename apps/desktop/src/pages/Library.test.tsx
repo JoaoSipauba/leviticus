@@ -60,6 +60,10 @@ vi.mock('../components/library/BackupFilterChip.js', () => ({
 }))
 
 // tauri plugin stubs
+vi.mock('../lib/audio-meta.js', () => ({
+  backfillDurationFromFile: vi.fn().mockResolvedValue(null),
+}))
+
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/path', () => ({ appLocalDataDir: vi.fn().mockResolvedValue('/data/') }))

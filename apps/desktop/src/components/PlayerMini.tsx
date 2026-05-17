@@ -13,7 +13,7 @@ import {
 } from '../lib/playback.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
-import { supabase } from '../lib/supabase.js'
+import { backfillDurationFromFile } from '../lib/audio-meta.js'
 import * as mediaSession from '../lib/mediaSession.js'
 
 function fmt(s: number): string {
@@ -226,23 +226,16 @@ export function PlayerMini() {
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
       mediaSession.updatePosition({ position: p, duration: chosen })
 
-      // Backfill: música sem duration_seconds no DB mas Howl reportou valor
-      // sane. Atualiza fire-and-forget (RLS bloqueia se user não tem
-      // manage_songs — silent failure aceitável). Issue #27.
+      // Backfill: música sem duration_seconds no DB → dispara backfill que
+      // lê arquivo local (HTMLMediaElement) e atualiza SQLite local +
+      // Supabase. Issue #27.
       if (
         currentSong &&
         !currentSong.duration_seconds &&
-        howlD > 0 &&
         !backfilledRef.current.has(currentSong.id)
       ) {
         backfilledRef.current.add(currentSong.id)
-        void supabase
-          .from('songs')
-          .update({ duration_seconds: Math.round(howlD) })
-          .eq('id', currentSong.id)
-          .then(({ error }) => {
-            if (error) console.warn('[player] backfill duration failed', error.message)
-          })
+        void backfillDurationFromFile(currentSong.id)
       }
     }
 
