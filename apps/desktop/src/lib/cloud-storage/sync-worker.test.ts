@@ -14,6 +14,7 @@ vi.mock('../ytdlp.js', () => ({
 import {
   startSyncWorker, stopSyncWorker,
   startInitialSync, getInitialSyncProgress, subscribeInitialSyncProgress,
+  _runPassForTest, _resetRetryStateForTest, isTransientError,
 } from './sync-worker.js'
 import { listPendingBackupSongs } from './pending-queue.js'
 import { uploadSongToDrive } from './upload-song.js'
@@ -56,6 +57,77 @@ describe('sync-worker', () => {
     startSyncWorker('org-1', { status: 'disconnected' })
     await vi.runOnlyPendingTimersAsync()
     expect(uploadSongToDrive).not.toHaveBeenCalled()
+  })
+
+  describe('backoff exponencial (issue #45)', () => {
+    beforeEach(() => {
+      _resetRetryStateForTest()
+      vi.useRealTimers()
+    })
+
+    afterEach(() => {
+      // Restaura implementação default do uploadSongToDrive — mockRejectedValue
+      // (sem "Once") sobrevive a clearAllMocks. Sem restore, próximos describes
+      // herdam o "rejeitar tudo".
+      vi.mocked(uploadSongToDrive).mockReset().mockResolvedValue(undefined)
+    })
+
+    it('isTransientError: 429, 5xx, network errors são transient', () => {
+      expect(isTransientError(new Error('429 Too Many Requests'))).toBe(true)
+      expect(isTransientError(new Error('HTTP 503 Service Unavailable'))).toBe(true)
+      expect(isTransientError(new Error('network timeout'))).toBe(true)
+      expect(isTransientError(new Error('ECONNRESET'))).toBe(true)
+      expect(isTransientError(new Error('fetch failed'))).toBe(true)
+    })
+
+    it('isTransientError: 4xx (exceto 429) são permanent', () => {
+      expect(isTransientError(new Error('403 Forbidden'))).toBe(false)
+      expect(isTransientError(new Error('404 Not Found'))).toBe(false)
+      expect(isTransientError(new Error('413 Payload Too Large'))).toBe(false)
+      expect(isTransientError(new Error('400 Bad Request'))).toBe(false)
+    })
+
+    it('após falha transient, song fica em backoff e é pulada no próximo pass', async () => {
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
+      vi.mocked(uploadSongToDrive).mockRejectedValueOnce(new Error('429 Rate limit'))
+
+      // Pass 1 — falha com 429, song entra em backoff
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+
+      // Pass 2 — imediato — deve pular a song por causa do backoff
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1) // não cresceu
+    })
+
+    it('falha permanent NÃO entra em retry (entra em estado terminal)', async () => {
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
+      vi.mocked(uploadSongToDrive).mockRejectedValue(new Error('403 Forbidden'))
+
+      await _runPassForTest('org-1', 'connected')
+      await _runPassForTest('org-1', 'connected')
+      await _runPassForTest('org-1', 'connected')
+
+      // Permanent: só tentou uma vez (subsequentes foram puladas)
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+    })
+
+    it('sucesso limpa o retry state da song', async () => {
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3' }]
+      vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
+      vi.mocked(uploadSongToDrive)
+        .mockRejectedValueOnce(new Error('429'))
+        .mockResolvedValueOnce(undefined)
+
+      await _runPassForTest('org-1', 'connected')
+      // Limpa backoff manualmente pra simular tempo passando
+      _resetRetryStateForTest()
+      await _runPassForTest('org-1', 'connected')
+
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(2)
+    })
   })
 
   it('offline: runPass pula sem chamar listPendingBackupSongs nem uploadSongToDrive (issue #46)', async () => {

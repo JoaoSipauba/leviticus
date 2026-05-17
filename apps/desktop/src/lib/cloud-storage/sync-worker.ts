@@ -8,6 +8,104 @@ const RETRY_INTERVAL_MS = 5 * 60 * 1000  // 5 min entre passes
 let intervalId: ReturnType<typeof setInterval> | null = null
 let running = false
 
+// ─── Backoff exponencial por song (issue #45) ─────────────────────────────────
+//
+// Antes do fix, qualquer falha (incluindo 429 transientes) condenava a song a
+// esperar 5min até o próximo pass do worker. Pra biblioteca grande + Drive
+// API rate-limitando, o backup arrastava horas.
+//
+// Agora: rastreamos attempts e nextRetryAt por song em memória. Falhas transient
+// (429, 5xx, network) sobem o backoff exponencial (1→2→4→8→15→30min, cap em 30).
+// Falhas permanent (403, 404, 4xx genérico) marcam a song como bloqueada — não
+// re-tentamos (token revogado, RLS, arquivo grande demais, etc.). Sucesso limpa
+// o state.
+//
+// O state vive em memória — perde no restart do app. Trade-off aceito: 90% do
+// valor está em evitar retries imediatos durante uma sessão; persistir em
+// pending_cloud_uploads.attempt_count seria ideal mas requer RPC + migration.
+
+const BACKOFF_MS = [
+  60 * 1000,        // 1 min
+  2 * 60 * 1000,    // 2 min
+  4 * 60 * 1000,    // 4 min
+  8 * 60 * 1000,    // 8 min
+  15 * 60 * 1000,   // 15 min
+  30 * 60 * 1000,   // 30 min (cap)
+]
+
+type RetryState = {
+  attempts: number       // # de falhas transient consecutivas
+  nextRetryAt: number    // epoch ms — antes disso, pulamos
+  permanent: boolean     // se true, nunca retentar nesta sessão
+}
+
+const retryState = new Map<string, RetryState>()
+
+/**
+ * Classifica erro do upload em transient (vale retry) vs permanent (não vale).
+ *
+ * Transient (retry com backoff):
+ *   - HTTP 429 (rate limit do Drive)
+ *   - HTTP 5xx (erro do servidor)
+ *   - network/timeout/connection reset
+ *   - fetch failed (genérico de network)
+ *
+ * Permanent (não retentar):
+ *   - HTTP 4xx (exceto 429) — bad request, forbidden, not found, payload too large
+ *   - Qualquer outra coisa que não case com transient acima
+ */
+export function isTransientError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  const lower = msg.toLowerCase()
+
+  // Rate limit é sempre transient
+  if (/\b429\b/.test(msg)) return true
+
+  // 5xx
+  if (/\b5\d{2}\b/.test(msg)) return true
+
+  // 4xx (que não 429) é permanent — checagem explícita pra não cair no else
+  if (/\b4\d{2}\b/.test(msg)) return false
+
+  // Network errors
+  if (lower.includes('network') || lower.includes('timeout') ||
+      lower.includes('econnreset') || lower.includes('fetch failed') ||
+      lower.includes('connection')) {
+    return true
+  }
+
+  // Default: permanent (better safe — não loop em erro desconhecido)
+  return false
+}
+
+function shouldSkipForBackoff(songId: string): boolean {
+  const state = retryState.get(songId)
+  if (!state) return false
+  if (state.permanent) return true
+  return Date.now() < state.nextRetryAt
+}
+
+function recordFailure(songId: string, err: unknown): void {
+  const transient = isTransientError(err)
+  if (!transient) {
+    retryState.set(songId, { attempts: 0, nextRetryAt: 0, permanent: true })
+    return
+  }
+  const prev = retryState.get(songId)
+  const attempts = (prev?.attempts ?? 0) + 1
+  const backoff = BACKOFF_MS[Math.min(attempts - 1, BACKOFF_MS.length - 1)]
+  retryState.set(songId, { attempts, nextRetryAt: Date.now() + backoff, permanent: false })
+}
+
+function recordSuccess(songId: string): void {
+  retryState.delete(songId)
+}
+
+/** Reset state — só pra testes. */
+export function _resetRetryStateForTest(): void {
+  retryState.clear()
+}
+
 type StartOpts = {
   status: string  // IntegrationStatus mas evita import circular
 }
@@ -60,6 +158,9 @@ async function runPass(orgId: string, status: string): Promise<void> {
     if (songs.length === 0) return
 
     for (const song of songs) {
+      // Skip se está em backoff ou marcada como permanent. Issue #45.
+      if (shouldSkipForBackoff(song.id)) continue
+
       try {
         const localPath = await findSongFile(song.id)
         if (!localPath) {
@@ -77,8 +178,10 @@ async function runPass(orgId: string, status: string): Promise<void> {
           ext,
           kind,
         })
+        recordSuccess(song.id)
       } catch (err) {
-        // Já marcado como failed dentro de upload-song.ts. Continua pra próxima.
+        // Classifica e registra backoff. Issue #45.
+        recordFailure(song.id, err)
         console.warn('[sync-worker] upload failed for song', song.id, err)
       }
     }
