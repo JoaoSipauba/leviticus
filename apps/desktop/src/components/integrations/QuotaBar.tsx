@@ -33,7 +33,7 @@ export function QuotaBar({ total, usedByLeviticus, usedByOthers, warning, critic
           </span>
         </div>
         <span className="text-[11px] font-medium" style={{ color: freeLabelColor }}>
-          {fmtBytes(free)} {free > 0 ? 'livres' : 'livres'}
+          {free > 0 ? `${fmtBytes(free)} livres` : 'sem espaço'}
         </span>
       </div>
 

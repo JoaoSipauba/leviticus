@@ -9,14 +9,10 @@ describe('QuotaBar', () => {
     expect(screen.getByText(/15 GB/)).toBeInTheDocument()
   })
 
-  it('mostra 0 bytes livres quando uso = total', () => {
+  it('mostra "sem espaço" quando uso = total', () => {
     const total = 1024 * 1024 * 1024
     render(<QuotaBar total={total} usedByLeviticus={0} usedByOthers={total} />)
-    const freeLabel = screen.getByText((content, element) =>
-      content.includes('livres') && (element?.className.includes('text-[11px]') ?? false)
-    )
-    expect(freeLabel).toBeInTheDocument()
-    expect(freeLabel.textContent).toMatch(/0 B/)
+    expect(screen.getByText('sem espaço')).toBeInTheDocument()
   })
 
   it('exibe legenda dos 3 segmentos', () => {
