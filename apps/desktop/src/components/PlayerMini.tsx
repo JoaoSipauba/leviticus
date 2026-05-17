@@ -200,11 +200,16 @@ export function PlayerMini() {
   useEffect(() => {
     setPos(0)
     setDuration(currentSong?.duration_seconds ?? 0)
+    songEndedRef.current = false // nova música → guard reaberto. Issue #62.
   }, [currentSong?.id])
 
   // Set de songIds que já tentamos backfill nesta sessão — evita disparar
   // múltiplos UPDATEs pra mesma música. Issue #27.
   const backfilledRef = useRef<Set<string>>(new Set())
+
+  // Guard contra chamar handleSongEnd múltiplas vezes pra mesma faixa.
+  // Resetado quando currentSong muda. Issue #62.
+  const songEndedRef = useRef<boolean>(false)
 
   // Polling de posição
   useEffect(() => {
@@ -236,6 +241,21 @@ export function PlayerMini() {
       ) {
         backfilledRef.current.add(currentSong.id)
         void backfillDurationFromFile(currentSong.id)
+      }
+
+      // Detecta fim da música mesmo quando Howler.onend não dispara — em
+      // html5 mode o evento pode ser perdido. Quando pos atinge ou
+      // ultrapassa duration (com pequena margem) e ainda estamos isPlaying
+      // do ponto de vista do store, força handleSongEnd manualmente.
+      // Sem isso, isPlaying fica true após o fim → polling continua e o
+      // slider parece "progredir além". Issue #62.
+      if (
+        chosen > 0 &&
+        p >= chosen - 0.25 &&
+        !songEndedRef.current
+      ) {
+        songEndedRef.current = true
+        void handleSongEnd()
       }
     }
 

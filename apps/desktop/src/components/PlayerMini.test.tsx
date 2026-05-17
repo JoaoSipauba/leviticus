@@ -40,6 +40,10 @@ const {
 
 // ─── audio mocks ──────────────────────────────────────────────────────────────
 
+const { handleSongEndMock } = vi.hoisted(() => ({
+  handleSongEndMock: vi.fn().mockResolvedValue(undefined),
+}))
+
 const { pauseAudioMock, resumeAudioMock, playSongMock, getPositionMock, getDurationMock, seekToMock, setVolumeMock } = vi.hoisted(() => ({
   pauseAudioMock: vi.fn(),
   resumeAudioMock: vi.fn(),
@@ -79,7 +83,7 @@ vi.mock('../lib/audio.js', () => ({
 }))
 
 vi.mock('../lib/playback.js', () => ({
-  handleSongEnd: vi.fn().mockResolvedValue(undefined),
+  handleSongEnd: handleSongEndMock,
   setRepeatMode: vi.fn(),
   setAutoplayMode: vi.fn(),
 }))
@@ -281,6 +285,54 @@ describe('PlayerMini', () => {
 
     act(() => { vi.advanceTimersByTime(500) })
     expect(getPositionMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('regressão #62: dispara handleSongEnd quando pos atinge duration (Howler onend perdido)', () => {
+    vi.useFakeTimers()
+    playerState.currentSong = { ...baseSong, duration_seconds: 200 }
+    playerState.isPlaying = true
+    // Posição "no fim" — simula onend perdido
+    getPositionMock.mockReturnValue(200)
+    getDurationMock.mockReturnValue(200)
+
+    render(<PlayerMini />)
+    handleSongEndMock.mockClear()
+
+    act(() => { vi.advanceTimersByTime(500) })
+
+    expect(handleSongEndMock).toHaveBeenCalled()
+  })
+
+  it('regressão #62: não dispara handleSongEnd mais de uma vez pra mesma música', () => {
+    vi.useFakeTimers()
+    playerState.currentSong = { ...baseSong, duration_seconds: 200 }
+    playerState.isPlaying = true
+    getPositionMock.mockReturnValue(200)
+    getDurationMock.mockReturnValue(200)
+
+    render(<PlayerMini />)
+    handleSongEndMock.mockClear()
+
+    act(() => { vi.advanceTimersByTime(500) })
+    act(() => { vi.advanceTimersByTime(500) })
+    act(() => { vi.advanceTimersByTime(500) })
+
+    expect(handleSongEndMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('regressão #62: não dispara handleSongEnd quando pos está bem antes do fim', () => {
+    vi.useFakeTimers()
+    playerState.currentSong = { ...baseSong, duration_seconds: 200 }
+    playerState.isPlaying = true
+    getPositionMock.mockReturnValue(50) // só 25% da música
+    getDurationMock.mockReturnValue(200)
+
+    render(<PlayerMini />)
+    handleSongEndMock.mockClear()
+
+    act(() => { vi.advanceTimersByTime(500) })
+
+    expect(handleSongEndMock).not.toHaveBeenCalled()
   })
 
   it('regressão #27: backfill é disparado quando duration_seconds é null', () => {
