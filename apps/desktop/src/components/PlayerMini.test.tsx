@@ -275,6 +275,36 @@ describe('PlayerMini', () => {
     expect(getPositionMock.mock.calls.length).toBeGreaterThanOrEqual(2)
   })
 
+  it('regressão #30: visibilitychange dispara re-sync imediato (corrige slider congelado pós-dim)', () => {
+    playerState.currentSong = { ...baseSong }
+    playerState.isPlaying = true
+    getPositionMock.mockReturnValue(42)
+    getDurationMock.mockReturnValue(200)
+
+    render(<PlayerMini />)
+    getPositionMock.mockClear()
+
+    // Simula: WKWebView throttle, setInterval pausa, tela acende, visibilitychange fire.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    fireEvent(document, new Event('visibilitychange'))
+
+    // getPosition deve ter sido chamado imediatamente (sem esperar tick de 500ms).
+    expect(getPositionMock).toHaveBeenCalled()
+  })
+
+  it('regressão #30: window focus também dispara re-sync (cmd+tab e similares)', () => {
+    playerState.currentSong = { ...baseSong }
+    playerState.isPlaying = true
+    getPositionMock.mockReturnValue(42)
+    getDurationMock.mockReturnValue(200)
+
+    render(<PlayerMini />)
+    getPositionMock.mockClear()
+
+    fireEvent(window, new Event('focus'))
+    expect(getPositionMock).toHaveBeenCalled()
+  })
+
   it('quando isPlaying=false, getPosition NÃO é chamado pelo polling', () => {
     vi.useFakeTimers()
     playerState.currentSong = { ...baseSong }

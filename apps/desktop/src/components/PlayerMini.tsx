@@ -158,7 +158,8 @@ export function PlayerMini() {
   useEffect(() => {
     if (!isPlaying) return
     const dbDuration = currentSong?.duration_seconds ?? 0
-    const interval = setInterval(() => {
+
+    function tick() {
       const p = getPosition()
       const howlD = getDuration()
       setPos(p)
@@ -172,8 +173,29 @@ export function PlayerMini() {
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
       mediaSession.updatePosition({ position: p, duration: chosen })
-    }, 500)
-    return () => clearInterval(interval)
+    }
+
+    const interval = setInterval(tick, 500)
+
+    // Re-sincroniza assim que a aba/janela volta a estar visível. WKWebView no
+    // macOS throttle setInterval quando display escurece — o áudio continua
+    // tocando (Howler é um <audio> nativo, fora do throttle de timers JS),
+    // mas o polling do progresso para. Sem este listener, ao acender a tela
+    // o slider fica congelado no tempo de quando escureceu, e demora mais um
+    // tick (500ms) pra alcançar. Issue #30.
+    function onVisible() {
+      if (document.visibilityState === 'visible') tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    // focus também ajuda em alguns macOS onde visibilitychange não dispara
+    // (window perde foco mas display continua aceso, ex: ⌘Tab pra outro app).
+    window.addEventListener('focus', tick)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', tick)
+    }
   }, [isPlaying, setPosition, currentSong?.id, currentSong?.duration_seconds])
 
   // Atalhos de teclado — só funcionam quando o player full está aberto
