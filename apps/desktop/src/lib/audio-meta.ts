@@ -69,6 +69,63 @@ const inFlight = new Set<string>()
 const BOOT_BACKFILL_CONCURRENCY = 3
 
 /**
+ * Reconcilia TODAS as músicas da org — lê duração do arquivo local e
+ * atualiza DB quando diverge significativamente (>5%) do valor atual.
+ * Diferente do `backfillMissingDurations`: este corrige valores ERRADOS
+ * (não só os nulos), tipo VBR mp3 que entrou com 2× real.
+ *
+ * One-shot — não roda repetido. App.tsx marca `_reconciled_v1` em
+ * localStorage após executar. Issue #27.
+ *
+ * Retorna `{updated, total}` (updated = quantos foram efetivamente reescritos).
+ */
+export async function reconcileAllDurations(orgId: string): Promise<{ updated: number; total: number }> {
+  const db = await getDb()
+  const rows = await db.select<{ id: string; duration_seconds: number | null }[]>(
+    'SELECT id, duration_seconds FROM songs WHERE org_id = ?',
+    [orgId],
+  )
+  if (rows.length === 0) return { updated: 0, total: 0 }
+
+  let updated = 0
+  const queue = [...rows]
+  const workers = Array.from(
+    { length: Math.min(BOOT_BACKFILL_CONCURRENCY, queue.length) },
+    async () => {
+      while (queue.length > 0) {
+        const row = queue.shift()
+        if (!row) break
+        const path = await findSongFile(row.id)
+        if (!path) continue
+        const fileDur = await readDurationFromFile(path)
+        if (!fileDur) continue
+        const fileRounded = Math.round(fileDur)
+        // Atualiza se DB é null OU diverge mais de 5% do arquivo.
+        const dbDur = row.duration_seconds ?? 0
+        const divergesEnough = dbDur === 0 ||
+          Math.abs(fileRounded - dbDur) / Math.max(fileRounded, dbDur) > 0.05
+        if (!divergesEnough) continue
+        try {
+          await db.execute('UPDATE songs SET duration_seconds = ? WHERE id = ?', [fileRounded, row.id])
+          void supabase
+            .from('songs')
+            .update({ duration_seconds: fileRounded })
+            .eq('id', row.id)
+            .then(({ error }) => {
+              if (error) console.warn('[audio-meta] reconcile supabase update failed', error.message)
+            })
+          updated++
+        } catch (err) {
+          console.warn('[audio-meta] reconcile SQLite update failed', err)
+        }
+      }
+    },
+  )
+  await Promise.all(workers)
+  return { updated, total: rows.length }
+}
+
+/**
  * Varre todas as músicas da org com `duration_seconds=null` e dispara
  * `backfillDurationFromFile` em paralelo (semáforo N=3). Usado no boot do
  * app pra retroativamente preencher músicas legacy antes da Library abrir.

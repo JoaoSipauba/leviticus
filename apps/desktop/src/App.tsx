@@ -11,7 +11,9 @@ import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
-import { backfillMissingDurations } from './lib/audio-meta.js'
+import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
+
+const RECONCILE_FLAG_KEY = 'leviticus_duration_reconciled_v1'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
@@ -74,14 +76,23 @@ export function App() {
                 // Boot-time backfill de duration_seconds. Encadeado APÓS
                 // syncOrg pra garantir que songs já estão no SQLite local.
                 // Race contra timeout — não pode segurar splash além do cap.
+                const job = localStorage.getItem(RECONCILE_FLAG_KEY)
+                  // One-shot reconciliação (corrige valores errados, ex: VBR
+                  // mp3 que entrou com 2× real). Marca o flag ao terminar
+                  // pra não repetir em boots subsequentes. Issue #27.
+                  ? backfillMissingDurations(orgId)
+                  : reconcileAllDurations(orgId).then((r) => {
+                      localStorage.setItem(RECONCILE_FLAG_KEY, String(Date.now()))
+                      return { filled: r.updated, total: r.total }
+                    })
                 return Promise.race([
-                  backfillMissingDurations(orgId),
+                  job,
                   new Promise<null>((r) => setTimeout(() => r(null), BACKFILL_BOOT_TIMEOUT_MS)),
                 ])
               })
               .then((result) => {
                 if (result && result.filled > 0) {
-                  console.info(`[boot] duração preenchida em ${result.filled}/${result.total} músicas`)
+                  console.info(`[boot] duração preenchida/corrigida em ${result.filled}/${result.total} músicas`)
                 }
               })
               .catch((e) => console.warn('[boot] sync/backfill falhou (offline?):', e))

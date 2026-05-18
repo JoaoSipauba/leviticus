@@ -167,6 +167,46 @@ describe('backfillMissingDurations (boot-time)', () => {
     expect(result.filled).toBe(5) // todas com arquivo mockado e duração válida
   })
 
+  it('reconcileAllDurations corrige valores divergentes (>5%), preserva os corretos', async () => {
+    // 3 músicas: a) DB=120 file=240 (2x errado), b) DB=200 file=205 (ok ~2%), c) DB=null file=180
+    dbSelectMock.mockResolvedValueOnce([
+      { id: 'a', duration_seconds: 120 },
+      { id: 'b', duration_seconds: 200 },
+      { id: 'c', duration_seconds: null },
+    ])
+    findSongFileMock.mockReset()
+    findSongFileMock
+      .mockResolvedValueOnce('/a.mp3')
+      .mockResolvedValueOnce('/b.mp3')
+      .mockResolvedValueOnce('/c.mp3')
+
+    // Audio stub variável por instância (Audio cria 2 listeners — increment
+    // por listener vaza index; aqui contamos no constructor).
+    let instanceIdx = 0
+    const durations = [240, 205, 180]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as any).Audio = class {
+      src = ''
+      preload = ''
+      muted = false
+      duration: number
+      constructor() {
+        this.duration = durations[instanceIdx++] ?? 0
+      }
+      addEventListener(ev: string, cb: () => void) {
+        queueMicrotask(() => { if (ev === 'loadedmetadata') cb() })
+      }
+      load() {}
+    }
+
+    const { reconcileAllDurations } = await import('./audio-meta.js')
+    const result = await reconcileAllDurations('org-1')
+
+    // a (2× errado) e c (null) são atualizadas; b (~2% diff) preservada
+    expect(result.updated).toBe(2)
+    expect(result.total).toBe(3)
+  })
+
   it('conta apenas as que conseguem preencher (filled <= total)', async () => {
     dbSelectMock.mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }])
     // Primeira: sucesso. Segunda: arquivo não encontrado. Terceira: sucesso.
