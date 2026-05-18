@@ -16,7 +16,7 @@ describe('downloadToFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     ;(invoke as any).mockImplementation((cmd: string) => {
-      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(5)
+      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(4096)
       if (cmd === 'cloud_storage_hash_file') return Promise.resolve('abc123')
       return Promise.resolve(undefined)
     })
@@ -56,7 +56,7 @@ describe('downloadToFile', () => {
 
   it('valida hash — mismatch limpa e lança erro', async () => {
     ;(invoke as any).mockImplementation((cmd: string) => {
-      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(3)
+      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(4096)
       if (cmd === 'cloud_storage_hash_file') return Promise.resolve('actual-hash')
       return Promise.resolve(undefined)
     })

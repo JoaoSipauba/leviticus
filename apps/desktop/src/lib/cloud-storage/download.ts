@@ -46,6 +46,17 @@ export async function downloadToFile(opts: DownloadOptions): Promise<void> {
     headers: opts.headers ?? null,
   })
 
+  // Sanity check: áudio nunca é tão pequeno. Se chegou < 2KB, algo falhou
+  // silenciosamente (provavelmente código JS antigo cacheado pelo Vite, ou
+  // binário Rust antigo sem o comando). Falha alto com mensagem clara.
+  if (total < 2048) {
+    await remove(partialPath).catch(() => {})
+    throw new Error(
+      `Download retornou só ${total} bytes — esperado MB. ` +
+      `Encerre o \`pnpm tauri dev\` e rode de novo pra recompilar o Rust.`,
+    )
+  }
+
   opts.onProgress?.({
     downloaded: total,
     total: opts.expectedSize ?? total,
