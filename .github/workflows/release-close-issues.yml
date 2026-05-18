@@ -9,7 +9,8 @@ permissions:
 
 jobs:
   close:
-    runs-on: ubuntu-latest
+    # Self-hosted Mac runner — quota Ubuntu hosted esgotou (issue #73)
+    runs-on: [self-hosted, macOS, ARM64, leviticus]
     steps:
       - uses: actions/github-script@v7
         with:
