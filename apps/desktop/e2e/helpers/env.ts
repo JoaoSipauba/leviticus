@@ -21,17 +21,31 @@ export function appBinaryPath(): string {
       'bundle/macos/Leviticus Dev.app/Contents/MacOS/leviticus-desktop'
     )
   }
+  if (platform() === 'win32') {
+    // Windows: o cargo gera leviticus-desktop.exe direto em target/debug/.
+    return path.join(target, 'leviticus-desktop.exe')
+  }
   // Linux: the bare binary lives in the target/debug root.
   // Name matches `name` in apps/desktop/src-tauri/Cargo.toml.
   return path.join(target, 'leviticus-desktop')
 }
 
-/** Path to the local SQLite file used by the dev app on macOS. */
+/** Path to the local SQLite file used by the dev app. */
 export function localSqliteDbPath(): string {
-  return path.join(
-    homedir(),
-    'Library/Application Support/com.leviticus.app.dev/leviticus.db'
-  )
+  if (platform() === 'win32') {
+    // Windows: Tauri 2 BaseDirectory.AppLocalData = %LOCALAPPDATA%\<bundle id>
+    const localAppData = process.env.LOCALAPPDATA ?? path.join(homedir(), 'AppData', 'Local')
+    return path.join(localAppData, 'com.leviticus.app.dev', 'leviticus.db')
+  }
+  if (platform() === 'darwin') {
+    return path.join(
+      homedir(),
+      'Library/Application Support/com.leviticus.app.dev/leviticus.db'
+    )
+  }
+  // Linux: XDG_DATA_HOME ou ~/.local/share
+  const xdg = process.env.XDG_DATA_HOME ?? path.join(homedir(), '.local', 'share')
+  return path.join(xdg, 'com.leviticus.app.dev', 'leviticus.db')
 }
 
 /** Supabase URL — defaults to the local supabase start endpoint. */
