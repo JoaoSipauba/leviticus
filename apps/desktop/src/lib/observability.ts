@@ -31,17 +31,35 @@ export function initObservability(): void {
     // Sample rate baixo em prod pra não estourar quota free (5k/mês).
     // 100% dos erros, 10% de traces de performance.
     tracesSampleRate: 0.1,
+    // Session Replay — grava DOM + console + network em sessions sampled.
+    // 0% de sessões inteiras (não rastreia uso comum, preserva privacidade
+    // do usuário de igreja) MAS 100% das sessões que tiveram erro são
+    // gravadas, então toda exceção vem com replay anexado pra debug. Em
+    // v8+ do @sentry/react o replay vem bundled — sem instalar pacote
+    // separado, só habilitar a integration aqui.
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 1.0,
     // PII desligado — usuário de igreja é gente real, dado sensível.
     // org_id/user_id mandamos via tag/context manualmente quando útil.
     sendDefaultPii: false,
     integrations: [
       Sentry.browserTracingIntegration(),
+      Sentry.replayIntegration({
+        // Mascara texto e media por padrão — só vemos shapes do DOM.
+        // Senha/email de usuário nunca vão pro replay.
+        maskAllText: true,
+        blockAllMedia: true,
+      }),
     ],
     // Filtra ruído conhecido. Adicione padrões aqui quando aparecer.
     ignoreErrors: [
       // Erros de extensões do navegador (ResizeObserver loop benigno)
       'ResizeObserver loop limit exceeded',
       'ResizeObserver loop completed with undelivered notifications',
+      // HMR-only — quando edita arquivo em dev e Vite recarrega com
+      // hooks signature diferente. Não acontece em prod.
+      'Rendered more hooks than during the previous render',
+      'Rendered fewer hooks than expected',
     ],
   })
   initialized = true

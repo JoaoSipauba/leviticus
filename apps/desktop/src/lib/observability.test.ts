@@ -17,6 +17,7 @@ vi.mock('@sentry/react', () => ({
   setTag: sentrySetTagMock,
   addBreadcrumb: sentryAddBreadcrumbMock,
   browserTracingIntegration: () => ({}),
+  replayIntegration: () => ({}),
 }))
 
 let envMock: { sentryDsn?: string; mode: string } = { sentryDsn: undefined, mode: 'test' }
