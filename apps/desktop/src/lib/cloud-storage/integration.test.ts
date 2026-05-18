@@ -23,6 +23,11 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   exists: vi.fn().mockResolvedValue(false),
   remove: vi.fn(),
 }))
+vi.mock('@tauri-apps/plugin-http', () => ({
+  // upload.ts agora usa fetch do plugin-http (bypass CORS pro Drive).
+  // Aliasamos pro fetch global stubado no beforeEach.
+  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
+}))
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockImplementation((cmd) => {
     if (cmd === 'cloud_storage_hash_file') return Promise.resolve('hash-abc')

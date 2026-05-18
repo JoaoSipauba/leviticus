@@ -7,6 +7,7 @@ import { useUIStore } from '../store/ui.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useNavigate } from 'react-router-dom'
 import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.js'
+import { startInitialSync } from '../lib/cloud-storage/sync-worker.js'
 import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
 import { countPendingBackup } from '../lib/cloud-storage/pending-queue.js'
 import { useIntegrationsStore } from '../store/integrations.js'
@@ -178,7 +179,20 @@ export function Library() {
       <LibraryBackupBanner
         pendingCount={pendingCount}
         status={cloudStatus}
-        onConfigure={() => navigate('/manage?tab=integrations')}
+        onConfigure={() => {
+          // Quando status já é 'connected', "Resolver" deve disparar o
+          // sync diretamente em vez de mandar pra integrations — o
+          // usuário não precisa configurar nada, só forçar retry. Sync
+          // é idempotente (skip se já rodando). Issue: uploads não
+          // aconteciam após reabrir o app porque a transição → connected
+          // não disparava em cold boot.
+          if (cloudStatus === 'connected') {
+            const orgId = localStorage.getItem('leviticus_org_id')
+            if (orgId) void startInitialSync(orgId)
+          } else {
+            navigate('/manage?tab=integrations')
+          }
+        }}
       />
 
       {/* Search + filtros só aparecem quando há músicas — sem música, não

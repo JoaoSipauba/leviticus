@@ -1,5 +1,12 @@
 import { readFile } from '@tauri-apps/plugin-fs'
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import type { UploadSession } from './types.js'
+
+// Usa o fetch do plugin-http (Rust-side) — WebKit/Chromium bloqueia o PUT
+// direto pra googleapis.com por CORS (Origin: http://localhost:1420 ou
+// tauri://localhost não está nos allow-origins do Google). O Rust não
+// aplica CORS, então a request passa. Mesma razão que `src/lib/supabase.ts`
+// configura tauriFetch como fetch global do supabase-js.
 
 const CHUNK_SIZE = 8 * 1024 * 1024 // 8 MiB (múltiplo de 256 KiB exigido pelo Google)
 
@@ -34,7 +41,7 @@ export async function uploadResumable(opts: UploadOptions): Promise<void> {
     const chunk = fileBytes.slice(offset, end)
     const contentRange = `bytes ${offset}-${end - 1}/${total}`
 
-    const res = await fetch(opts.session.sessionUrl, {
+    const res = await tauriFetch(opts.session.sessionUrl, {
       method: 'PUT',
       headers: {
         'Content-Range': contentRange,

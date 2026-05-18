@@ -159,6 +159,11 @@ export function App() {
   useEffect(() => {
     const orgId = localStorage.getItem('leviticus_org_id')
     if (!orgId) return
+    // Refresh do status de cloud no boot — sem isso, o store fica em
+    // 'unknown' até o usuário entrar na aba Integrações. Resultado: o
+    // gatilho de transição → connected nunca dispara, e o initial-sync
+    // de músicas pendentes não roda quando o app reabre.
+    void useIntegrationsStore.getState().refreshAccount(orgId)
     const status = useIntegrationsStore.getState().status
     startSyncWorker(orgId, { status })
     return () => { stopSyncWorker() }

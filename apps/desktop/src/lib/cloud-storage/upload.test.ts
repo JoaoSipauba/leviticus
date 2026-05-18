@@ -4,12 +4,21 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
   readFile: vi.fn(),
 }))
 
+const tauriFetchMock = vi.fn()
+vi.mock('@tauri-apps/plugin-http', () => ({
+  fetch: (...args: unknown[]) => tauriFetchMock(...args),
+}))
+
 import { readFile } from '@tauri-apps/plugin-fs'
 import { uploadResumable } from './upload.js'
 
 describe('uploadResumable', () => {
   beforeEach(() => {
-    vi.stubGlobal('fetch', vi.fn())
+    // O módulo usa o fetch do plugin-http; aliasamos `fetch` global pro
+    // mesmo mock pra os testes existentes (que setam `globalThis.fetch`)
+    // continuarem funcionando sem reescrever.
+    tauriFetchMock.mockReset()
+    vi.stubGlobal('fetch', tauriFetchMock)
   })
 
   afterEach(() => {
