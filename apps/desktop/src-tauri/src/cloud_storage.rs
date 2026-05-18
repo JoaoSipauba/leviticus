@@ -64,7 +64,10 @@ pub async fn cloud_storage_download_to_file(
     url: String,
     dest_path: String,
     headers: Option<HashMap<String, String>>,
-    on_progress: Option<Channel<DownloadProgressEvent>>,
+    // Channel não pode ser Option<...> em command args — Tauri faz CommandArg
+    // só pra `Channel<T>` direto. Cliente sempre passa um Channel; quando
+    // não quer progress, simplesmente não assina `.onmessage`.
+    on_progress: Channel<DownloadProgressEvent>,
 ) -> Result<u64, String> {
     let client = reqwest::Client::builder()
         .build()
@@ -109,24 +112,20 @@ pub async fn cloud_storage_download_to_file(
             .await
             .map_err(|e| format!("write: {e}"))?;
         total += bytes.len() as u64;
-        if let Some(ch) = &on_progress {
-            if last_emit.elapsed().as_millis() >= 100 {
-                let _ = ch.send(DownloadProgressEvent {
-                    downloaded: total,
-                    total: total_expected,
-                });
-                last_emit = std::time::Instant::now();
-            }
+        if last_emit.elapsed().as_millis() >= 100 {
+            let _ = on_progress.send(DownloadProgressEvent {
+                downloaded: total,
+                total: total_expected,
+            });
+            last_emit = std::time::Instant::now();
         }
     }
     file.flush().await.map_err(|e| format!("flush: {e}"))?;
     // Final event garantindo 100% mesmo se o último throttle pulou.
-    if let Some(ch) = &on_progress {
-        let _ = ch.send(DownloadProgressEvent {
-            downloaded: total,
-            total: total_expected.max(total),
-        });
-    }
+    let _ = on_progress.send(DownloadProgressEvent {
+        downloaded: total,
+        total: total_expected.max(total),
+    });
     Ok(total)
 }
 
