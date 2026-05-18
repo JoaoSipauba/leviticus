@@ -1,10 +1,12 @@
-import { writeFile, exists, remove } from '@tauri-apps/plugin-fs'
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { exists, remove } from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
 
-// Usa fetch do plugin-http (Rust-side) — WebKit aplica CORS no GET pro
-// googleapis.com e o Drive responde sem Access-Control-Allow-Origin pra
-// http://localhost:1420, bloqueando o download. Mesma razão do upload.ts.
+// O download acontece INTEIRO no Rust via `cloud_storage_download_to_file`.
+// Por quê: o Tauri v2 plugin-http NÃO suporta streaming de resposta no
+// JS — `res.body.getReader()` retorna done=true na primeira leitura e
+// `res.arrayBuffer()` tem comportamento inconsistente em arquivos
+// binários grandes (testes empíricos mostraram 1024 bytes de NULL em
+// vez do conteúdo). No Rust o reqwest streaming funciona normal.
 
 export type DownloadProgress = {
   downloaded: number
@@ -33,25 +35,22 @@ export async function downloadToFile(opts: DownloadOptions): Promise<void> {
   // Limpa qualquer .partial órfão
   if (await exists(partialPath)) await remove(partialPath)
 
-  const res = await tauriFetch(opts.url, {
-    signal: opts.signal,
-    headers: opts.headers,
+  // Progresso: começamos em 0, reportamos 100 quando termina. O download
+  // acontece todo no Rust e não temos chunks no JS pra reportar pontos
+  // intermediários — aceitável pra arquivos de áudio (poucos MB).
+  opts.onProgress?.({ downloaded: 0, total: opts.expectedSize ?? 0, pct: 0 })
+
+  const total = await invoke<number>('cloud_storage_download_to_file', {
+    url: opts.url,
+    destPath: partialPath,
+    headers: opts.headers ?? null,
   })
-  if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
 
-  const total = parseInt(res.headers.get('content-length') ?? '0', 10) || opts.expectedSize || 0
-
-  // Tauri v2 plugin-http NÃO suporta streaming via res.body.getReader() —
-  // o reader retorna `done: true` na primeira leitura entregando lixo
-  // (testes mostraram 1024 bytes de NULL em vez do conteúdo real). Usamos
-  // arrayBuffer() que materializa a resposta inteira (já chegou pelo Rust
-  // de qualquer jeito). Perdemos progresso granular — reportamos 0 → 100.
-  opts.onProgress?.({ downloaded: 0, total, pct: 0 })
-  const arrayBuf = await res.arrayBuffer()
-  const buffer = new Uint8Array(arrayBuf)
-  opts.onProgress?.({ downloaded: buffer.length, total: total || buffer.length, pct: 100 })
-
-  await writeFile(partialPath, buffer)
+  opts.onProgress?.({
+    downloaded: total,
+    total: opts.expectedSize ?? total,
+    pct: 100,
+  })
 
   // Valida hash via Tauri command (calculado no Rust nativo, mais rápido)
   if (opts.expectedHash) {

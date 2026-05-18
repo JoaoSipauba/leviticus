@@ -1,70 +1,62 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@tauri-apps/plugin-fs', () => ({
-  writeFile: vi.fn(),
   exists: vi.fn().mockResolvedValue(false),
   remove: vi.fn(),
 }))
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
-vi.mock('@tauri-apps/plugin-http', () => ({
-  // Aliasa pro fetch global stubado no beforeEach.
-  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
-}))
 
 import { downloadToFile } from './download.js'
 import { invoke } from '@tauri-apps/api/core'
-import { writeFile, remove } from '@tauri-apps/plugin-fs'
-
-function makeResponseWithBody(content: Uint8Array, total?: number): Response {
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(content)
-      controller.close()
-    },
-  })
-  return new Response(stream, {
-    status: 200,
-    headers: total ? { 'content-length': String(total) } : {},
-  })
-}
+import { remove } from '@tauri-apps/plugin-fs'
 
 describe('downloadToFile', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubGlobal('fetch', vi.fn())
+    ;(invoke as any).mockImplementation((cmd: string) => {
+      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(5)
+      if (cmd === 'cloud_storage_hash_file') return Promise.resolve('abc123')
+      return Promise.resolve(undefined)
+    })
   })
 
-  it('baixa pra .partial e renomeia', async () => {
-    const payload = new TextEncoder().encode('hello')
-    ;(globalThis.fetch as any).mockResolvedValue(makeResponseWithBody(payload, 5))
-
+  it('chama Rust download e renomeia .partial → dest', async () => {
     await downloadToFile({ url: 'https://x', destPath: '/dest/song.opus' })
 
-    expect(writeFile).toHaveBeenCalledWith('/dest/song.opus.partial', expect.any(Uint8Array))
+    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', {
+      url: 'https://x',
+      destPath: '/dest/song.opus.partial',
+      headers: null,
+    })
     expect(invoke).toHaveBeenCalledWith('cloud_storage_rename_file', {
       from: '/dest/song.opus.partial',
       to: '/dest/song.opus',
     })
   })
 
-  it('valida hash quando fornecido — sucesso', async () => {
-    const payload = new TextEncoder().encode('xyz')
-    ;(globalThis.fetch as any).mockResolvedValue(makeResponseWithBody(payload, 3))
-    ;(invoke as any).mockImplementation((cmd: string) => {
-      if (cmd === 'cloud_storage_hash_file') return Promise.resolve('abc123')
-      return Promise.resolve(undefined)
+  it('passa headers pro comando Rust', async () => {
+    await downloadToFile({
+      url: 'https://x',
+      destPath: '/dest/song.opus',
+      headers: { Authorization: 'Bearer t' },
     })
+    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', {
+      url: 'https://x',
+      destPath: '/dest/song.opus.partial',
+      headers: { Authorization: 'Bearer t' },
+    })
+  })
 
+  it('valida hash quando fornecido — sucesso', async () => {
     await downloadToFile({ url: 'https://x', destPath: '/d', expectedHash: 'abc123' })
     expect(remove).not.toHaveBeenCalled()
   })
 
   it('valida hash — mismatch limpa e lança erro', async () => {
-    const payload = new TextEncoder().encode('xyz')
-    ;(globalThis.fetch as any).mockResolvedValue(makeResponseWithBody(payload, 3))
     ;(invoke as any).mockImplementation((cmd: string) => {
+      if (cmd === 'cloud_storage_download_to_file') return Promise.resolve(3)
       if (cmd === 'cloud_storage_hash_file') return Promise.resolve('actual-hash')
       return Promise.resolve(undefined)
     })
@@ -75,16 +67,14 @@ describe('downloadToFile', () => {
     expect(remove).toHaveBeenCalledWith('/d.partial')
   })
 
-  it('reporta progresso', async () => {
-    const payload = new TextEncoder().encode('hello world!!!')
-    ;(globalThis.fetch as any).mockResolvedValue(makeResponseWithBody(payload, payload.length))
-
+  it('reporta progresso 0 → 100', async () => {
     const progresses: number[] = []
     await downloadToFile({
       url: 'https://x',
       destPath: '/d',
       onProgress: (p) => progresses.push(p.pct),
     })
+    expect(progresses).toContain(0)
     expect(progresses).toContain(100)
   })
 })

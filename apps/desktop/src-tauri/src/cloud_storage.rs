@@ -1,7 +1,9 @@
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use tokio::io::AsyncWriteExt;
 
 #[tauri::command]
 pub async fn cloud_storage_hash_file(path: String) -> Result<String, String> {
@@ -37,6 +39,59 @@ pub async fn cloud_storage_file_size(path: String) -> Result<u64, String> {
     let p = Path::new(&path);
     let meta = tokio::fs::metadata(p).await.map_err(|e| format!("stat {path}: {e}"))?;
     Ok(meta.len())
+}
+
+/// Baixa uma URL pra um arquivo local via reqwest streaming. Existe porque
+/// o Tauri v2 plugin-http NÃO suporta `res.body.getReader()` direito — o
+/// reader retorna `done: true` na primeira leitura entregando lixo (1024
+/// bytes de NULL). Aqui no Rust o streaming funciona como esperado.
+///
+/// Retorna o tamanho final em bytes.
+#[tauri::command]
+pub async fn cloud_storage_download_to_file(
+    url: String,
+    dest_path: String,
+    headers: Option<HashMap<String, String>>,
+) -> Result<u64, String> {
+    let client = reqwest::Client::builder()
+        .build()
+        .map_err(|e| format!("client: {e}"))?;
+
+    let mut req = client.get(&url);
+    if let Some(h) = headers {
+        for (k, v) in h.iter() {
+            req = req.header(k, v);
+        }
+    }
+
+    let res = req.send().await.map_err(|e| format!("request: {e}"))?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {}", res.status()));
+    }
+
+    let dest = PathBuf::from(&dest_path);
+    if let Some(parent) = dest.parent() {
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+    }
+
+    let mut file = tokio::fs::File::create(&dest)
+        .await
+        .map_err(|e| format!("create {dest_path}: {e}"))?;
+
+    let mut stream = res.bytes_stream();
+    let mut total: u64 = 0;
+    use futures_util::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        let bytes = chunk.map_err(|e| format!("stream: {e}"))?;
+        file.write_all(&bytes)
+            .await
+            .map_err(|e| format!("write: {e}"))?;
+        total += bytes.len() as u64;
+    }
+    file.flush().await.map_err(|e| format!("flush: {e}"))?;
+    Ok(total)
 }
 
 #[cfg(test)]

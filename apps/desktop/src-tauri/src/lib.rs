@@ -14,6 +14,7 @@ pub fn run() {
             cloud_storage::cloud_storage_hash_file,
             cloud_storage::cloud_storage_rename_file,
             cloud_storage::cloud_storage_file_size,
+            cloud_storage::cloud_storage_download_to_file,
         ]);
 
     // E2E only: ativa o WebDriver plugin em builds debug pra que o
