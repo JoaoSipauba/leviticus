@@ -12,8 +12,15 @@ vi.mock('@tauri-apps/api/core', () => ({
   convertFileSrc: (p: string) => `file://${p}`,
 }))
 
+vi.mock('@tauri-apps/plugin-shell', () => ({
+  // readDurationViaFfmpeg invoca Command.create('ffmpeg', ...). Nos testes
+  // não temos binário — força falha pra cair no fallback HTMLAudio.
+  Command: { create: () => ({ execute: () => Promise.reject(new Error('no ffmpeg in tests')) }) },
+}))
+
 vi.mock('./ytdlp.js', () => ({
   findSongFile: findSongFileMock,
+  ensureFfmpeg: () => Promise.reject(new Error('no ffmpeg in tests')),
 }))
 
 vi.mock('./db.js', () => ({

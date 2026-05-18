@@ -1,7 +1,65 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { findSongFile } from './ytdlp.js'
+import { Command } from '@tauri-apps/plugin-shell'
+import { ensureFfmpeg, findSongFile } from './ytdlp.js'
 import { getDb } from './db.js'
 import { supabase } from './supabase.js'
+
+/**
+ * Lê duração via ffmpeg decodando o arquivo inteiro (`-f null -`). Mais
+ * preciso que HTMLMediaElement pra VBR mp3 sem Xing header — o parser
+ * do WebKit reporta ~2× em vários casos (ver #42, "Descendência" que
+ * aparecia 11:15 em vez de 5:37). ffmpeg conta frames reais.
+ *
+ * Custo: ~0.3–1s por música em hardware moderno (decode-only, sem áudio
+ * tocando). Não bloqueia UI quando chamado em background.
+ */
+async function readDurationViaFfmpeg(filePath: string): Promise<number | null> {
+  try {
+    await ensureFfmpeg()
+  } catch (e) {
+    console.warn('[audio-meta] ensureFfmpeg falhou', e)
+    return null
+  }
+  try {
+    // Sem `-nostats`: queremos a linha de progresso (`size= time= ...`)
+    // que dá a duração real decodada. `-loglevel error` esconderia tudo.
+    const cmd = Command.create('ffmpeg', [
+      '-hide_banner',
+      '-i', filePath,
+      '-vn',
+      '-f', 'null',
+      '-',
+    ])
+    const out = await cmd.execute()
+    // ffmpeg loga progresso em stderr (`size=… time=HH:MM:SS.xx …`). Pegamos
+    // o ÚLTIMO time= — é o ponto onde decode terminou. Com `-nostats`
+    // limitamos pra apenas o resumo final, mais robusto pra parse.
+    const text = `${out.stderr ?? ''}\n${out.stdout ?? ''}`
+    const matches = [...text.matchAll(/time=(\d+):(\d+):(\d+(?:\.\d+)?)/g)]
+    if (matches.length > 0) {
+      const last = matches[matches.length - 1]
+      const h = parseInt(last[1], 10)
+      const m = parseInt(last[2], 10)
+      const s = parseFloat(last[3])
+      const total = h * 3600 + m * 60 + s
+      if (Number.isFinite(total) && total > 0) return total
+    }
+    // Fallback: parse de `Duration: HH:MM:SS.xx` no header (impreciso pra
+    // VBR ruim, mas melhor que nada se -nostats removeu o progresso).
+    const headerMatch = text.match(/Duration:\s+(\d+):(\d+):(\d+(?:\.\d+)?)/)
+    if (headerMatch) {
+      const h = parseInt(headerMatch[1], 10)
+      const m = parseInt(headerMatch[2], 10)
+      const s = parseFloat(headerMatch[3])
+      const total = h * 3600 + m * 60 + s
+      if (Number.isFinite(total) && total > 0) return total
+    }
+    return null
+  } catch (e) {
+    console.warn('[audio-meta] ffmpeg duration falhou', e)
+    return null
+  }
+}
 
 /**
  * Lê duração de uma URL de áudio via HTMLMediaElement. Helper interno
@@ -97,7 +155,10 @@ export async function reconcileAllDurations(orgId: string): Promise<{ updated: n
         if (!row) break
         const path = await findSongFile(row.id)
         if (!path) continue
-        const fileDur = await readDurationFromFile(path)
+        // ffmpeg é fonte da verdade — decode-based, resistente a VBR ruim.
+        // Fallback pra HTMLAudio só se ffmpeg falhar (ausência de binário, etc).
+        const fileDur =
+          (await readDurationViaFfmpeg(path)) ?? (await readDurationFromFile(path))
         if (!fileDur) continue
         const fileRounded = Math.round(fileDur)
         // Atualiza se DB é null OU diverge mais de 5% do arquivo.
@@ -175,7 +236,9 @@ export async function backfillDurationFromFile(songId: string): Promise<number |
     const path = await findSongFile(songId)
     if (!path) return null
 
-    const duration = await readDurationFromFile(path)
+    // ffmpeg primeiro (preciso pra VBR mp3). HTMLAudio como fallback.
+    const duration =
+      (await readDurationViaFfmpeg(path)) ?? (await readDurationFromFile(path))
     if (!duration) return null
 
     const rounded = Math.round(duration)

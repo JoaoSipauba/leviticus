@@ -13,7 +13,10 @@ import { useIntegrationsStore } from './store/integrations.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
 
-const RECONCILE_FLAG_KEY = 'leviticus_duration_reconciled_v1'
+// v2: bumped após adicionar ffmpeg como fonte de verdade pra duração.
+// v1 escrevia valores 2× pra VBR mp3 (parser HTMLAudio). v2 re-roda
+// contra dados existentes com ffmpeg decode-based.
+const RECONCILE_FLAG_KEY = 'leviticus_duration_reconciled_v2'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
