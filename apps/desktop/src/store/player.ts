@@ -53,8 +53,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     set({ playlistSongs: songs, playlistPosition: newPos === -1 ? null : newPos })
   },
   nextInPlaylist: () => {
-    const { playlistSongs, playlistPosition } = get()
-    if (playlistPosition === null) return null
+    const { playlistSongs, playlistPosition, currentPlaylist } = get()
+    // Caso especial issue #32: música atual foi REMOVIDA do culto enquanto
+    // tocava (setPlaylistSongs setou playlistPosition=null). Quando ela
+    // terminar, pula pra primeira do novo ordering em vez de parar.
+    if (playlistPosition === null) {
+      if (currentPlaylist && playlistSongs.length > 0) {
+        set({ playlistPosition: 0, currentSong: playlistSongs[0] })
+        return playlistSongs[0]
+      }
+      return null
+    }
     const next = playlistPosition + 1
     if (next >= playlistSongs.length) return null
     set({ playlistPosition: next, currentSong: playlistSongs[next] })

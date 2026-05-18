@@ -128,6 +128,20 @@ export function PlaylistDetail() {
     setSections(groupSongsBySection(enriched, grps))
 
     setDraftSections((prev) => prev.filter((d) => !ps.some((p) => p.section_id === d.sectionId)))
+
+    // Issue #32: se o player está tocando ESTA playlist, propaga a nova
+    // ordem pro store. setPlaylistSongs recomputa playlistPosition pelo
+    // currentSong.id — se a música atual ainda existe, mantém tocando na
+    // nova posição; se foi removida, playlistPosition fica null e o
+    // nextInPlaylist do store cobre o caso (pula pra primeira da fila
+    // quando termina).
+    const playerState = usePlayerStore.getState()
+    if (playerState.currentPlaylist?.id === id) {
+      const songsInOrder = enriched
+        .sort((a, b) => a.position - b.position)
+        .map((p) => p.song)
+      playerState.setPlaylistSongs(songsInOrder)
+    }
   }, [id, navigate, orgId])
 
   useEffect(() => {

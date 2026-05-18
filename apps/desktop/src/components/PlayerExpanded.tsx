@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
-  Check, ChevronLeft, GripVertical, ListEnd, ListMusic, Play, Repeat1,
+  Check, ChevronLeft, ListEnd, ListMusic, Play, Repeat1,
   RotateCcw, Undo2, Volume2, VolumeX, X,
 } from 'lucide-react'
 import type { Song } from '@leviticus/core'
@@ -11,7 +11,6 @@ import { usePlayedStore } from '../store/played.js'
 import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
-import { supabase } from '../lib/supabase.js'
 
 type RepeatMode = 'none' | 'one'
 
@@ -59,7 +58,7 @@ export function PlayerExpanded({
 }: Props) {
   const {
     currentSong, currentPlaylist, playlistSongs,
-    isPlaying, volume, setPlaylistSongs,
+    isPlaying, volume,
   } = usePlayerStore()
 
   const playedIds = usePlayedStore(
@@ -78,24 +77,13 @@ export function PlayerExpanded({
     [playlistSongs, currentSong?.id, playedIds],
   )
 
-  // Reorder state
-  const [draggingIdx, setDraggingIdx] = useState<number | null>(null)
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
-  const draggingRef = useRef<number | null>(null)
-
+  // Índice da música atual na ordem visual — usado em labels "X/N".
   const currentVisualIdx = currentSong ? visualOrder.findIndex((s) => s.id === currentSong.id) : -1
-  const firstPlayedIdx = visualOrder.findIndex((s) => s.id !== currentSong?.id && playedIds.has(s.id))
-  const playableEnd = firstPlayedIdx === -1 ? visualOrder.length : firstPlayedIdx
-  const minDropIdx = Math.max(currentVisualIdx + 1, 0)
 
-  // Hook precisa ser chamado em toda render (Rules of Hooks). O early return
-  // pra !currentSong fica DEPOIS, junto dos demais hooks no topo.
-  useEffect(() => {
-    function up() { endDrag() }
-    window.addEventListener('mouseup', up)
-    return () => window.removeEventListener('mouseup', up)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragOverIdx])
+  // Fila é read-only — reordenação só pelo editor do culto (PlaylistDetail).
+  // Issue #32: ter dois lugares pra reordenar (fila + editor) divergia da
+  // ordem do culto e gerava confusão. A fila virou só uma projeção da
+  // ordem atual da playlist.
 
   // Atalho Q: toggle da fila. PlayerExpanded só é renderizado quando expanded=true,
   // então o listener é automaticamente removido ao recolher o player.
@@ -167,53 +155,6 @@ export function PlayerExpanded({
     if (!currentPlaylist) return
     if (playedIds.has(song.id)) unmarkPlayed(currentPlaylist.id, song.id)
     else markPlayed(currentPlaylist.id, song.id)
-  }
-
-  // Persiste ordem nova no Supabase via RPC.
-  async function persistOrder(orderedSongs: Song[]) {
-    if (!currentPlaylist) return
-    if (!navigator.onLine) {
-      console.warn('[PlayerExpanded] reorder cancelado — sem conexão')
-      return
-    }
-    const ids = orderedSongs.map((s) => s.id)
-    const { error } = await supabase.rpc('reorder_playlist_songs', {
-      p_playlist_id: currentPlaylist.id,
-      p_song_ids: ids,
-    })
-    if (error) console.error('[PlayerExpanded] reorder rpc error:', error.message)
-  }
-
-  function startDrag(idx: number) {
-    draggingRef.current = idx
-    setDraggingIdx(idx)
-  }
-
-  function handleDragOver(idx: number) {
-    if (draggingRef.current === null) return
-    const target = Math.min(Math.max(idx, minDropIdx), playableEnd)
-    setDragOverIdx(target)
-  }
-
-  function endDrag() {
-    if (
-      draggingRef.current !== null
-      && dragOverIdx !== null
-      && draggingRef.current !== dragOverIdx
-    ) {
-      // Reordena a ordem visual local
-      const reordered = [...visualOrder]
-      const [moved] = reordered.splice(draggingRef.current, 1)
-      const target = dragOverIdx > draggingRef.current ? dragOverIdx - 1 : dragOverIdx
-      reordered.splice(target, 0, moved)
-
-      // Atualiza store local + persiste no Supabase
-      setPlaylistSongs(reordered)
-      void persistOrder(reordered)
-    }
-    draggingRef.current = null
-    setDraggingIdx(null)
-    setDragOverIdx(null)
   }
 
   function handleResetPlayed() {
@@ -493,9 +434,6 @@ export function PlayerExpanded({
             {visualOrder.map((song, idx) => {
               const isCurrent = song.id === currentSong.id
               const isPlayed = !isCurrent && playedIds.has(song.id)
-              const draggable = !isPlayed && !isCurrent
-              const dragging = draggingIdx === idx
-              const dropIndicator = dragOverIdx === idx && draggingIdx !== idx
               return (
                 <QueueRow
                   key={song.id}
@@ -503,14 +441,8 @@ export function PlayerExpanded({
                   displayIdx={idx}
                   isCurrent={isCurrent}
                   isPlayed={isPlayed}
-                  draggable={draggable}
-                  dragging={dragging}
-                  dropIndicator={dropIndicator}
                   onPlay={() => void playFromQueue(song)}
                   onTogglePlayed={() => togglePlayed(song)}
-                  onDragStart={() => startDrag(idx)}
-                  onDragOver={() => handleDragOver(idx)}
-                  onDragEnd={endDrag}
                 />
               )
             })}
@@ -533,40 +465,23 @@ export function PlayerExpanded({
 // ─── Queue row ──────────────────────────────────────────────────────────────
 
 function QueueRow({
-  song, displayIdx, isCurrent, isPlayed, draggable, dragging, dropIndicator,
-  onPlay, onTogglePlayed, onDragStart, onDragOver, onDragEnd,
+  song, displayIdx, isCurrent, isPlayed,
+  onPlay, onTogglePlayed,
 }: {
   song: Song; displayIdx: number; isCurrent: boolean; isPlayed: boolean
-  draggable: boolean; dragging: boolean; dropIndicator: boolean
   onPlay: () => void; onTogglePlayed: () => void
-  onDragStart: () => void; onDragOver: () => void; onDragEnd: () => void
 }) {
   return (
     <>
-      {dropIndicator && <div className="h-0.5 bg-brand rounded-full mx-3 my-0.5" />}
       <div
         className="group flex items-center gap-2 px-2 py-2 rounded-xl transition-colors relative"
         style={{
           background: isCurrent ? 'rgba(59,130,246,0.12)' : 'transparent',
           border: isCurrent ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
-          opacity: dragging ? 0.4 : isPlayed ? 0.55 : 1,
+          opacity: isPlayed ? 0.55 : 1,
         }}
-        onMouseEnter={onDragOver}
       >
-        {draggable ? (
-          <Tooltip text="Arrastar pra reordenar">
-            <button
-              className="w-5 h-8 flex items-center justify-center text-muted opacity-0 group-hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity flex-shrink-0"
-              onMouseDown={(e) => { e.preventDefault(); onDragStart() }}
-              onMouseUp={onDragEnd}
-              aria-label="Arrastar para reordenar"
-            >
-              <GripVertical size={14} strokeWidth={2} />
-            </button>
-          </Tooltip>
-        ) : (
-          <span className="w-5 flex-shrink-0" />
-        )}
+        <span className="w-5 flex-shrink-0" />
 
         <div className="w-5 flex items-center justify-end flex-shrink-0">
           {isPlayed
