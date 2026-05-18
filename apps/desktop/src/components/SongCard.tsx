@@ -10,6 +10,7 @@ import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
 import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
+import { deleteFile as deleteCloudFile } from '../lib/cloud-storage/client.js'
 import { supabase } from '../lib/supabase.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
@@ -501,6 +502,16 @@ export function SongCard({
     }
 
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+
+    // Apaga do Drive também — sem isso, arquivos acumulam pra sempre na
+    // pasta de backup mesmo depois de a música ser removida da biblioteca.
+    // Fire-and-forget — falha não bloqueia exclusão do app (token expirado,
+    // arquivo já deletado, etc).
+    if (orgId && song.cloud_file_id) {
+      void deleteCloudFile(orgId, song.cloud_file_id).catch((e) => {
+        console.warn('[SongCard] não foi possível apagar do Drive:', e)
+      })
+    }
     if (orgId) await syncOrg(orgId)
     bumpLibrary()
   }
