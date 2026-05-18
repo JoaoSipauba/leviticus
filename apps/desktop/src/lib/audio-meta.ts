@@ -66,6 +66,41 @@ export async function readDurationFromBlob(blob: Blob, timeoutMs = 5000): Promis
 
 const inFlight = new Set<string>()
 
+const BOOT_BACKFILL_CONCURRENCY = 3
+
+/**
+ * Varre todas as músicas da org com `duration_seconds=null` e dispara
+ * `backfillDurationFromFile` em paralelo (semáforo N=3). Usado no boot do
+ * app pra retroativamente preencher músicas legacy antes da Library abrir.
+ * Issue #27.
+ *
+ * Retorna `{filled, total}` pra quem chama exibir feedback ("4/20 atualizadas").
+ */
+export async function backfillMissingDurations(orgId: string): Promise<{ filled: number; total: number }> {
+  const db = await getDb()
+  const rows = await db.select<{ id: string }[]>(
+    'SELECT id FROM songs WHERE org_id = ? AND duration_seconds IS NULL',
+    [orgId],
+  )
+  if (rows.length === 0) return { filled: 0, total: 0 }
+
+  let filled = 0
+  const queue = rows.map((r) => r.id)
+  const workers = Array.from(
+    { length: Math.min(BOOT_BACKFILL_CONCURRENCY, queue.length) },
+    async () => {
+      while (queue.length > 0) {
+        const songId = queue.shift()
+        if (!songId) break
+        const result = await backfillDurationFromFile(songId)
+        if (result) filled++
+      }
+    },
+  )
+  await Promise.all(workers)
+  return { filled, total: rows.length }
+}
+
 /**
  * Backfill de duration_seconds pra uma música:
  * 1. Verifica se faltando + arquivo local existe

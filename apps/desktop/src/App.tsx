@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { supabase } from './lib/supabase.js'
 import { useAuthStore } from './store/auth.js'
@@ -11,6 +11,7 @@ import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
+import { backfillMissingDurations } from './lib/audio-meta.js'
 
 // Após o sync inicial, varre o diretório de áudio e apaga arquivos cujas
 // músicas não existem mais no SQLite local (sync já reflete o Supabase).
@@ -36,9 +37,18 @@ async function cleanupAudioOrphans() {
 // como sem sessão e vai pra /login.
 const AUTH_BOOT_TIMEOUT_MS = 3000
 
+// Cap pro boot-time backfill de duration. Pra biblioteca grande pode
+// demorar — splash não pode ficar refém. Após o cap, libera UI e o
+// backfill continua rodando em background. Issue #27.
+const BACKFILL_BOOT_TIMEOUT_MS = 5000
+
 export function App() {
   const { setSession, user, loading } = useAuthStore()
   const navigate = useNavigate()
+  // boot-time backfill terminou (ou estourou o cap). Splash espera por
+  // isso pra evitar que a Library abra com '--:--' visível e troque pra
+  // valor real depois. Issue #27.
+  const [bootBackfillDone, setBootBackfillDone] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -54,12 +64,33 @@ export function App() {
         setSession(session)
         if (!session) {
           navigate('/login')
+          setBootBackfillDone(true) // sem session, não há música pra backfillar
         } else {
           const orgId = localStorage.getItem('leviticus_org_id')
           if (orgId) {
             syncOrg(orgId)
               .then(() => cleanupAudioOrphans())
-              .catch((e) => console.warn('[boot] sync inicial falhou (offline?):', e))
+              .then(() => {
+                // Boot-time backfill de duration_seconds. Encadeado APÓS
+                // syncOrg pra garantir que songs já estão no SQLite local.
+                // Race contra timeout — não pode segurar splash além do cap.
+                return Promise.race([
+                  backfillMissingDurations(orgId),
+                  new Promise<null>((r) => setTimeout(() => r(null), BACKFILL_BOOT_TIMEOUT_MS)),
+                ])
+              })
+              .then((result) => {
+                if (result && result.filled > 0) {
+                  console.info(`[boot] duração preenchida em ${result.filled}/${result.total} músicas`)
+                }
+              })
+              .catch((e) => console.warn('[boot] sync/backfill falhou (offline?):', e))
+              .finally(() => {
+                if (!cancelled) setBootBackfillDone(true)
+              })
+          } else {
+            // Sem orgId — nada pra backfillar. Libera splash imediato.
+            setBootBackfillDone(true)
           }
         }
       })
@@ -68,6 +99,7 @@ export function App() {
         if (cancelled) return
         setSession(null)
         navigate('/login')
+        setBootBackfillDone(true) // login screen — não precisa de backfill
       })
 
     const { data: listener } = supabase.auth.onAuthStateChange(
@@ -83,11 +115,13 @@ export function App() {
     }
   }, [navigate, setSession])
 
-  // Avisa o splash do index.html assim que sabemos pra onde ir — daí
-  // ele faz fade-out e libera o z-index. Idempotente.
+  // Avisa o splash do index.html quando o boot terminar: auth resolvida
+  // E backfill retroativo de duração feito (ou estourou timeout). Idempotente.
+  // Issue #27 — sem isso, Library abre mostrando '--:--' que troca pra
+  // valor real ~1s depois, parecendo glitch visual.
   useEffect(() => {
-    if (!loading) window.dispatchEvent(new Event('leviticus-ready'))
-  }, [loading])
+    if (!loading && bootBackfillDone) window.dispatchEvent(new Event('leviticus-ready'))
+  }, [loading, bootBackfillDone])
 
   // Registra listener pra deep-links (OAuth callback leviticus://oauth-success?org_id=...).
   // Quando o callback chega, refresh do store de integrações se o orgId bater.

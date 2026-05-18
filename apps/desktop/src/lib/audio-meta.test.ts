@@ -133,3 +133,54 @@ describe('readDurationFromBlob', () => {
     expect(revokeCalls).toHaveLength(1) // URL liberado mesmo em erro
   })
 })
+
+describe('backfillMissingDurations (boot-time)', () => {
+  let dbSelectMock: ReturnType<typeof vi.fn>
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+    dbSelectMock = vi.fn()
+    const dbModule = await import('./db.js')
+    vi.mocked(dbModule.getDb).mockResolvedValue({
+      select: dbSelectMock,
+      execute: dbExecuteMock,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any)
+    findSongFileMock.mockResolvedValue('/local/song.mp3')
+    setupAudioStub({ duration: 200, succeeds: true })
+  })
+
+  it('retorna 0 quando não há músicas com null duration', async () => {
+    dbSelectMock.mockResolvedValueOnce([])
+    const { backfillMissingDurations } = await import('./audio-meta.js')
+    const result = await backfillMissingDurations('org-1')
+    expect(result).toEqual({ filled: 0, total: 0 })
+  })
+
+  it('processa N músicas em paralelo (concurrency 3); retorna filled/total', async () => {
+    const ids = Array.from({ length: 5 }, (_, i) => ({ id: `song-${i}` }))
+    dbSelectMock.mockResolvedValueOnce(ids)
+    const { backfillMissingDurations } = await import('./audio-meta.js')
+    const result = await backfillMissingDurations('org-1')
+
+    expect(result.total).toBe(5)
+    expect(result.filled).toBe(5) // todas com arquivo mockado e duração válida
+  })
+
+  it('conta apenas as que conseguem preencher (filled <= total)', async () => {
+    dbSelectMock.mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }])
+    // Primeira: sucesso. Segunda: arquivo não encontrado. Terceira: sucesso.
+    findSongFileMock.mockReset()
+    findSongFileMock
+      .mockResolvedValueOnce('/local/a.mp3')
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce('/local/c.mp3')
+    setupAudioStub({ duration: 100, succeeds: true })
+
+    const { backfillMissingDurations } = await import('./audio-meta.js')
+    const result = await backfillMissingDurations('org-1')
+
+    expect(result.total).toBe(3)
+    expect(result.filled).toBe(2)
+  })
+})
