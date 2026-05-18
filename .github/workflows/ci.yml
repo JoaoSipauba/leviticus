@@ -126,14 +126,20 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
+      - name: Adiciona ~/.cargo/bin ao PATH
+        # Git Bash em Windows não enxerga ~/.cargo/bin por default. tauri-driver
+        # e cargo-binstall foram instalados lá no setup do runner.
+        run: echo "$USERPROFILE\\.cargo\\bin" >> $GITHUB_PATH
+
       - name: Verifica tauri-driver instalado
         # Pré-instalado no runner via `cargo binstall -y tauri-driver` (one-time
-        # setup). Se não estiver, instala on-demand. WebView2 e msedgedriver
-        # também devem estar no runner (vêm com Windows + edge install global).
+        # setup). Se não estiver, instala on-demand via binstall (binário pré-
+        # compilado — `cargo install --locked` falha por yanked deps).
+        # WebView2 e msedgedriver vêm com Windows + edge install global.
         run: |
           if ! command -v tauri-driver.exe >/dev/null 2>&1; then
-            echo "tauri-driver não encontrado, instalando…"
-            cargo install --locked tauri-driver --version 0.1.4
+            echo "tauri-driver não encontrado, instalando via cargo binstall…"
+            cargo binstall -y tauri-driver
           fi
           tauri-driver.exe --help | head -3
 
