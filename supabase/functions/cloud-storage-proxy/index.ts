@@ -2,7 +2,7 @@ import { serve } from './deps.ts'
 import { getProvider } from './providers/registry.ts'
 import { ProviderId, ProviderError, NotImplementedError } from './providers/types.ts'
 import { authenticate, requirePermission, UnauthorizedError, ForbiddenError } from './auth.ts'
-import { decryptSecret } from './crypto.ts'
+import { decryptSecret, encryptSecret, bytesToHex } from './crypto.ts'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -88,8 +88,8 @@ async function ensureFreshAccessToken(serviceClient: any, orgId: string): Promis
     return { provider: acct.provider, accessToken: acct.access_token, appFolderId: acct.app_folder_id }
   }
 
-  // Refresh
-  const refreshToken = await decryptSecret(serviceClient, acct.refresh_token_encrypted as string)
+  // Refresh — refresh_token_encrypted vem como string hex "\x..." via PostgREST.
+  const refreshToken = await decryptSecret(acct.refresh_token_encrypted as string)
   const fresh = await provider.refreshAccessToken(refreshToken)
   const { error: updErr } = await serviceClient.rpc('update_cloud_storage_access_token', {
     p_org_id: orgId,
@@ -207,15 +207,18 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
   const folder = await provider.ensureAppFolder(tokens.accessToken, 'Leviticus')
   console.log('[oauth-callback] step: folder ok, id=', folder.folderId)
 
+  console.log('[oauth-callback] step: encrypting refresh_token...')
+  // Edge Function criptografa (AES-GCM) e passa bytea pré-criptografado pra RPC.
+  // Substitui o pgsodium-based encrypt anterior, que esbarrava em permissões
+  // de pgsodium.key em prod.
+  const refreshEncrypted = await encryptSecret(tokens.refreshToken)
   console.log('[oauth-callback] step: upserting via RPC...')
-  // Usa RPC dedicado em vez de .upsert() pra evitar problemas com encoding
-  // bytea via supabase-js/PostgREST (que travava infinitamente).
   const { error: upsertErr } = await serviceClient.rpc('set_cloud_storage_account', {
     p_org_id: orgId,
     p_provider: 'google_drive',
     p_account_email: tokens.account.email,
     p_account_user_id: tokens.account.userId,
-    p_refresh_token: tokens.refreshToken,
+    p_refresh_token_encrypted: bytesToHex(refreshEncrypted),
     p_access_token: tokens.accessToken,
     p_access_token_expires_at: tokens.accessTokenExpiresAt,
     p_app_folder_id: folder.folderId,
@@ -326,9 +329,11 @@ async function handleDisconnect(ctx: any): Promise<Response> {
   }
 
   const row = Array.isArray(data) && data.length > 0 ? data[0] : null
-  if (row?.refresh_token && row?.provider) {
+  if (row?.refresh_token_encrypted && row?.provider) {
     try {
-      await getProvider(row.provider as ProviderId).revokeToken(row.refresh_token)
+      // RPC retorna bytea como string hex via PostgREST — decifra aqui.
+      const plain = await decryptSecret(row.refresh_token_encrypted as string)
+      await getProvider(row.provider as ProviderId).revokeToken(plain)
       console.log('[disconnect] token revoked at provider')
     } catch (e) {
       console.warn('[disconnect] revoke failed (ignoring):', e)

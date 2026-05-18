@@ -100,10 +100,10 @@ describe('Journey #11 — Cloud Storage Integration', () => {
     // 1. Supabase remoto (pra edge function poder deletar/atualizar)
     const admin = makeAdminClient()
     await admin.from('cloud_storage_accounts').delete().eq('org_id', orgId)
-    const { data: encrypted, error: encErr } = await admin.rpc('encrypt_cloud_secret', {
-      plaintext: 'fake-refresh-token-e2e',
-    })
-    if (encErr) throw new Error(`encrypt_cloud_secret failed: ${encErr.message}`)
+    // Placeholder bytea — não precisamos de ciphertext real porque o E2E não
+    // exercita refresh/disconnect (que decifrariam o valor). Cloud storage
+    // crypto agora roda no Edge Function via Web Crypto (ver crypto.ts).
+    const encrypted = '\\x' + 'ab'.repeat(32)
     const now = new Date().toISOString()
     const { error: remoteErr } = await admin.from('cloud_storage_accounts').insert({
       org_id: orgId,
