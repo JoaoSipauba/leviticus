@@ -1,6 +1,7 @@
 import type { BackupStatus } from './types.js'
 import { getDb } from '../db.js'
 import { supabase } from '../supabase.js'
+import { useUIStore } from '../../store/ui.js'
 
 /**
  * Transições válidas do backup_status.
@@ -52,4 +53,9 @@ export async function setBackupStatus(
   const setClauses = Object.keys(update).map((k) => `${k} = ?`).join(', ')
   const values = Object.values(update)
   await db.execute(`UPDATE songs SET ${setClauses} WHERE id = ?`, [...values, songId])
+
+  // Notifica UI pra re-ler do SQLite. Sem isso, Library mostra o status
+  // antigo (ex.: badge "pendente") mesmo após o upload concluir em
+  // background, e o usuário pensa que falhou.
+  try { useUIStore.getState().bumpLibrary() } catch { /* no-op em testes sem store */ }
 }
