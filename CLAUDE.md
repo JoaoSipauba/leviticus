@@ -104,6 +104,27 @@ Two locations — they must stay in sync:
 - **Always use icons from lucide-react** (already installed) for visual representations. Example: `<Check size={16} />` instead of "✓", `<Music size={20} />` instead of any music emoji.
 - Import icons with named imports: `import { Check, Music, Plus } from 'lucide-react'`.
 
+## Funcionalidades core — padrões da indústria
+
+Pra funcionalidades **CORE** do app — áudio, player, drag-and-drop, formulários complexos, autenticação, upload de arquivos, sync offline-first — siga os padrões consolidados da indústria. Não invente sua versão a menos que tenha razão muito específica (e a razão precisa ser commitada no código + CLAUDE.md).
+
+**Antes de implementar uma feature core**, pesquise o estado da arte (1-2 referências bastam, ex: MDN, biblioteca mais usada, blog técnico recente). Documente no PR a abordagem escolhida e POR QUE diverge se divergir.
+
+**Sinais de que você está reinventando errado:**
+- Acumulando workarounds (visibilitychange, defensive checks, polling com guards) — geralmente o padrão da indústria já resolve isso na arquitetura
+- Comportamento erra "ocasionalmente" — bug de race condition / event timing é sintoma de polling onde devia ter listener
+- 3+ issues abertas no mesmo arquivo apontando pra mesma área — refactor pendente
+
+**Áudio especificamente:**
+- Preferir eventos do `HTMLMediaElement` (`timeupdate`, `ended`, `loadedmetadata`, `error`) a polling com `setInterval`
+- `timeupdate` é browser-managed: pausa em tab inativa, dispara ~250ms automático
+- `ended` é a fonte da verdade pro fim — defensive `pos >= duration` só como sanity check
+- Howler.js é uma escolha legítima como wrapper, mas com `html5: true` (necessário em Tauri pelo `asset://`) o `onend` é flaky — favorecer listeners nativos quando possível
+
+**Drag-and-drop, formulários, etc.**: aplicar a mesma régua. Pesquisar 1-2 referências, divergir só com razão escrita.
+
+A dívida arquitetural histórica de áudio (Howler+polling) está documentada em #63 — não bloqueia ship, mas sinaliza que o padrão "polling com workarounds" deve ser evitado em features novas.
+
 ## Error messages
 
 Always show clear, friendly error messages in Portuguese. Rules:
