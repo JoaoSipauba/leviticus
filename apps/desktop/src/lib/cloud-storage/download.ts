@@ -17,6 +17,7 @@ export type DownloadOptions = {
   destPath: string                  // path absoluto onde salvar
   expectedHash?: string             // SHA-256 hex; se fornecido, valida ao final
   expectedSize?: number
+  headers?: Record<string, string>  // headers extras (ex: Authorization pro Drive)
   onProgress?: (p: DownloadProgress) => void
   signal?: AbortSignal
 }
@@ -32,7 +33,10 @@ export async function downloadToFile(opts: DownloadOptions): Promise<void> {
   // Limpa qualquer .partial órfão
   if (await exists(partialPath)) await remove(partialPath)
 
-  const res = await tauriFetch(opts.url, { signal: opts.signal })
+  const res = await tauriFetch(opts.url, {
+    signal: opts.signal,
+    headers: opts.headers,
+  })
   if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
 
   const total = parseInt(res.headers.get('content-length') ?? '0', 10) || opts.expectedSize || 0

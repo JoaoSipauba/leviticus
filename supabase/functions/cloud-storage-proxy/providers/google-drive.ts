@@ -216,13 +216,16 @@ export const googleDriveProvider: CloudStorageProvider = {
     return { sessionUrl, sessionId, expiresAt }
   },
 
-  async generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; expiresAt: string }> {
-    // Google Drive não emite URLs pre-assinadas. Em vez disso, devolvemos
-    // a URL da API com access_token via querystring — válido por ~1h.
-    const url = `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&access_token=${encodeURIComponent(accessToken)}`
-    // Validade ≈ vida do access_token (refreshado pela edge function antes de expirar)
+  async generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; accessToken: string; expiresAt: string }> {
+    // Google Drive não emite URLs pre-assinadas. Devolvemos a URL da API
+    // + access_token separado pro cliente passar via header Authorization.
+    //
+    // ATENÇÃO: o `?access_token=` query param foi DEPRECADO pela Google
+    // em ~2020 e agora retorna 403 — só header `Authorization: Bearer`
+    // funciona. Por isso retornamos o token separado, não embutido na URL.
+    const url = `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`
     const expiresAt = new Date(Date.now() + 50 * 60 * 1000).toISOString()
-    return { url, expiresAt }
+    return { url, accessToken, expiresAt }
   },
 
   async getFileInfo(accessToken: string, fileId: string): Promise<FileInfo | null> {

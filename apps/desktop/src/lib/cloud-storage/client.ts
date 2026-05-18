@@ -59,7 +59,7 @@ export async function createUploadSession(orgId: string, params: {
   })
 }
 
-export async function generateDownloadUrl(orgId: string, fileId: string): Promise<{ url: string; expiresAt: string }> {
+export async function generateDownloadUrl(orgId: string, fileId: string): Promise<{ url: string; accessToken: string; expiresAt: string }> {
   return callEdge('download-url', { org_id: orgId, file_id: fileId })
 }
 

@@ -19,13 +19,15 @@ export type DownloadSongOpts = {
  * arquivo + verifica hash + escreve atomicamente.
  */
 export async function downloadSongFromDrive(opts: DownloadSongOpts): Promise<string> {
-  const { url } = await generateDownloadUrl(opts.orgId, opts.cloudFileId)
+  const { url, accessToken } = await generateDownloadUrl(opts.orgId, opts.cloudFileId)
   const baseDir = await appLocalDataDir()
   const dir = baseDir.endsWith('/') ? baseDir.slice(0, -1) : baseDir
   const destPath = `${dir}/audio/${opts.songId}.${opts.ext}`
 
   await downloadToFile({
     url,
+    // Drive não aceita mais `?access_token=` na query — vai via header.
+    headers: { Authorization: `Bearer ${accessToken}` },
     destPath,
     expectedHash: opts.expectedHash,
     expectedSize: opts.expectedSize,
