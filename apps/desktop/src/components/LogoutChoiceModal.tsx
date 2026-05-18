@@ -35,9 +35,16 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
   if (!open) return null
 
   return (
+    // Overlay decorativo — fecha em click fora. Tecla Escape já cuidada
+    // pelo listener global no useEffect acima; aqui só duplicamos pra que
+    // jsx-a11y aceite o click handler (regra typescript:S1082).
     <div
+      role="presentation"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape' && e.target === e.currentTarget) onClose()
       }}
       style={{
         position: 'fixed',

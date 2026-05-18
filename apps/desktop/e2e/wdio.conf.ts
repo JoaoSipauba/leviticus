@@ -77,10 +77,13 @@ export const config: WebdriverIO.Config = {
 
     if (isWindows) {
       // Windows: taskkill /T mata a árvore inteira (msedgedriver + app).
+      // Caminho absoluto + sem shell — evita PATH-hijacking flagged pelo
+      // Sonar S4036 (defesa em profundidade — Windows PATH é geralmente
+      // seguro, mas absoluto é mais explícito sobre intenção).
+      const taskkillPath = `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\taskkill.exe`
       await new Promise<void>((resolve) => {
-        const kill = spawn('taskkill', ['/F', '/T', '/PID', String(proc.pid)], {
+        const kill = spawn(taskkillPath, ['/F', '/T', '/PID', String(proc.pid)], {
           stdio: 'ignore',
-          shell: true,
         })
         kill.on('exit', () => resolve())
         setTimeout(resolve, 2000)
