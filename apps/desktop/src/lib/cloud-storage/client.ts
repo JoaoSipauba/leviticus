@@ -1,5 +1,10 @@
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { supabase } from '../supabase.js'
 import { env } from '../../env.js'
+
+// Padrão do projeto: todo fetch HTTP de cross-origin usa o fetch do
+// plugin-http (Rust-side, sem CORS). Tauri/WebKit aplicaria CORS em
+// chamadas pra Supabase Edge Functions / Google APIs.
 import type {
   ProviderId,
   QuotaInfo,
@@ -15,7 +20,7 @@ async function callEdge<T>(path: string, body: Record<string, unknown>, method: 
   if (!session.session) throw new Error('Not authenticated')
 
   const url = `${env.supabaseUrl}/functions/v1/${FUNCTION_NAME}/${path}`
-  const res = await fetch(url, {
+  const res = await tauriFetch(url, {
     method,
     headers: {
       Authorization: `Bearer ${session.session.access_token}`,

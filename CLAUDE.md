@@ -72,6 +72,25 @@ cd worker && pnpm dev   # tsx watch (development)
 ### HTTP permissions
 `src-tauri/capabilities/default.json` — the `http:allow-fetch` permission lists allowed URL patterns. If a new remote URL is needed, add it here. Current scope: `http://127.0.0.1:54321/**`, `https://*.supabase.co/**`, `https://*.supabase.io/**`.
 
+### Regra: nunca use `fetch` nativo pra HTTP cross-origin
+
+**Sempre** importe `fetch` de `@tauri-apps/plugin-http` (alias comum: `tauriFetch`). O `fetch` nativo do WebKit aplica CORS, e servidores externos (Google Drive, Supabase Edge Functions, oEmbed, etc.) não autorizam `Origin: http://localhost:1420` ou `Origin: tauri://localhost`. Resultado: navegador bloqueia com `Access-Control-Allow-Origin`.
+
+Padrão em qualquer arquivo que faz HTTP:
+```ts
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+const res = await tauriFetch(url, { method: 'POST', headers: {...}, body: JSON.stringify(body) })
+```
+
+Em testes Vitest, mock o módulo aliasando pro `globalThis.fetch` stubado:
+```ts
+vi.mock('@tauri-apps/plugin-http', () => ({
+  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
+}))
+```
+
+URLs novos precisam ser adicionados ao `http:allow-fetch` em `capabilities/default.json`.
+
 ### Audio playback
 `src/audio.ts` (not in `src/lib/`) — singleton Howler.js instance. **Must use `html5: true`** because the `asset://` Tauri protocol requires HTML5 audio mode. File paths are converted via `convertFileSrc()` before passing to Howler. The `PlayerMini` component polls `getPosition()` every 500ms while playing.
 

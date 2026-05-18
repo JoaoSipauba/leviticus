@@ -10,6 +10,11 @@ vi.mock('../../env.js', () => ({
   env: { supabaseUrl: 'http://localhost:54321', supabaseAnonKey: 'anon' },
 }))
 
+vi.mock('@tauri-apps/plugin-http', () => ({
+  // Aliasa pro fetch global stubado no beforeEach.
+  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
+}))
+
 import { initOAuth, getQuota, createUploadSession, generateDownloadUrl } from './client.js'
 
 describe('cloud-storage/client', () => {
