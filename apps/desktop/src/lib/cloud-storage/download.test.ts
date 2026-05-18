@@ -8,6 +8,10 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
+vi.mock('@tauri-apps/plugin-http', () => ({
+  // Aliasa pro fetch global stubado no beforeEach.
+  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
+}))
 
 import { downloadToFile } from './download.js'
 import { invoke } from '@tauri-apps/api/core'
