@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Copy } from 'lucide-react'
+import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
@@ -26,6 +27,8 @@ function expiryLabel(r: Row): string {
 }
 
 export function OrgInvites({ orgId }: { orgId: string }) {
+  // Issue #65: skeleton enquanto load() resolve.
+  const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<DisplayRow[]>([])
   const [showModal, setShowModal] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
@@ -50,6 +53,7 @@ export function OrgInvites({ orgId }: { orgId: string }) {
       for (const p of profiles ?? []) nameMap.set(p.user_id, p.full_name ?? p.user_id.slice(0, 8))
     }
     setRows(raw.map((r) => ({ ...r, status: status(r), creatorName: nameMap.get(r.created_by) ?? r.created_by.slice(0, 8) })))
+    setLoading(false)
   }
 
   useEffect(() => { void load() }, [orgId])
@@ -73,6 +77,22 @@ export function OrgInvites({ orgId }: { orgId: string }) {
     await syncOrg(orgId)
     toastSuccess('Código revogado')
     await load()
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+          <Skeleton h={14} w="60%" />
+          <Skeleton h={36} w={140} rounded="lg" />
+        </div>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <SongCardSkeleton key={i} variant="list" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

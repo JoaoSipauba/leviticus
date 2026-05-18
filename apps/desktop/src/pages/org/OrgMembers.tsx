@@ -6,6 +6,7 @@ import { getDb } from '../../lib/db.js'
 import { hasPermission, isOwner } from '../../lib/permissions.js'
 import { toastSuccess } from '../../store/toasts.js'
 import { MemberRow, type MemberDisplayRow } from '../../components/org/MemberRow.js'
+import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
 import { MemberMenu, type MenuVariant, type MemberMenuAction } from '../../components/org/MemberMenu.js'
 import { ChangeRoleModal } from '../../components/org/ChangeRoleModal.js'
 import { ManageMinistriesModal } from '../../components/org/ManageMinistriesModal.js'
@@ -20,6 +21,10 @@ type RawRow = {
 }
 
 export function OrgMembers({ orgId }: { orgId: string }) {
+  // Issue #65: loading explícito pra exibir skeleton em vez de área vazia
+  // enquanto o load() resolve. Sem isso, tab abre como se estivesse vazio
+  // e o conteúdo "pula" pro lugar uns ms depois.
+  const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<MemberDisplayRow[]>([])
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('__all__')
@@ -104,6 +109,7 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     })
 
     setRows(display)
+    setLoading(false)
 
     const distinctRoles = Array.from(new Set(display.map((d) => d.roleName).filter((v): v is string => !!v)))
     setRoleOptions(distinctRoles)
@@ -152,6 +158,23 @@ export function OrgMembers({ orgId }: { orgId: string }) {
   }
 
   const inputBase = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, color: '#f3f4f6', outline: 'none' }
+
+  if (loading) {
+    return (
+      <div>
+        <div className="flex items-center gap-3 mb-[14px]">
+          <Skeleton h={36} w="100%" rounded="lg" />
+          <Skeleton h={36} w={140} rounded="lg" />
+          <Skeleton h={36} w={140} rounded="lg" />
+        </div>
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <SongCardSkeleton key={i} variant="list" />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

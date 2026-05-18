@@ -6,6 +6,7 @@ import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { captureException } from '../lib/observability.js'
+import { Skeleton } from '../components/Skeleton.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -24,6 +25,8 @@ const SELECTED_COLORS = [
 
 
 export function Groups() {
+  // Issue #65: skeleton enquanto loadGroups() resolve.
+  const [loading, setLoading] = useState(true)
   const [groups, setGroups] = useState<GroupRow[]>([])
   const [songCount, setSongCount] = useState<Map<string, number>>(new Map())
   const [showModal, setShowModal] = useState(false)
@@ -50,6 +53,7 @@ export function Groups() {
     for (const c of counts) map.set(c.group_id, c.cnt)
     setGroups(rows)
     setSongCount(map)
+    setLoading(false)
   }
 
   useEffect(() => { loadGroups().catch((e) => captureException(e, { feature: 'groups' })) }, [orgId])
@@ -91,6 +95,25 @@ export function Groups() {
     color: '#f3f4f6', outline: 'none',
     fontSize: 14, minHeight: 44,
     boxSizing: 'border-box' as const,
+  }
+
+  if (loading) {
+    return (
+      <div className="px-6 pt-6 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton h={20} w={140} />
+            <Skeleton h={12} w={220} />
+          </div>
+          <Skeleton h={36} w={140} rounded="lg" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} h={84} w="100%" rounded="xl" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

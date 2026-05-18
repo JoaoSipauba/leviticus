@@ -68,6 +68,10 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   animation: shimmer 1.6s infinite linear;
   border-radius: 4px;
 }
+@keyframes pulse-light {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
 
 /* Badge de culto em andamento na sidebar */
 @keyframes sonar-ring {

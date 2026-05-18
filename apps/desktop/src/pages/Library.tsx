@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { Music, Loader2, Plus } from 'lucide-react'
+import { Music, Plus } from 'lucide-react'
+import { Skeleton, SongCardSkeleton } from '../components/Skeleton.js'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
@@ -111,27 +112,24 @@ export function Library() {
     return matchesSearch && matchesGroup && matchesBackup
   })
 
+  // Issue #65: em vez de spinner centralizado (que cria layout shift quando
+  // troca pelo conteúdo), mostra skeleton da própria estrutura. Usuário
+  // já vê o header + a área das cards no formato final.
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4">
-        <div
-          className="flex items-center justify-center"
-          style={{
-            width: 48, height: 48,
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: 14,
-          }}
-        >
-          <Loader2 size={22} color="#3b82f6" strokeWidth={2} className="animate-spin-smooth" />
+      <div className="px-6 pt-6 flex flex-col h-full">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton h={10} w={80} />
+            <Skeleton h={24} w={180} />
+          </div>
+          <Skeleton h={32} w={120} rounded="lg" />
         </div>
-        <div className="text-center">
-          <p className="font-semibold" style={{ color: '#f3f4f6', fontSize: 15 }}>
-            Carregando biblioteca…
-          </p>
-          <p className="text-sm mt-1" style={{ color: '#6b7280' }}>
-            Buscando suas músicas
-          </p>
+        <Skeleton h={36} w="100%" rounded="lg" mb={16} />
+        <div className="flex flex-col gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SongCardSkeleton key={i} variant="list" />
+          ))}
         </div>
       </div>
     )

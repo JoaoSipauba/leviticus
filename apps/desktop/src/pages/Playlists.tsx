@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { Skeleton } from '../components/Skeleton.js'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
   Pencil, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
@@ -36,6 +37,8 @@ function getServiceColor(id: string) {
 
 export function Playlists() {
   const navigate = useNavigate()
+  // Issue #65: skeleton enquanto loadServices() resolve (sem isso, abre vazio).
+  const [loading, setLoading] = useState(true)
   const [services, setServices] = useState<ServiceWithStatus[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Playlist | null>(null)
@@ -61,6 +64,7 @@ export function Playlists() {
       })
     )
     setServices(withStatus)
+    setLoading(false)
   }
 
   useEffect(() => { loadServices().catch((e) => captureException(e, { feature: 'playlists' })) }, [orgId])
@@ -99,6 +103,25 @@ export function Playlists() {
     await db.execute('DELETE FROM playlists WHERE id = ?', [playlist.id])
     if (orgId) await syncOrg(orgId)
     await loadServices()
+  }
+
+  if (loading) {
+    return (
+      <div className="px-8 pt-6 max-w-[1100px] mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col gap-1.5">
+            <Skeleton h={10} w={70} />
+            <Skeleton h={24} w={200} />
+          </div>
+          <Skeleton h={36} w={140} rounded="lg" />
+        </div>
+        <div className="flex flex-col gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} h={100} w="100%" rounded="xl" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

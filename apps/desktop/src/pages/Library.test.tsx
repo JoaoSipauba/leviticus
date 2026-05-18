@@ -113,13 +113,15 @@ describe('Library', () => {
     localStorage.clear()
   })
 
-  it('loading state renderiza enquanto carrega', () => {
+  it('loading state renderiza skeletons enquanto carrega', () => {
     // never resolves → stays loading
     dbSelectMock.mockReturnValue(new Promise(() => {}))
 
-    render(<Library />)
+    const { container } = render(<Library />)
 
-    expect(screen.getByText('Carregando biblioteca…')).toBeInTheDocument()
+    // Issue #65: trocamos spinner por skeletons dimensionados. Confere que
+    // pelo menos uma .skeleton class aparece (placeholder shimmer).
+    expect(container.querySelectorAll('.skeleton').length).toBeGreaterThan(3)
   })
 
   it('lista músicas carregadas', async () => {
