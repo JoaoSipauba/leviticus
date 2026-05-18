@@ -86,7 +86,21 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
             .await
             .map(|s| s.trim() == YT_DLP_VERSION)
             .unwrap_or(false);
-        if size_ok && version_ok {
+        // Guard contra o mock E2E (`fixtures/fake-yt-dlp.sh`) que vaza pra
+        // dev bundle: o fake é um shell script padded pra ~1.1MB com a
+        // version certa, então passa size+version. Detecta pela shebang `#!`
+        // — yt-dlp real é PyInstaller bundle (Mach-O/PE), começa com magic
+        // binário, não `#!`. Sem isso, todo download de YouTube vira lixo
+        // de 1024 bytes (o stub escreve `head -c 1024 /dev/zero`).
+        let real_binary_ok = match tokio::fs::File::open(&dest).await {
+            Ok(mut f) => {
+                use tokio::io::AsyncReadExt;
+                let mut buf = [0u8; 2];
+                f.read_exact(&mut buf).await.map(|_| &buf != b"#!").unwrap_or(false)
+            }
+            Err(_) => false,
+        };
+        if size_ok && version_ok && real_binary_ok {
             return Ok(dest.to_string_lossy().into_owned());
         }
         // Estado inconsistente — limpa antes de re-baixar
