@@ -61,7 +61,7 @@ export interface CloudStorageProvider {
     size: number
     mimeType: string
   }): Promise<UploadSession>
-  generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; accessToken: string; expiresAt: string }>
+  generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; accessToken: string; filename: string; expiresAt: string }>
   getFileInfo(accessToken: string, fileId: string): Promise<FileInfo | null>
   deleteFile(accessToken: string, fileId: string): Promise<void>
 }

@@ -355,6 +355,10 @@ export function SongCard({
   // verde por ~800ms antes de revelar o overlay de play. Sincronizado com a
   // animação CSS .completed-badge.
   const [justCompleted, setJustCompleted] = useState(false)
+  // Estado local pra download do Drive — não vai pelo downloadsStore (esse
+  // é só pra fila do yt-dlp). Sem isso, a UI ficava parada em "Baixar"
+  // durante o download e o usuário pensava que não estava acontecendo nada.
+  const [drivePct, setDrivePct] = useState<number | null>(null)
   const { play, currentSong, isPlaying } = usePlayerStore()
   const bumpLibrary = useUIStore((s) => s.bumpLibrary)
   const downloadStatus = useDownloadsStore(selectStatus(song.id))
@@ -601,6 +605,14 @@ export function SongCard({
             Sem isso, a UI saltaria do ring direto pro play overlay. */}
         {justCompleted ? (
           <DownloadBadge state="completed" compact={isList} />
+        ) : drivePct !== null ? (
+          // Download do Drive em andamento — progresso 0..100 já vindo
+          // do downloadToFile. DownloadBadge espera 0..1, então /100.
+          <DownloadBadge
+            state="downloading"
+            progress={drivePct / 100}
+            compact={isList}
+          />
         ) : downloadStatus.state === 'downloading' ? (
           <DownloadBadge
             state="downloading"
@@ -623,8 +635,8 @@ export function SongCard({
               // não depende do YouTube e funciona pra músicas que saíram
               // do ar. Fallback pro yt-dlp se não houver cloud_file_id.
               if (song.cloud_file_id) {
+                setDrivePct(0)
                 try {
-                  toastSuccess('Baixando do Drive…')
                   await downloadSongFromDrive({
                     orgId: localStorage.getItem('leviticus_org_id') ?? '',
                     songId: song.id,
@@ -632,12 +644,17 @@ export function SongCard({
                     ext: song.original_format ?? 'mp3',
                     expectedHash: song.cloud_file_hash ?? undefined,
                     expectedSize: song.cloud_file_size ?? undefined,
+                    onProgress: (p) => setDrivePct(p.pct),
                   })
                   setDownloaded(true)
+                  setJustCompleted(true)
+                  setTimeout(() => setJustCompleted(false), 800)
                   toastSuccess('Música baixada')
                 } catch (err) {
                   console.error('Drive download failed:', err)
                   toastError('Não foi possível baixar do Drive. Tente novamente.')
+                } finally {
+                  setDrivePct(null)
                 }
               } else {
                 enqueueDownload(song.id, song.youtube_url)

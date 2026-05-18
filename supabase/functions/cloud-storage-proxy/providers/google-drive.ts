@@ -216,16 +216,30 @@ export const googleDriveProvider: CloudStorageProvider = {
     return { sessionUrl, sessionId, expiresAt }
   },
 
-  async generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; accessToken: string; expiresAt: string }> {
+  async generateDownloadUrl(accessToken: string, fileId: string): Promise<{ url: string; accessToken: string; filename: string; expiresAt: string }> {
     // Google Drive não emite URLs pre-assinadas. Devolvemos a URL da API
     // + access_token separado pro cliente passar via header Authorization.
     //
     // ATENÇÃO: o `?access_token=` query param foi DEPRECADO pela Google
     // em ~2020 e agora retorna 403 — só header `Authorization: Bearer`
     // funciona. Por isso retornamos o token separado, não embutido na URL.
+    //
+    // Também retornamos `filename` (ex: "{songId}.m4a") — cliente usa pra
+    // saber a extensão correta a salvar. Sem isso, músicas com
+    // `original_format` NULL (legacy YouTube downloads) eram salvas como
+    // .mp3 mesmo contendo m4a, e o player não conseguia tocar.
     const url = `${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media`
+    const meta = await fetch(
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?fields=name`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    )
+    let filename = ''
+    if (meta.ok) {
+      const data = await meta.json() as { name?: string }
+      filename = data.name ?? ''
+    }
     const expiresAt = new Date(Date.now() + 50 * 60 * 1000).toISOString()
-    return { url, accessToken, expiresAt }
+    return { url, accessToken, filename, expiresAt }
   },
 
   async getFileInfo(accessToken: string, fileId: string): Promise<FileInfo | null> {

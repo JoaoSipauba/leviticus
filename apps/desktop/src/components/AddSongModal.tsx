@@ -1442,6 +1442,27 @@ export function AddSongModal() {
       // arquivo real elimina dúvida. Fire-and-forget; não bloqueia o flow.
       // Issue #27.
       void backfillDurationFromFile(song.id)
+
+      // Grava a extensão REAL do arquivo no DB. yt-dlp baixa m4a por
+      // padrão (pode cair pra webm/opus); sem isso, o download do Drive
+      // tentava salvar como .mp3 e Howler não tocava o conteúdo m4a.
+      try {
+        const { findSongFile } = await import('../lib/ytdlp.js')
+        const localPath = await findSongFile(song.id)
+        if (localPath) {
+          const realExt = localPath.split('.').pop()?.toLowerCase()
+          if (realExt) {
+            const { error: fmtErr } = await supabase
+              .from('songs')
+              .update({ original_format: realExt })
+              .eq('id', song.id)
+            if (fmtErr) console.warn('[add-song] failed to set original_format:', fmtErr.message)
+          }
+        }
+      } catch (e) {
+        console.warn('[add-song] original_format detection failed:', e)
+      }
+
       await syncOrg(orgId)
       bumpLibrary()
 
