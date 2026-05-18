@@ -7,6 +7,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
+import { Skeleton } from '../../components/Skeleton.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -37,6 +38,8 @@ const PERM_GROUPS: PermGroup[] = [
 ]
 
 export function OrgRoles({ orgId }: { orgId: string }) {
+  // Issue #65: skeleton enquanto load() resolve. Sem isso, aba abre vazia.
+  const [loading, setLoading] = useState(true)
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [perms, setPerms] = useState<Set<Permission>>(new Set())
@@ -58,6 +61,7 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     const display = r.map((x) => ({ id: x.id, name: x.name, memberCount: x.member_count }))
     setRoles(display)
     if (!selectedId && display.length > 0) setSelectedId(display[0]!.id)
+    setLoading(false)
   }
 
   async function loadPerms(roleId: string) {
@@ -138,6 +142,25 @@ export function OrgRoles({ orgId }: { orgId: string }) {
 
   function permActive(perm: Permission): boolean {
     return isDono ? true : perms.has(perm)
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+        <div className="flex flex-col gap-2">
+          <Skeleton h={36} w="100%" rounded="lg" mb={4} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} h={48} w="100%" rounded="lg" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          <Skeleton h={28} w={220} mb={8} />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} h={36} w="100%" rounded="md" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

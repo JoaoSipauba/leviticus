@@ -15,6 +15,7 @@ import { SwapAccountModal } from '../../components/integrations/SwapAccountModal
 import { DisconnectModal } from '../../components/integrations/DisconnectModal.js'
 import { AdminsList } from '../../components/integrations/AdminsList.js'
 import { captureException } from '../../lib/observability.js'
+import { Skeleton } from '../../components/Skeleton.js'
 
 type Props = { orgId: string }
 
@@ -160,6 +161,16 @@ export function OrgIntegrations({ orgId }: Props) {
       <p className="m-0 mb-[18px] text-[12px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
         Conecte uma conta Google da igreja pra guardar as músicas em nuvem. Membros baixam automaticamente quando precisarem — não precisam logar no Google.
       </p>
+
+      {/* Issue #65: status='unknown' é o inicial enquanto refreshAccount()
+          resolve. Sem skeleton aqui, aba ficava com só título + paragrafo
+          até o store atualizar — parecia que nada ia carregar. */}
+      {status === 'unknown' && (
+        <div className="flex flex-col gap-3">
+          <Skeleton h={120} w="100%" rounded="xl" />
+          <Skeleton h={80} w="100%" rounded="xl" />
+        </div>
+      )}
 
       {status === 'disconnected' && (
         <ConnectDriveCard onConnect={handleConnect} canConnect={canManage} connecting={connecting} />
