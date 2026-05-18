@@ -7,6 +7,7 @@ import { UpdateNotification } from './components/UpdateNotification.js'
 import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
 import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
+import { startNetworkMonitor, stopNetworkMonitor } from './lib/network.js'
 import { setUserContext } from './lib/observability.js'
 import * as Sentry from '@sentry/react'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
@@ -181,9 +182,12 @@ export function App() {
     // debounced (issue #16). Sem isso, mudanças feitas por outro device
     // ou membro só apareciam após fechar/reabrir o app.
     startOrgDataSync(orgId)
+    // Monitor de rede: navigator.onLine + health check Supabase. Issue #31.
+    startNetworkMonitor()
     return () => {
       stopSyncWorker()
       stopOrgDataSync()
+      stopNetworkMonitor()
     }
   }, [])
 
