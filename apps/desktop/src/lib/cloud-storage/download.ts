@@ -40,34 +40,16 @@ export async function downloadToFile(opts: DownloadOptions): Promise<void> {
   if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
 
   const total = parseInt(res.headers.get('content-length') ?? '0', 10) || opts.expectedSize || 0
-  const reader = res.body?.getReader()
-  if (!reader) throw new Error('No response body')
 
-  const chunks: Uint8Array[] = []
-  let downloaded = 0
-
-  while (true) {
-    if (opts.signal?.aborted) throw new Error('Download aborted')
-    const { done, value } = await reader.read()
-    if (done) break
-    chunks.push(value)
-    downloaded += value.length
-    if (total > 0) {
-      opts.onProgress?.({
-        downloaded,
-        total,
-        pct: Math.round((downloaded / total) * 100),
-      })
-    }
-  }
-
-  // Concatena
-  const buffer = new Uint8Array(downloaded)
-  let offset = 0
-  for (const c of chunks) {
-    buffer.set(c, offset)
-    offset += c.length
-  }
+  // Tauri v2 plugin-http NÃO suporta streaming via res.body.getReader() —
+  // o reader retorna `done: true` na primeira leitura entregando lixo
+  // (testes mostraram 1024 bytes de NULL em vez do conteúdo real). Usamos
+  // arrayBuffer() que materializa a resposta inteira (já chegou pelo Rust
+  // de qualquer jeito). Perdemos progresso granular — reportamos 0 → 100.
+  opts.onProgress?.({ downloaded: 0, total, pct: 0 })
+  const arrayBuf = await res.arrayBuffer()
+  const buffer = new Uint8Array(arrayBuf)
+  opts.onProgress?.({ downloaded: buffer.length, total: total || buffer.length, pct: 100 })
 
   await writeFile(partialPath, buffer)
 
