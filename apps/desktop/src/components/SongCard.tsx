@@ -618,7 +618,31 @@ export function SongCard({
             online={online}
             compact={isList}
             alert={!!playlistContext}
-            onDownload={() => enqueueDownload(song.id, song.youtube_url)}
+            onDownload={async () => {
+              // Prefere Drive quando temos backup: muito mais rápido,
+              // não depende do YouTube e funciona pra músicas que saíram
+              // do ar. Fallback pro yt-dlp se não houver cloud_file_id.
+              if (song.cloud_file_id) {
+                try {
+                  toastSuccess('Baixando do Drive…')
+                  await downloadSongFromDrive({
+                    orgId: localStorage.getItem('leviticus_org_id') ?? '',
+                    songId: song.id,
+                    cloudFileId: song.cloud_file_id,
+                    ext: song.original_format ?? 'mp3',
+                    expectedHash: song.cloud_file_hash ?? undefined,
+                    expectedSize: song.cloud_file_size ?? undefined,
+                  })
+                  setDownloaded(true)
+                  toastSuccess('Música baixada')
+                } catch (err) {
+                  console.error('Drive download failed:', err)
+                  toastError('Não foi possível baixar do Drive. Tente novamente.')
+                }
+              } else {
+                enqueueDownload(song.id, song.youtube_url)
+              }
+            }}
           />
         )}
         </div>
