@@ -68,13 +68,22 @@ describe('Journey F — PlaylistDetail flows', () => {
       async () => /\/library$/.test(await browser.getUrl()),
       { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T1)' }
     )
-    await new Promise((r) => setTimeout(r, 4_000))
+    // 8s pra dar tempo de syncOrg + monitores de boot resolverem antes
+    // de navegar pra detail. Sem isso, PlaylistDetail redireciona pra
+    // /services porque a playlist ainda não está no SQLite.
+    await new Promise((r) => setTimeout(r, 8_000))
 
     // Now navigate to the detail page (playlist row is in SQLite)
     await browser.url(`tauri://localhost/services/${playlist.id}`)
     await browser.waitUntil(
       async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
       { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail' }
+    )
+    // Confere que NÃO redirecionou pra /services list (PlaylistDetail
+    // navega pra /services se a playlist não está no SQLite).
+    await browser.waitUntil(
+      async () => !/\/services$/.test(await browser.getUrl()),
+      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services (T1)' }
     )
 
     // Click "Adicionar seção"
