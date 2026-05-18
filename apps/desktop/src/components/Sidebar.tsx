@@ -28,10 +28,15 @@ function detectCulto(rows: Playlist[]): ActiveCulto | null {
   return null
 }
 
+// Ordem por frequência × criticidade no fluxo do culto (issue #35):
+// 1. Cultos — ponto de entrada da operação ao vivo
+// 2. Biblioteca — preparação do repertório
+// 3. Ministérios — gerenciamento ocasional
+// 4. Organização — config rara
 const links = [
+  { to: '/services', label: 'Cultos', Icon: CalendarDays },
   { to: '/library', label: 'Biblioteca', Icon: Music },
   { to: '/ministries', label: 'Ministérios', Icon: LayoutGrid },
-  { to: '/services', label: 'Cultos', Icon: CalendarDays },
   { to: '/manage', label: 'Organização', Icon: Users },
 ]
 

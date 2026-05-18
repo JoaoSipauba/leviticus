@@ -102,6 +102,19 @@ describe('Sidebar', () => {
     expect(screen.getByText('Organização').closest('a')).toHaveAttribute('href', '/manage')
   })
 
+  it('ordem reflete frequência durante o culto: Cultos > Biblioteca > Ministérios > Organização', () => {
+    // Issue #35: ponto de entrada da operação ao vivo é o Culto.
+    render(<Sidebar />)
+    const labels = ['Cultos', 'Biblioteca', 'Ministérios', 'Organização']
+    const linkEls = labels.map((l) => screen.getByText(l).closest('a')!)
+    // Posição no DOM deve ser monotônica crescente (na ordem do array).
+    for (let i = 1; i < linkEls.length; i++) {
+      expect(
+        linkEls[i - 1].compareDocumentPosition(linkEls[i]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+    }
+  })
+
   it('mostra o nome da org vindo do supabase', async () => {
     render(<Sidebar />)
 
