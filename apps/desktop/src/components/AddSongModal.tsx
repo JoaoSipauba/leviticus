@@ -1322,16 +1322,18 @@ export function AddSongModal() {
       // 4. Upload pro Drive (se conectado)
       if (cloudStatus === 'connected') {
         try {
-          setProgress(10)
+          // progress é 0..1; uploadSongToDrive entrega pct em 0..100.
+          // Mapeamos [0..100] → [0.1..0.95] pra deixar 5% de folga no fim.
+          setProgress(0.1)
           await uploadSongToDrive({
             orgId: currentOrgId,
             songId,
             filePath: absPath,
             ext,
             kind: detectedFormat.kind,
-            onProgress: (pct) => setProgress(10 + Math.round(pct * 0.85)),
+            onProgress: (pct) => setProgress(0.1 + (pct / 100) * 0.85),
           })
-          setProgress(100)
+          setProgress(1)
           toastSuccess('Música adicionada e salva no backup')
         } catch (uploadErr) {
           console.error('upload failed:', uploadErr)
@@ -1457,14 +1459,14 @@ export function AddSongModal() {
               ? 'lossless' as const
               : 'lossy' as const
 
-            setProgress(0)  // Reset progress bar pra o upload
+            setProgress(0)  // Reset progress bar pra o upload (escala 0..1)
             await uploadSongToDrive({
               orgId,
               songId: song.id,
               filePath: localFilePath,
               ext,
               kind,
-              onProgress: (pct) => setProgress(pct),
+              onProgress: (pct) => setProgress(pct / 100),
             })
             toastSuccess('Música adicionada e salva no backup')
           }
