@@ -27,6 +27,7 @@ import { FileTab } from './add-song/FileTab.js'
 import { detectFromBytes, type DetectedFormat } from '../lib/cloud-storage/format-detection.js'
 import { writeFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
+import { readDurationFromBlob, backfillDurationFromFile } from '../lib/audio-meta.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
 import { supabase } from '../lib/supabase.js'
@@ -1266,6 +1267,12 @@ export function AddSongModal() {
     if (!authData.user) { setError('Sessão expirada'); setSaving(false); return }
 
     try {
+      // 0. Lê duração do arquivo ANTES do INSERT — arquivo é fonte da verdade.
+      // Issue #27. Se HTMLMediaElement falhar (formato exótico, arquivo
+      // corrompido), cai pra null e backfill posterior tenta de novo.
+      const durationFromFile = await readDurationFromBlob(selectedFile)
+      const durationSeconds = durationFromFile ? Math.round(durationFromFile) : null
+
       // 1. Insert song row no Supabase. backup_status='pending' por padrão.
       const { data: songRow, error: insertErr } = await supabase
         .from('songs')
@@ -1276,7 +1283,7 @@ export function AddSongModal() {
           title: title.trim(),
           artist: artist.trim() || 'Desconhecido',
           thumbnail_url: null,
-          duration_seconds: null,
+          duration_seconds: durationSeconds,
           song_type: songType,
           source: 'upload',
           original_format: detectedFormat.ext,
@@ -1428,6 +1435,11 @@ export function AddSongModal() {
         setProgress((prev) => Math.max(prev, p))
         setDownloading(true, p)
       })
+      // Após download: lê duração do arquivo baixado (fonte da verdade).
+      // oEmbed/yt-dlp metadata pode ter mentido ou vir null — re-ler do
+      // arquivo real elimina dúvida. Fire-and-forget; não bloqueia o flow.
+      // Issue #27.
+      void backfillDurationFromFile(song.id)
       await syncOrg(orgId)
       bumpLibrary()
 

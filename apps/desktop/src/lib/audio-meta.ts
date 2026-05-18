@@ -4,15 +4,14 @@ import { getDb } from './db.js'
 import { supabase } from './supabase.js'
 
 /**
- * Lê duração do arquivo de áudio local via HTMLMediaElement (mesmo parser
- * que Howler usa, mas isolado do player principal). Resolve em 0 ou null
- * se o arquivo não pode ser lido.
+ * Lê duração de uma URL de áudio via HTMLMediaElement. Helper interno
+ * compartilhado por `readDurationFromFile` e `readDurationFromBlob`.
  *
  * Note: pra alguns VBR mp3 sem tag TLEN, o parser pode reportar duração
  * incorreta (ver #42). Aqui aceitamos isso — melhor ter valor aproximado
  * do que `--:--` permanente na biblioteca.
  */
-export function readDurationFromFile(filePath: string, timeoutMs = 5000): Promise<number | null> {
+function readDurationFromSrc(src: string, timeoutMs = 5000): Promise<number | null> {
   return new Promise((resolve) => {
     const audio = new Audio()
     audio.preload = 'metadata'
@@ -40,8 +39,29 @@ export function readDurationFromFile(filePath: string, timeoutMs = 5000): Promis
       done(null)
     }, { once: true })
 
-    audio.src = convertFileSrc(filePath)
+    audio.src = src
   })
+}
+
+/**
+ * Lê duração de arquivo já gravado em disco (path local do Tauri).
+ */
+export function readDurationFromFile(filePath: string, timeoutMs = 5000): Promise<number | null> {
+  return readDurationFromSrc(convertFileSrc(filePath), timeoutMs)
+}
+
+/**
+ * Lê duração de um Blob/File em memória — sem precisar gravar em disco
+ * primeiro. Permite preencher duration_seconds no INSERT do AddSongModal
+ * (arquivo é fonte da verdade). Issue #27.
+ */
+export async function readDurationFromBlob(blob: Blob, timeoutMs = 5000): Promise<number | null> {
+  const url = URL.createObjectURL(blob)
+  try {
+    return await readDurationFromSrc(url, timeoutMs)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
 }
 
 const inFlight = new Set<string>()

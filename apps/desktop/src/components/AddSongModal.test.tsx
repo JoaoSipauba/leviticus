@@ -78,6 +78,12 @@ vi.mock('../lib/cloud-storage/upload-song.js', () => ({
   uploadSongToDrive: vi.fn().mockResolvedValue(undefined),
 }))
 
+vi.mock('../lib/audio-meta.js', () => ({
+  readDurationFromBlob: vi.fn().mockResolvedValue(263),
+  readDurationFromFile: vi.fn().mockResolvedValue(263),
+  backfillDurationFromFile: vi.fn().mockResolvedValue(263),
+}))
+
 vi.mock('../lib/cloud-storage/client.js', () => ({
   getQuota: vi.fn().mockResolvedValue({ available: 1e10, used: 0, total: 1e10 }),
 }))

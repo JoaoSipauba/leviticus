@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 const { findSongFileMock, dbExecuteMock, supabaseEqMock, supabaseUpdateMock, supabaseFromMock } = vi.hoisted(() => ({
   findSongFileMock: vi.fn(),
@@ -84,5 +84,52 @@ describe('backfillDurationFromFile', () => {
     setupAudioStub({ duration: NaN, succeeds: true })
     const result = await backfillDurationFromFile('song-nan')
     expect(result).toBeNull()
+  })
+})
+
+describe('readDurationFromBlob', () => {
+  let originalCreate: typeof URL.createObjectURL
+  let originalRevoke: typeof URL.revokeObjectURL
+  let createCalls: Blob[]
+  let revokeCalls: string[]
+
+  beforeEach(() => {
+    originalCreate = URL.createObjectURL
+    originalRevoke = URL.revokeObjectURL
+    createCalls = []
+    revokeCalls = []
+    URL.createObjectURL = vi.fn((b: Blob) => {
+      createCalls.push(b)
+      return `blob:fake#${createCalls.length}`
+    }) as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn((url: string) => { revokeCalls.push(url) })
+    setupAudioStub({ duration: 263, succeeds: true })
+  })
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+  })
+
+  it('cria objectURL do Blob, lê duração, revoga o URL no fim', async () => {
+    const { readDurationFromBlob } = await import('./audio-meta.js')
+    const blob = new Blob([new Uint8Array(1024)], { type: 'audio/mp3' })
+    const result = await readDurationFromBlob(blob)
+
+    expect(result).toBe(263)
+    expect(createCalls).toHaveLength(1)
+    expect(createCalls[0]).toBe(blob)
+    expect(revokeCalls).toHaveLength(1)
+    expect(revokeCalls[0]).toBe('blob:fake#1')
+  })
+
+  it('revoga objectURL mesmo se leitura falhar', async () => {
+    setupAudioStub({ succeeds: false })
+    const { readDurationFromBlob } = await import('./audio-meta.js')
+    const blob = new Blob([new Uint8Array(1)], { type: 'audio/mp3' })
+    const result = await readDurationFromBlob(blob)
+
+    expect(result).toBeNull()
+    expect(revokeCalls).toHaveLength(1) // URL liberado mesmo em erro
   })
 })
