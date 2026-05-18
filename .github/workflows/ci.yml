@@ -167,10 +167,12 @@ jobs:
 
       - name: Build app (debug)
         working-directory: apps/desktop
-        # PowerShell aqui — não usar Git Bash. O coreutils do Git for Windows
-        # tem `link` (binary GNU) que conflita com `link.exe` do MSVC no PATH
-        # quando cargo invoca o linker. PowerShell resolve link.exe corretamente.
-        shell: pwsh
+        # Windows PowerShell 5 aqui — não usar Git Bash. O coreutils do Git
+        # for Windows tem `link` (binary GNU) que conflita com `link.exe` do
+        # MSVC no PATH quando cargo invoca o linker. PowerShell resolve direito.
+        # Usa `powershell` (5.1) em vez de `pwsh` (7) pq o runner self-hosted
+        # não tem PowerShell 7 instalado.
+        shell: powershell
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:54321
           VITE_SUPABASE_ANON_KEY: ${{ steps.supabase-keys.outputs.anon }}

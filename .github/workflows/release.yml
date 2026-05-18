@@ -89,7 +89,7 @@ jobs:
         # macOS usa bash. Windows usa pwsh — Git Bash em Windows tem binário
         # 'link' (coreutils) que conflita com 'link.exe' do MSVC ao cargo
         # invocar o linker. PowerShell resolve link.exe corretamente.
-        shell: ${{ matrix.platform_key == 'windows-x86_64' && 'pwsh' || 'bash' }}
+        shell: ${{ matrix.platform_key == 'windows-x86_64' && 'powershell' || 'bash' }}
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
