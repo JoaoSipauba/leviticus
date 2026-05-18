@@ -197,6 +197,25 @@ Outros helpers:
 
 Setup em prod: defina `VITE_SENTRY_DSN` como GitHub secret (`Settings → Secrets → VITE_SENTRY_DSN`) e exponha no workflow de build. Em dev local não precisa — Sentry fica desligado e logs ficam só no console (esperado).
 
+### Cobertura no Rust (backend Tauri)
+
+`tauri-plugin-sentry` + `sentry` crate inicializados em [src-tauri/src/lib.rs](apps/desktop/src-tauri/src/lib.rs) no `run()`. Captura:
+
+- **Panics do Rust** (`panic!` / `unwrap()` em `None` / `expect()` que falha)
+- **Crashes nativos** via minidumps (segfault, OOM, abort) — exceto em iOS
+- **Erros de commands Tauri** que retornam `Err(String)` ainda **não** vão automaticamente — pra capturar, use `sentry::capture_error(&err)` antes do `return Err(...)` dentro do comando
+
+O plugin faz **bridge entre Rust e JS SDK**: breadcrumbs e tags ficam unificados nos events. Ou seja, um panic no Rust traz junto o histórico de cliques que aconteceu antes no frontend, e vice-versa.
+
+**Setup do DSN no Rust:** `option_env!("VITE_SENTRY_DSN")` lê em **compile time**.
+- Prod: release.yml expõe a secret via `env:` antes do `pnpm tauri build` — propagado pro cargo.
+- Dev local: precisa exportar antes de buildar. Exemplo:
+  ```bash
+  export VITE_SENTRY_DSN=https://...@sentry.io/...
+  pnpm tauri dev
+  ```
+  Sem o export, `option_env!` devolve None e o init é skip (no-op). Frontend Sentry continua funcionando normal.
+
 ## Testing strategy
 
 Três camadas, em ordem de custo-benefício. Toda nova feature deve ter cobertura na camada mais barata em que faz sentido — não pular pra E2E o que cabe em unit.

@@ -39,6 +39,14 @@ futures-util = "0.3"
 flate2 = "1"
 sha2 = "0.10"
 hex = "0.4"
+# Issue #39 (Rust side). Comunica panics e crashes do backend Tauri pro
+# mesmo projeto Sentry do frontend. tauri-plugin-sentry expõe um plugin
+# Tauri que faz bridge entre o Rust SDK e o JS SDK — breadcrumbs e
+# contexto ficam unificados nos events. Em dev sem DSN definido em
+# build-time, o init é skip (option_env! retorna None) e o plugin
+# inicializa em modo no-op.
+sentry = "0.42"
+tauri-plugin-sentry = "0.5"
 
 [dev-dependencies]
 tempfile = "3"
