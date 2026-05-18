@@ -6,6 +6,7 @@ import { Layout } from './components/Layout.js'
 import { UpdateNotification } from './components/UpdateNotification.js'
 import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
+import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
@@ -166,7 +167,14 @@ export function App() {
     void useIntegrationsStore.getState().refreshAccount(orgId)
     const status = useIntegrationsStore.getState().status
     startSyncWorker(orgId, { status })
-    return () => { stopSyncWorker() }
+    // Reactive sync: postgres_changes + window focus disparam syncOrg
+    // debounced (issue #16). Sem isso, mudanças feitas por outro device
+    // ou membro só apareciam após fechar/reabrir o app.
+    startOrgDataSync(orgId)
+    return () => {
+      stopSyncWorker()
+      stopOrgDataSync()
+    }
   }, [])
 
   useEffect(() => {
