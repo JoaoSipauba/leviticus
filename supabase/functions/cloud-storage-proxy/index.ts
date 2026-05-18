@@ -265,10 +265,14 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
   </script>
 </body>
 </html>`
-  return new Response(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
-  })
+  // Usa Headers object explícito — em alguns gateways, plain object como
+  // `headers: {...}` não sobrescreve o default `text/plain` que o runtime
+  // do Supabase Edge adiciona, e a página vem como string em vez de HTML.
+  const responseHeaders = new Headers()
+  responseHeaders.set('Content-Type', 'text/html; charset=utf-8')
+  responseHeaders.set('Cache-Control', 'no-store')
+  responseHeaders.set('X-Content-Type-Options', 'nosniff')
+  return new Response(html, { status: 200, headers: responseHeaders })
 }
 
 async function handleQuota(ctx: any): Promise<Response> {
