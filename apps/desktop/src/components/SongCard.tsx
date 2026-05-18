@@ -17,13 +17,7 @@ import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
 import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 
-function fmtDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
+import { formatDuration as fmtDuration } from '../lib/format-duration.js'
 
 const TYPE_CONFIG: Record<SongType, { label: string; hex: string; icon: React.ReactNode }> = {
   normal:       { label: 'Normal',       hex: '#9ca3af', icon: <Music size={9} strokeWidth={2.5} /> },

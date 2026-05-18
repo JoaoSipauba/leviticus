@@ -16,14 +16,7 @@ import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
 import * as mediaSession from '../lib/mediaSession.js'
 
-function fmt(s: number): string {
-  const h = Math.floor(s / 3600)
-  const rem = s % 3600
-  const m = Math.floor(rem / 60)
-  const sec = Math.floor(rem % 60)
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
-  return `${m}:${sec.toString().padStart(2, '0')}`
-}
+import { formatDuration as fmt } from '../lib/format-duration.js'
 
 export function PlayerMini() {
   const {
