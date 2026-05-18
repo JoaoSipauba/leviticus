@@ -128,11 +128,17 @@ describe('Sidebar', () => {
     expect(screen.queryByText('Igreja Teste')).not.toBeInTheDocument()
   })
 
-  it('botão Sair chama signOut do store de auth', async () => {
+  it('botão Sair abre modal de escolha; clicar "Sair da conta" chama signOut', async () => {
     render(<Sidebar />)
 
+    // Issue #33: clicar "Sair" agora abre modal de escolha em vez de
+    // chamar signOut direto.
     const logoutBtn = screen.getByRole('button', { name: /sair/i })
     await userEvent.click(logoutBtn)
+
+    // Modal aberto — clica em "Sair da conta"
+    const signOutInModal = await screen.findByRole('button', { name: /Sair da conta/i })
+    await userEvent.click(signOutInModal)
 
     expect(mocks.signOutFn).toHaveBeenCalledOnce()
   })
