@@ -54,7 +54,13 @@ export function UpdateNotification() {
       } catch (e) {
         // Falha silenciosa — backend pode estar offline, pubkey ausente etc.
         // Não mostra erro pro usuário porque updater é opcional.
-        console.warn('[updater] check falhou:', e)
+        // Em dev (tauri.conf.dev.json tem endpoints=[]), o erro é
+        // "Updater does not have any endpoints set" — esperado, ignora
+        // pra não poluir o console.
+        const msg = String((e as Error)?.message ?? e)
+        if (!msg.includes('does not have any endpoints')) {
+          console.warn('[updater] check falhou:', e)
+        }
         scheduleNext(CHECK_INTERVAL_MS)
       } finally {
         checkingRef.current = false
