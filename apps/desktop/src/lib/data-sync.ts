@@ -64,16 +64,30 @@ export function startOrgDataSync(orgId: string): void {
   currentOrgId = orgId
 
   // ── Realtime: postgres_changes em todas as tabelas relevantes ────────────
-  channel = supabase.channel(`org-data:${orgId}`)
-  for (const { table, filter } of ORG_TABLES) {
-    const opts: Record<string, unknown> = { event: '*', schema: 'public', table }
-    if (filter) opts.filter = `org_id=eq.${orgId}`
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    channel.on('postgres_changes', opts as any, () => {
-      if (currentOrgId) scheduleSync(currentOrgId)
-    })
+  // WebKit do macOS trata `tauri://localhost` como insecure context e bloqueia
+  // WebSocket — `new WebSocket()` lança "The operation is insecure". O cliente
+  // Realtime do Supabase tenta abrir wss síncronamente em .subscribe() e o
+  // erro propaga, crashando o app inteiro pela ErrorBoundary. Wrap em
+  // try/catch garante degradação graciosa pra só focus refresh + polling
+  // implícito do startSyncWorker, que cobrem 80% dos casos.
+  try {
+    channel = supabase.channel(`org-data:${orgId}`)
+    for (const { table, filter } of ORG_TABLES) {
+      const opts: Record<string, unknown> = { event: '*', schema: 'public', table }
+      if (filter) opts.filter = `org_id=eq.${orgId}`
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      channel.on('postgres_changes', opts as any, () => {
+        if (currentOrgId) scheduleSync(currentOrgId)
+      })
+    }
+    channel.subscribe()
+  } catch (e) {
+    // WebSocket insecure / Realtime indisponível — segue sem ele. Window
+    // focus listener (abaixo) ainda dispara syncOrg, e sync-worker normal
+    // de 5min cobre o resto.
+    console.warn('[data-sync] Realtime indisponível, usando só focus + polling:', e)
+    channel = null
   }
-  channel.subscribe()
 
   // ── Refocus: window ganha foco → sync (safety net pra quando Realtime ────
   // desconecta silenciosamente, ex: app em background no macOS).

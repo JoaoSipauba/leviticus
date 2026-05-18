@@ -175,16 +175,21 @@ describe('Journey #6 — Org invites', () => {
 
     before(async () => {
       // Sign out the previous user (Test 1 left the app at /manage logged in).
-      // Click the sidebar "Sair" button so App.tsx's onAuthStateChange redirects
-      // to /login — keeping the same WebDriver session alive.
+      // Click "Sair" → modal opens (issue #33) → click "Sair da conta" →
+      // App.tsx's onAuthStateChange redirects to /login.
       const currentUrl = await browser.getUrl()
       if (!/\/login/.test(currentUrl)) {
         const sairBtn = $('button=Sair')
         await sairBtn.waitForExist({ timeout: 10_000 })
         await sairBtn.click()
+        // Modal de escolha aparece com duas opções: trocar org / sair da conta.
+        // Texto está em div aninhada — usar match parcial.
+        const signOutInModal = $('button*=Sair da conta')
+        await signOutInModal.waitForExist({ timeout: 5_000 })
+        await signOutInModal.click()
         await browser.waitUntil(
           async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
-          { timeout: 20_000, timeoutMsg: 'App did not redirect to /login after clicking Sair' }
+          { timeout: 20_000, timeoutMsg: 'App did not redirect to /login after clicking Sair da conta' }
         )
       }
 

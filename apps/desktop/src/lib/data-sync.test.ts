@@ -104,6 +104,31 @@ describe('data-sync', () => {
     expect(removeChannelMock).toHaveBeenCalledWith(channelMock)
   })
 
+  it('quando Realtime falha (WebSocket insecure), focus listener continua funcionando', async () => {
+    // WebKit do macOS bloqueia WebSocket de tauri://localhost. supabase
+    // .channel() ou .subscribe() pode jogar. Garantir que app não crasha
+    // e que o focus listener (safety net) ainda funciona.
+    channelSubscribeMock.mockImplementationOnce(() => {
+      throw new Error('WebSocket not available: The operation is insecure.')
+    })
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // Não deve lançar
+    expect(() => startOrgDataSync('org-1')).not.toThrow()
+    expect(consoleWarn).toHaveBeenCalledWith(
+      expect.stringContaining('Realtime indisponível'),
+      expect.any(Error),
+    )
+
+    // Focus listener continua ativo — emula focus event
+    Object.defineProperty(navigator, 'onLine', { value: true, configurable: true })
+    window.dispatchEvent(new Event('focus'))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(syncOrgMock).toHaveBeenCalledWith('org-1')
+
+    consoleWarn.mockRestore()
+  })
+
   it('syncOrg bem-sucedido chama bumpLibrary pra re-renderizar UI', async () => {
     startOrgDataSync('org-1')
     const handler = channelOnMock.mock.calls[0][2] as () => void

@@ -36,7 +36,7 @@ describe('Journey #3 — Play / Pause song', () => {
     const videoId = 'playpaus001'  // 11 chars — fetchYoutubeMetadata requires exactly 11
     const url = `https://youtube.com/watch?v=${videoId}`
 
-    const addBtn = $('button=Adicionar')
+    const addBtn = $('button*=Adicionar')
     await addBtn.waitForExist({ timeout: 15_000 })
     await addBtn.click()
 

@@ -90,8 +90,12 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
         // dev bundle: o fake é um shell script padded pra ~1.1MB com a
         // version certa, então passa size+version. Detecta pela shebang `#!`
         // — yt-dlp real é PyInstaller bundle (Mach-O/PE), começa com magic
-        // binário, não `#!`. Sem isso, todo download de YouTube vira lixo
-        // de 1024 bytes (o stub escreve `head -c 1024 /dev/zero`).
+        // binário, não `#!`.
+        //
+        // Em debug builds (E2E + dev local) NÃO aplicamos — o E2E precisa
+        // do shell stub pra testes determinísticos. Em release (binário
+        // de prod), a guard fica ativa pra proteger usuários reais.
+        #[cfg(not(debug_assertions))]
         let real_binary_ok = match tokio::fs::File::open(&dest).await {
             Ok(mut f) => {
                 use tokio::io::AsyncReadExt;
@@ -100,6 +104,9 @@ pub async fn ensure_yt_dlp(app: AppHandle) -> Result<String, String> {
             }
             Err(_) => false,
         };
+        #[cfg(debug_assertions)]
+        let real_binary_ok = true;
+
         if size_ok && version_ok && real_binary_ok {
             return Ok(dest.to_string_lossy().into_owned());
         }

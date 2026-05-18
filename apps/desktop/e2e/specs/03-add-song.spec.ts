@@ -41,7 +41,7 @@ describe('Journey #2 — Add song via paste URL', () => {
       async () => /\/library$/.test(await browser.getUrl()),
       { timeout: 60_000, timeoutMsg: 'Did not land on /library after org creation' }
     )
-    const addBtn = $('button=Adicionar')
+    const addBtn = $('button*=Adicionar')
     await addBtn.waitForExist({ timeout: 15_000 })
     await addBtn.click()
 
