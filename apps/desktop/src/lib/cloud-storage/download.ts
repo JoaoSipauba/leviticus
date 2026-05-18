@@ -1,5 +1,5 @@
 import { exists, remove } from '@tauri-apps/plugin-fs'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, Channel } from '@tauri-apps/api/core'
 
 // O download acontece INTEIRO no Rust via `cloud_storage_download_to_file`.
 // Por quê: o Tauri v2 plugin-http NÃO suporta streaming de resposta no
@@ -7,6 +7,10 @@ import { invoke } from '@tauri-apps/api/core'
 // `res.arrayBuffer()` tem comportamento inconsistente em arquivos
 // binários grandes (testes empíricos mostraram 1024 bytes de NULL em
 // vez do conteúdo). No Rust o reqwest streaming funciona normal.
+//
+// Progresso granular vem via `tauri::ipc::Channel<DownloadProgressEvent>`
+// — Rust emite throttled (~100ms) durante o stream e JS aciona o
+// callback do caller. Sem isso a barra saltava de 0 → 100% direto.
 
 export type DownloadProgress = {
   downloaded: number
@@ -35,15 +39,24 @@ export async function downloadToFile(opts: DownloadOptions): Promise<void> {
   // Limpa qualquer .partial órfão
   if (await exists(partialPath)) await remove(partialPath)
 
-  // Progresso: começamos em 0, reportamos 100 quando termina. O download
-  // acontece todo no Rust e não temos chunks no JS pra reportar pontos
-  // intermediários — aceitável pra arquivos de áudio (poucos MB).
+  // Progresso via Tauri Channel — Rust emite eventos throttled a cada
+  // ~100ms durante o stream, JS aciona o callback do caller.
   opts.onProgress?.({ downloaded: 0, total: opts.expectedSize ?? 0, pct: 0 })
+
+  const progressChannel = new Channel<{ downloaded: number; total: number }>()
+  if (opts.onProgress) {
+    progressChannel.onmessage = (msg) => {
+      const t = msg.total > 0 ? msg.total : (opts.expectedSize ?? 0)
+      const pct = t > 0 ? Math.min(100, Math.round((msg.downloaded / t) * 100)) : 0
+      opts.onProgress?.({ downloaded: msg.downloaded, total: t, pct })
+    }
+  }
 
   const total = await invoke<number>('cloud_storage_download_to_file', {
     url: opts.url,
     destPath: partialPath,
     headers: opts.headers ?? null,
+    onProgress: progressChannel,
   })
 
   // Sanity check: áudio nunca é tão pequeno. Se chegou < 2KB, algo falhou

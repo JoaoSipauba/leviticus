@@ -1,9 +1,21 @@
+use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use tauri::ipc::Channel;
 use tokio::io::AsyncWriteExt;
+
+/// Evento emitido pelo `cloud_storage_download_to_file` via Tauri Channel.
+/// Cliente JS recebe via `new Channel<DownloadProgressEvent>()` e assina
+/// `channel.onmessage`.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadProgressEvent {
+    pub downloaded: u64,
+    pub total: u64,
+}
 
 #[tauri::command]
 pub async fn cloud_storage_hash_file(path: String) -> Result<String, String> {
@@ -52,6 +64,7 @@ pub async fn cloud_storage_download_to_file(
     url: String,
     dest_path: String,
     headers: Option<HashMap<String, String>>,
+    on_progress: Option<Channel<DownloadProgressEvent>>,
 ) -> Result<u64, String> {
     let client = reqwest::Client::builder()
         .build()
@@ -69,6 +82,10 @@ pub async fn cloud_storage_download_to_file(
         return Err(format!("HTTP {}", res.status()));
     }
 
+    // Total esperado pra calcular % no cliente. Pode vir None pra responses
+    // sem content-length (raro em Drive, mas defensivo).
+    let total_expected = res.content_length().unwrap_or(0);
+
     let dest = PathBuf::from(&dest_path);
     if let Some(parent) = dest.parent() {
         tokio::fs::create_dir_all(parent)
@@ -82,6 +99,9 @@ pub async fn cloud_storage_download_to_file(
 
     let mut stream = res.bytes_stream();
     let mut total: u64 = 0;
+    // Throttle: emite no máximo a cada 100ms pra não inundar o IPC bridge.
+    // Arquivos grandes (50MB+) podem gerar milhares de chunks pequenos.
+    let mut last_emit = std::time::Instant::now();
     use futures_util::StreamExt;
     while let Some(chunk) = stream.next().await {
         let bytes = chunk.map_err(|e| format!("stream: {e}"))?;
@@ -89,8 +109,24 @@ pub async fn cloud_storage_download_to_file(
             .await
             .map_err(|e| format!("write: {e}"))?;
         total += bytes.len() as u64;
+        if let Some(ch) = &on_progress {
+            if last_emit.elapsed().as_millis() >= 100 {
+                let _ = ch.send(DownloadProgressEvent {
+                    downloaded: total,
+                    total: total_expected,
+                });
+                last_emit = std::time::Instant::now();
+            }
+        }
     }
     file.flush().await.map_err(|e| format!("flush: {e}"))?;
+    // Final event garantindo 100% mesmo se o último throttle pulou.
+    if let Some(ch) = &on_progress {
+        let _ = ch.send(DownloadProgressEvent {
+            downloaded: total,
+            total: total_expected.max(total),
+        });
+    }
     Ok(total)
 }
 

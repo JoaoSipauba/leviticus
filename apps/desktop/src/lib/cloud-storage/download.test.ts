@@ -6,6 +6,11 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 }))
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
+  // Stub Channel — testes não consomem mensagens, só verificam que o
+  // objeto é passado pro invoke. Suficiente pra cobrir a API surface.
+  Channel: class {
+    onmessage: ((msg: unknown) => void) | null = null
+  },
 }))
 
 import { downloadToFile } from './download.js'
@@ -25,11 +30,11 @@ describe('downloadToFile', () => {
   it('chama Rust download e renomeia .partial → dest', async () => {
     await downloadToFile({ url: 'https://x', destPath: '/dest/song.opus' })
 
-    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', {
+    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', expect.objectContaining({
       url: 'https://x',
       destPath: '/dest/song.opus.partial',
       headers: null,
-    })
+    }))
     expect(invoke).toHaveBeenCalledWith('cloud_storage_rename_file', {
       from: '/dest/song.opus.partial',
       to: '/dest/song.opus',
@@ -42,11 +47,11 @@ describe('downloadToFile', () => {
       destPath: '/dest/song.opus',
       headers: { Authorization: 'Bearer t' },
     })
-    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', {
+    expect(invoke).toHaveBeenCalledWith('cloud_storage_download_to_file', expect.objectContaining({
       url: 'https://x',
       destPath: '/dest/song.opus.partial',
       headers: { Authorization: 'Bearer t' },
-    })
+    }))
   })
 
   it('valida hash quando fornecido — sucesso', async () => {
