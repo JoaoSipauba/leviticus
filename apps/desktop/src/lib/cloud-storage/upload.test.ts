@@ -27,7 +27,7 @@ describe('uploadResumable', () => {
 
   it('chunked: completa em uma chamada quando arquivo pequeno', async () => {
     ;(readFile as any).mockResolvedValue(new Uint8Array(1024))
-    ;(globalThis.fetch as any).mockResolvedValue(new Response(null, { status: 200 }))
+    ;(globalThis.fetch as any).mockResolvedValue(new Response(JSON.stringify({ id: 'drive-file-id', size: '100', mimeType: 'audio/mpeg' }), { status: 200 }))
 
     const progress: number[] = []
     await uploadResumable({
@@ -45,7 +45,7 @@ describe('uploadResumable', () => {
     ;(readFile as any).mockResolvedValue(new Uint8Array(100))
     ;(globalThis.fetch as any)
       .mockResolvedValueOnce(new Response(null, { status: 503 }))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ id: 'retry-file-id', size: '100' }), { status: 200 }))
 
     const promise = uploadResumable({
       filePath: '/x',

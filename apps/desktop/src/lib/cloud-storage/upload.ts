@@ -16,6 +16,14 @@ export type UploadProgress = {
   pct: number       // 0..100
 }
 
+export type UploadResult = {
+  // Metadados do arquivo criado, vindos do JSON da resposta final do PUT.
+  // Google retorna o file resource completo quando o último chunk é aceito.
+  fileId: string
+  size: number | null
+  mimeType: string | null
+}
+
 export type UploadOptions = {
   filePath: string                              // path absoluto no device
   session: UploadSession                        // criada via client.createUploadSession
@@ -28,7 +36,7 @@ export type UploadOptions = {
  * Em caso de 5xx, retry com backoff (até 5 tentativas).
  * Retorna quando o último chunk é aceito (server responde 200/201).
  */
-export async function uploadResumable(opts: UploadOptions): Promise<void> {
+export async function uploadResumable(opts: UploadOptions): Promise<UploadResult> {
   const fileBytes = await readFile(opts.filePath)
   const total = fileBytes.length
   let offset = 0
@@ -68,9 +76,21 @@ export async function uploadResumable(opts: UploadOptions): Promise<void> {
     }
 
     if (res.status === 200 || res.status === 201) {
-      // Upload completo
+      // Upload completo — Google retorna o file resource (id, size, etc).
+      // É AQUI que pegamos o fileId real, não via getFileInfo(upload_id).
       opts.onProgress?.({ uploaded: total, total, pct: 100 })
-      return
+      const text = await res.text()
+      try {
+        const data = JSON.parse(text) as { id?: string; size?: string; mimeType?: string }
+        if (!data.id) throw new Error('Upload response missing file id')
+        return {
+          fileId: data.id,
+          size: data.size ? parseInt(data.size, 10) : null,
+          mimeType: data.mimeType ?? null,
+        }
+      } catch (e) {
+        throw new Error(`Upload response parse failed: ${(e as Error).message}; body=${text.slice(0, 200)}`)
+      }
     }
 
     if (res.status >= 500 || res.status === 429) {
@@ -85,4 +105,6 @@ export async function uploadResumable(opts: UploadOptions): Promise<void> {
     const text = await res.text()
     throw new Error(`Upload failed: ${res.status} ${text}`)
   }
+  // Loop terminou sem 200/201 — não deveria acontecer (308 sempre continua).
+  throw new Error('Upload loop ended without receiving final response')
 }

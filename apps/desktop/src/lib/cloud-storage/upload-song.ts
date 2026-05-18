@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { compressToOpus } from './compression.js'
-import { createUploadSession, getFileInfo } from './client.js'
+import { createUploadSession } from './client.js'
 import { uploadResumable } from './upload.js'
 import { setBackupStatus } from './status.js'
 import type { AudioCategory } from './format-detection.js'
@@ -67,8 +67,11 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
       mimeType,
     })
 
-    // 4. Upload chunked
-    await uploadResumable({
+    // 4. Upload chunked — a resposta final do PUT já contém o file
+    // resource do Drive (id, size, mimeType). Antes chamávamos
+    // `getFileInfo(orgId, sessionId)` mas o sessionId é o `upload_id`,
+    // não o fileId — Drive sempre retornava 404.
+    const result = await uploadResumable({
       filePath: uploadPath,
       session,
       onProgress: opts.onProgress
@@ -76,15 +79,10 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
         : undefined,
     })
 
-    // 5. Confirma + pega cloud_file_id (file-info responde com ID do arquivo
-    // criado a partir do session ID)
-    const info = await getFileInfo(opts.orgId, session.sessionId)
-    if (!info) throw new Error('Upload completou mas arquivo não foi encontrado no Drive')
-
-    // 6. Atualiza status
+    // 5. Atualiza status com metadados que vieram direto do response.
     await setBackupStatus(opts.songId, 'uploaded', {
-      cloud_file_id: info.fileId,
-      cloud_file_size: info.size,
+      cloud_file_id: result.fileId,
+      cloud_file_size: result.size ?? size,
       cloud_file_hash: hash,
     })
   } catch (err) {

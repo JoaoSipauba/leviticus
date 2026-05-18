@@ -50,7 +50,10 @@ describe('integração: upload happy path', () => {
         JSON.stringify({ sessionUrl: 'https://up', sessionId: 's1', expiresAt: 'x' }),
         { status: 200 }
       ))
-      .mockResolvedValueOnce(new Response(null, { status: 200 }))  // PUT do upload
+      .mockResolvedValueOnce(new Response(  // PUT do upload — Drive retorna file resource
+        JSON.stringify({ id: 'gd-file-1', size: '3', mimeType: 'audio/opus' }),
+        { status: 200 }
+      ))
 
     const session = await createUploadSession('org-1', { filename: 'a.opus', size: 3, mimeType: 'audio/opus' })
     expect(session.sessionUrl).toBe('https://up')

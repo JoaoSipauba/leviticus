@@ -14,13 +14,11 @@ vi.mock('./client.js', () => ({
   createUploadSession: vi.fn().mockResolvedValue({
     sessionUrl: 'https://up', sessionId: 's1', expiresAt: 'x',
   }),
-  getFileInfo: vi.fn().mockResolvedValue({
-    fileId: 'gd-file-1', size: 1024, mimeType: 'audio/opus',
-    createdAt: '2026-01-01', modifiedAt: '2026-01-01',
-  }),
 }))
 vi.mock('./upload.js', () => ({
-  uploadResumable: vi.fn().mockResolvedValue(undefined),
+  uploadResumable: vi.fn().mockResolvedValue({
+    fileId: 'gd-file-1', size: 1024, mimeType: 'audio/opus',
+  }),
 }))
 vi.mock('./status.js', () => ({
   setBackupStatus: vi.fn().mockResolvedValue(undefined),
