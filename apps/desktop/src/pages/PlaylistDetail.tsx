@@ -20,6 +20,7 @@ import { MergeSectionsModal } from '../components/MergeSectionsModal.js'
 import { SongCard } from '../components/SongCard.js'
 import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
+import { captureException } from '../lib/observability.js'
 import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
@@ -145,7 +146,7 @@ export function PlaylistDetail() {
   }, [id, navigate, orgId])
 
   useEffect(() => {
-    load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+    load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
   }, [load])
 
   // Lista flat ordenada — concluídas primeiro (na ordem original entre elas),
@@ -170,11 +171,11 @@ export function PlaylistDetail() {
   }, [allSongsFlat])
 
   useEffect(() => {
-    recomputeMissing().catch((e) => console.error('[PlaylistDetail] recomputeMissing falhou:', e))
+    recomputeMissing().catch((e) => captureException(e, { feature: 'playlist', step: 'recompute-missing' }))
   }, [recomputeMissing])
   useEffect(() => {
     const onChange = () => {
-      recomputeMissing().catch((e) => console.error('[PlaylistDetail] recomputeMissing falhou:', e))
+      recomputeMissing().catch((e) => captureException(e, { feature: 'playlist', step: 'recompute-missing' }))
     }
     const unsubA = subscribeCompleted(onChange)
     const unsubB = subscribeCanceled(onChange)
@@ -338,7 +339,7 @@ export function PlaylistDetail() {
     const { data, error: e } = await supabase.rpc('remove_song_from_playlist', {
       p_playlist_id: ps.playlist_id, p_section_id: ps.section_id, p_song_id: ps.song_id,
     })
-    if (e) { console.error(e); return }
+    if (e) { captureException(e, { feature: 'playlist', step: 'remove-song' }); return }
     const r = data as { ok: boolean } | null
     if (!r?.ok) return
     if (orgId) await syncOrg(orgId)
@@ -350,7 +351,7 @@ export function PlaylistDetail() {
     const { data, error: e } = await supabase.rpc('rename_playlist_section', {
       p_playlist_id: id, p_section_id: sectionId, p_new_label: newLabel,
     })
-    if (e) { console.error(e); return }
+    if (e) { captureException(e, { feature: 'playlist', step: 'rename-section' }); return }
     const r = data as { ok: boolean } | null
     if (!r?.ok) return
     if (orgId) await syncOrg(orgId)
@@ -366,7 +367,7 @@ export function PlaylistDetail() {
     const { data, error: e } = await supabase.rpc('delete_playlist_section', {
       p_playlist_id: id, p_section_id: sectionId,
     })
-    if (e) { console.error(e); return }
+    if (e) { captureException(e, { feature: 'playlist', step: 'delete-section' }); return }
     const r = data as { ok: boolean } | null
     if (!r?.ok) return
     if (orgId) await syncOrg(orgId)
@@ -378,7 +379,7 @@ export function PlaylistDetail() {
     setDeletingPlaylist(true)
     try {
       const { data, error: e } = await supabase.rpc('delete_playlist', { p_id: playlist.id })
-      if (e) { console.error(e); throw new Error('Não foi possível excluir.') }
+      if (e) { captureException(e, { feature: 'playlist', step: 'delete-playlist' }); throw new Error('Não foi possível excluir.') }
       const r = data as { ok: boolean; error?: string } | null
       if (!r?.ok) {
         if (r?.error === 'forbidden') throw new Error('Sem permissão para excluir.')
@@ -389,7 +390,7 @@ export function PlaylistDetail() {
       if (orgId) await syncOrg(orgId)
       navigate('/services', { replace: true })
     } catch (err) {
-      console.error(err)
+      captureException(err, { feature: 'playlist', step: 'delete-playlist-flow' })
       setDeletingPlaylist(false)
       setConfirmingDelete(false)
     }
@@ -459,7 +460,7 @@ export function PlaylistDetail() {
         p_to_section_id: target.sectionId,
         p_to_position: toPosition,
       })
-      if (e) console.error(e)
+      if (e) captureException(e, { feature: 'playlist', step: 'move-song' })
       if (orgId) await syncOrg(orgId)
       await load()
       return
@@ -502,7 +503,7 @@ export function PlaylistDetail() {
         p_target_index: targetIdx + 1, // 1-based no RPC
         p_merge_into_section_id: null,
       })
-      if (e) console.error(e)
+      if (e) captureException(e, { feature: 'playlist', step: 'move-section' })
       if (orgId) await syncOrg(orgId)
       await load()
     }
@@ -524,7 +525,7 @@ export function PlaylistDetail() {
       if (await isDownloaded(s.id)) downloadable.push(s)
     }
     if (downloadable.length === 0) {
-      console.warn('[PlaylistDetail] nenhuma música baixada nesta seleção')
+      captureException(new Error('Nenhuma música baixada nesta seleção'), { feature: 'playlist', step: 'play-no-downloaded' })
       return
     }
     const first = downloadable[0]
@@ -533,7 +534,7 @@ export function PlaylistDetail() {
       const volume = usePlayerStore.getState().volume
       playSong(path, {
         onEnd: () => {
-          handleSongEnd().catch((e) => console.error('[PlaylistDetail] handleSongEnd falhou:', e))
+          handleSongEnd().catch((e) => captureException(e, { feature: 'playlist', step: 'song-end' }))
         },
         volume,
       })
@@ -543,7 +544,7 @@ export function PlaylistDetail() {
         position: 0,
       })
     } catch (e) {
-      console.error('[PlaylistDetail] playSongs falhou:', e)
+      captureException(e, { feature: 'playlist', step: 'play-songs' })
     }
   }
 
@@ -551,11 +552,11 @@ export function PlaylistDetail() {
     // Toca tudo desde o começo, na ordem do banco. Não pula tocadas — usuário
     // que clica "Tocar tudo" geralmente quer recomeçar do zero.
     const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
-    playSongs(all.map((ps) => ps.song)).catch((e) => console.error('[PlaylistDetail] playAll falhou:', e))
+    playSongs(all.map((ps) => ps.song)).catch((e) => captureException(e, { feature: 'playlist', step: 'play-all' }))
   }
 
   function playSection(section: SectionView) {
-    playSongs(section.songs.map((ps) => ps.song)).catch((e) => console.error('[PlaylistDetail] playSection falhou:', e))
+    playSongs(section.songs.map((ps) => ps.song)).catch((e) => captureException(e, { feature: 'playlist', step: 'play-section' }))
   }
 
   async function confirmMerge() {
@@ -568,7 +569,7 @@ export function PlaylistDetail() {
       p_target_index: m.targetIndex,
       p_merge_into_section_id: m.targetSection.sectionId,
     })
-    if (e) console.error(e)
+    if (e) captureException(e, { feature: 'playlist', step: 'merge-sections' })
     if (orgId) await syncOrg(orgId)
     await load()
   }
@@ -759,7 +760,7 @@ export function PlaylistDetail() {
         editing={editingPlaylist ? playlist : null}
         onClose={() => setEditingPlaylist(false)}
         onSaved={() => {
-          load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+          load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
         }}
       />
       <AddSectionModal
@@ -771,7 +772,7 @@ export function PlaylistDetail() {
         open={addingSongTo !== null}
         onClose={() => setAddingSongTo(null)}
         onAdded={() => {
-          load().catch((e) => console.error('[PlaylistDetail] load falhou:', e))
+          load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
         }}
         playlistId={playlist.id}
         sectionId={addingSongTo?.sectionId ?? null}

@@ -5,6 +5,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
+import { captureException } from '../../lib/observability.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
 type DisplayRow = Row & { status: 'active' | 'expired' | 'revoked'; creatorName: string }
@@ -64,7 +65,7 @@ export function OrgInvites({ orgId }: { orgId: string }) {
     if (!window.confirm('Revogar este código? Ninguém mais consegue entrar com ele.')) return
     const { data, error: e } = await supabase.rpc('revoke_invite_code', { p_code_id: id })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data)
+      captureException(e ?? data, { feature: 'org-invites' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       return

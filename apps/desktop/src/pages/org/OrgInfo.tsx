@@ -5,6 +5,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { hasPermission } from '../../lib/permissions.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -53,7 +54,7 @@ export function OrgInfo({ orgId }: { orgId: string }) {
       .update({ name: form.name.trim(), city: form.city.trim() || null, timezone: form.timezone.trim() || 'America/Sao_Paulo' })
       .eq('id', orgId)
     if (updateError) {
-      console.error(updateError)
+      captureException(updateError, { feature: 'org-info' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)

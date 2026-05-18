@@ -16,6 +16,7 @@ import {
   formatPlaylistTimeRange, formatShortDate, formatTime, formatWeekday,
 } from '../lib/playlist.js'
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
+import { captureException } from '../lib/observability.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -62,7 +63,7 @@ export function Playlists() {
     setServices(withStatus)
   }
 
-  useEffect(() => { loadServices().catch(console.error) }, [orgId])
+  useEffect(() => { loadServices().catch((e) => captureException(e, { feature: 'playlists' })) }, [orgId])
 
   // Categoriza pra render. Ordena: hoje, próximos crescente, passados decrescente.
   const { today, upcoming, past } = useMemo(() => {
@@ -86,7 +87,7 @@ export function Playlists() {
   async function handleDelete(playlist: Playlist) {
     const { data, error } = await supabase.rpc('delete_playlist', { p_id: playlist.id })
     if (error) {
-      console.error('[Playlists.handleDelete]', error)
+      captureException(error, { feature: 'playlists', step: 'error' })
       throw new Error('Não foi possível excluir.')
     }
     const r = data as { ok: boolean; error?: string } | null

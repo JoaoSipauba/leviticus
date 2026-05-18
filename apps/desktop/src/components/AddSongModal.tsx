@@ -30,6 +30,7 @@ import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
 import { readDurationFromBlob, backfillDurationFromFile } from '../lib/audio-meta.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { captureException } from '../lib/observability.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -902,7 +903,7 @@ export function AddSongModal() {
         }, delay)
         return
       }
-      console.error(`[preview] todas as ${MAX_PREVIEW_ATTEMPTS} tentativas falharam`)
+      captureException(new Error(`Preview falhou após ${MAX_PREVIEW_ATTEMPTS} tentativas`), { feature: 'add-song', step: 'preview-retry-exhausted' })
       setPreviewError(true)
       setPreviewPlaying(false)
       setPreviewLoading(false)
@@ -1154,7 +1155,7 @@ export function AddSongModal() {
         setSearching(false)
         return
       } catch (err) {
-        console.error(`[doSearch] tentativa ${attempt}/${MAX_ATTEMPTS}:`, err)
+        captureException(err, { feature: 'add-song', step: 'youtube-search', extras: { attempt, max: MAX_ATTEMPTS } })
         if (token !== searchTokenRef.current) return
       }
     }
@@ -1203,7 +1204,7 @@ export function AddSongModal() {
       setOrgId(currentOrgId)
       setStep(2)
     } catch (e) {
-      console.error('[handleSelectResult]', e)
+      captureException(e, { feature: 'add-song', step: 'select-search-result' })
       setError('Algo deu errado. Tente novamente.')
     } finally {
       setFetching(false)
@@ -1246,7 +1247,7 @@ export function AddSongModal() {
       setOrgId(currentOrgId)
       setStep(2)
     } catch (e) {
-      console.error('[handleFetchMetadata]', e)
+      captureException(e, { feature: 'add-song', step: 'fetch-youtube-metadata' })
       setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
     } finally {
       setFetching(false)
@@ -1336,7 +1337,7 @@ export function AddSongModal() {
           setProgress(1)
           toastSuccess('Música adicionada e salva no backup')
         } catch (uploadErr) {
-          console.error('upload failed:', uploadErr)
+          captureException(uploadErr, { feature: 'add-song', step: 'upload-file-to-drive' })
           toastError('Música adicionada, mas backup falhou. Tente de novo depois.')
           // status já foi marcado como 'failed' dentro do upload-song.ts
         }
@@ -1349,7 +1350,7 @@ export function AddSongModal() {
       bumpLibrary()
       setTimeout(() => setStep(4), 400)
     } catch (err) {
-      console.error('handleConfirmFile failed:', err)
+      captureException(err, { feature: 'add-song', step: 'confirm-file-upload' })
       setError(err instanceof Error ? err.message : 'Falha ao adicionar música')
       setSaving(false)
       setStep(2)  // Volta pro form de metadata
@@ -1387,11 +1388,15 @@ export function AddSongModal() {
 
     if (insertError) {
       const { data: userData } = await supabase.auth.getUser()
-      console.error('[handleConfirm] songs insert error:', insertError.code, insertError.message)
-      console.error('[handleConfirm] context:', {
-        sentOrgId: orgId,
-        loggedUserId: userData.user?.id,
-        loggedUserEmail: userData.user?.email,
+      captureException(insertError, {
+        feature: 'add-song',
+        step: 'insert-song-row',
+        extras: {
+          code: insertError.code,
+          message: insertError.message,
+          sentOrgId: orgId,
+          loggedUserId: userData.user?.id,
+        },
       })
       if (insertError.code === '23505') {
         setError('Essa música já existe na biblioteca.')
@@ -1406,7 +1411,7 @@ export function AddSongModal() {
 
     const song = insertedRows?.[0]
     if (!song) {
-      console.error('[handleConfirm] songs insert retornou sem dados (possível bloqueio de RLS no SELECT)')
+      captureException(new Error('songs insert retornou sem dados (possível bloqueio de RLS no SELECT)'), { feature: 'add-song', step: 'insert-song-empty-result' })
       setError('Não foi possível salvar a música. Tente novamente.')
       setSaving(false)
       return
@@ -1419,7 +1424,7 @@ export function AddSongModal() {
 
       if (sgError) {
         await supabase.from('songs').delete().eq('id', song.id)
-        console.error('[handleConfirm] song_groups insert error:', sgError.code, sgError.message)
+        captureException(sgError, { feature: 'add-song', step: 'insert-song-groups', extras: { code: sgError.code } })
         setError('Não foi possível associar os ministérios. Tente novamente.')
         setSaving(false)
         return
@@ -1483,7 +1488,7 @@ export function AddSongModal() {
               : 'lossy' as const
             await uploadSongToDrive({ orgId, songId: song.id, filePath: localFilePath, ext, kind })
           } catch (uploadErr) {
-            console.error('YouTube upload to Drive failed:', uploadErr)
+            captureException(uploadErr, { feature: 'add-song', step: 'upload-youtube-to-drive', extras: { songId: song.id } })
             // status='failed' já setado em upload-song.ts. Sync-worker
             // de 5min vai retentar quando rodar o próximo pass.
           }
@@ -1496,7 +1501,7 @@ export function AddSongModal() {
       await supabase.from('song_groups').delete().eq('song_id', song.id)
       await supabase.from('songs').delete().eq('id', song.id)
       await syncOrg(orgId)
-      console.error('[handleConfirm] download error:', e)
+      captureException(e, { feature: 'add-song', step: 'youtube-download', extras: { songId: song.id } })
       setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
       setStep(2)
     } finally {

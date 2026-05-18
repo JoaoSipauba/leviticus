@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { captureException } from '../lib/observability.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -51,7 +52,7 @@ export function Groups() {
     setSongCount(map)
   }
 
-  useEffect(() => { loadGroups().catch(console.error) }, [orgId])
+  useEffect(() => { loadGroups().catch((e) => captureException(e, { feature: 'groups' })) }, [orgId])
 
   async function handleCreate() {
     if (!newName.trim()) return
@@ -66,7 +67,7 @@ export function Groups() {
       .single()
 
     if (insertError || !data) {
-      console.error('[handleCreate] insertError:', insertError)
+      captureException(insertError, { feature: 'groups', step: 'inserterror' })
       setError(insertError?.message ?? 'Erro ao criar ministério.')
       setSaving(false)
       return

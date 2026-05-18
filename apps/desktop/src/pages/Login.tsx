@@ -5,6 +5,7 @@ import { Logo } from '../components/brand/Logo.js'
 import { capitalizeName, isValidEmail } from '../lib/validation.js'
 import { GlowBackdrop } from '../components/brand/GlowBackdrop.js'
 import { GlassCard } from '../components/brand/GlassCard.js'
+import { captureException } from '../lib/observability.js'
 
 type Props = {
   onSuccess: () => void
@@ -79,7 +80,7 @@ export function Login({ onSuccess }: Props) {
       setLoading(false)
 
       if (signUpError) {
-        console.error('signUp error', signUpError)
+        captureException(signUpError, { feature: 'login', step: 'signup-error' })
         setError(friendlySignUpError(signUpError.message))
         return
       }
@@ -101,7 +102,7 @@ export function Login({ onSuccess }: Props) {
     setLoading(false)
 
     if (signInError) {
-      console.error('signIn error', signInError)
+      captureException(signInError, { feature: 'login', step: 'signin-error' })
       setError(friendlySignInError(signInError.message))
       return
     }

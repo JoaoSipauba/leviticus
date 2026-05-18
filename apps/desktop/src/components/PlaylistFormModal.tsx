@@ -4,6 +4,7 @@ import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { captureException } from '../lib/observability.js'
 
 type Props = {
   open: boolean
@@ -90,7 +91,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
           p_scheduled_end: end.toISOString(),
         })
         if (e) {
-          console.error('[PlaylistFormModal] update error:', e)
+          captureException(e, { feature: 'playlist-form-modal', step: 'update-error' })
           throw new Error('Não foi possível salvar. Tente novamente.')
         }
         const r = data as { ok: boolean; error?: string } | null
@@ -109,7 +110,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
           p_scheduled_end: end.toISOString(),
         })
         if (e) {
-          console.error('[PlaylistFormModal] create error:', e)
+          captureException(e, { feature: 'playlist-form-modal', step: 'create-error' })
           throw new Error('Não foi possível criar. Tente novamente.')
         }
         const r = data as { ok: boolean; id?: string; error?: string } | null

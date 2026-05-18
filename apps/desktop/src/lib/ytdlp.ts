@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { appLocalDataDir, join, downloadDir } from '@tauri-apps/api/path'
 import { exists, mkdir, remove, readDir } from '@tauri-apps/plugin-fs'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+import { captureException } from './observability.js'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
 // primeiro boot baixa do GitHub releases do yt-dlp; depois disso é
@@ -248,7 +249,7 @@ export function startDownload(
             return
           }
           if (code !== 0) {
-            console.error(`[startDownload] yt-dlp saiu com código ${code}:`, outputBuf)
+            captureException(new Error(`yt-dlp saiu com código ${code}: ${outputBuf.slice(-500)}`), { feature: 'yt-dlp', step: 'download-nonzero-exit', extras: { code } })
             // Falha real: também remove arquivo parcial pra não confundir
             // isDownloaded() em retentativas.
             await cleanupOutput(songId)
@@ -259,7 +260,7 @@ export function startDownload(
           // Descobre a extensão final que o yt-dlp escolheu.
           const finalPath = await findSongFile(songId)
           if (!finalPath) {
-            console.error('[startDownload] arquivo final não encontrado após download bem-sucedido')
+            captureException(new Error('Arquivo final não encontrado após download yt-dlp'), { feature: 'yt-dlp', step: 'download-missing-file' })
             settle(() => reject(new Error('Falha ao baixar o áudio. Tente novamente.')))
             return
           }
@@ -273,7 +274,7 @@ export function startDownload(
           settle(() => reject(new Error(DOWNLOAD_CANCELED)))
           return
         }
-        console.error('[startDownload] erro ao iniciar processo:', err)
+        captureException(err, { feature: 'yt-dlp', step: 'spawn-process' })
         settle(() => reject(new Error(`Não foi possível iniciar o download: ${err}`)))
       })
 
@@ -287,7 +288,7 @@ export function startDownload(
           }
         })
         .catch((err: unknown) => {
-          console.error('[startDownload] spawn() rejeitado:', err)
+          captureException(err, { feature: 'yt-dlp', step: 'spawn-rejected' })
           settle(() => reject(new Error(`Não foi possível iniciar o download: ${String(err)}`)))
         })
     })
@@ -363,7 +364,7 @@ export async function exportSongToMp3(songId: string, title: string): Promise<st
 
   const result = await command.execute()
   if (result.code !== 0) {
-    console.error('[exportSongToMp3] ffmpeg failed:', result.stderr)
+    captureException(new Error(`ffmpeg failed: ${result.stderr.slice(-500)}`), { feature: 'export-mp3', step: 'ffmpeg-failed' })
     throw new Error('Não foi possível exportar a música. Tente novamente.')
   }
   return outputPath
@@ -424,7 +425,7 @@ async function fetchMetadataViaYtDlp(videoId: string, normalizedUrl: string): Pr
 
   const result = await command.execute()
   if (result.code !== 0) {
-    console.error('[fetchMetadataViaYtDlp] yt-dlp failed:', result.stderr)
+    captureException(new Error(`yt-dlp metadata failed: ${result.stderr.slice(-500)}`), { feature: 'yt-dlp', step: 'metadata-failed' })
     throw new Error('Não foi possível buscar as informações do vídeo. Tente novamente.')
   }
 
@@ -623,7 +624,7 @@ async function searchViaYtDlp(query: string): Promise<YTSearchResult[]> {
     command.stderr.on('data', (line: string) => { err += line + '\n' })
     command.on('close', ({ code }) => {
       if (code !== 0) {
-        console.error('[searchViaYtDlp] yt-dlp error:', err)
+        captureException(err, { feature: 'yt-dlp', step: 'search-failed' })
         settle(() => reject(new Error('yt-dlp failed')))
       } else {
         settle(() => resolve(out))
@@ -714,12 +715,12 @@ export async function getPreviewUrl(videoId: string): Promise<string> {
   ])
   const result = await command.execute()
   if (result.code !== 0) {
-    console.error('[getPreviewUrl] yt-dlp failed:', result.stderr)
+    captureException(new Error(`yt-dlp preview-url failed: ${result.stderr.slice(-500)}`), { feature: 'yt-dlp', step: 'preview-url-failed' })
     throw new Error('Não foi possível carregar a pré-escuta.')
   }
   const url = result.stdout.trim().split('\n')[0]
   if (!url) {
-    console.error('[getPreviewUrl] yt-dlp returned empty URL')
+    captureException(new Error('yt-dlp preview-url returned empty'), { feature: 'yt-dlp', step: 'preview-url-empty' })
     throw new Error('Não foi possível carregar a pré-escuta.')
   }
   return url

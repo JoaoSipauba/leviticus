@@ -8,6 +8,7 @@ import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
+import { captureException } from '../lib/observability.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -89,7 +90,7 @@ export function GroupDetail() {
 
   useEffect(() => {
     setLoading(true)
-    loadData().catch(console.error)
+    loadData().catch((e) => captureException(e, { feature: 'group-detail' }))
   }, [id, librarySeed])
 
   async function handleSaveEdit() {
@@ -102,7 +103,7 @@ export function GroupDetail() {
       .update({ name: editName.trim(), color_index: editColorIdx })
       .eq('id', group.id)
     if (error) {
-      console.error('[GroupDetail] update error:', error)
+      captureException(error, { feature: 'group-detail', step: 'update-error' })
       setEditError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return
@@ -120,7 +121,7 @@ export function GroupDetail() {
     setDeleteError(null)
     const { error } = await supabase.from('groups').delete().eq('id', group.id)
     if (error) {
-      console.error('[GroupDetail] delete error:', error)
+      captureException(error, { feature: 'group-detail', step: 'delete-error' })
       setDeleteError('Algo deu errado. Tente novamente.')
       setDeleting(false)
       return

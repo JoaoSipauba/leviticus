@@ -3,7 +3,7 @@ import { usePlayerStore } from './player.js'
 import type { Song, Playlist } from '@leviticus/core'
 
 function makeSong(id: string, title = id): Song {
-  return {
+  return ({
     id,
     org_id: 'org-1',
     title,
@@ -18,20 +18,22 @@ function makeSong(id: string, title = id): Song {
     source: 'youtube',
     original_format: 'm4a',
     backup_status: 'pending',
+    added_by: null,
     created_at: '2026-01-01',
     updated_at: '2026-01-01',
-  } as Song
+  } as unknown) as Song
 }
 
-const playlist: Playlist = {
+const playlist: Playlist = ({
   id: 'pl-1',
   org_id: 'org-1',
   name: 'Culto',
   scheduled_at: null,
   scheduled_end: null,
+  created_by: 'user-1',
   created_at: '2026-01-01',
   updated_at: '2026-01-01',
-} as Playlist
+} as unknown) as Playlist
 
 describe('player store — setPlaylistSongs (issue #32)', () => {
   beforeEach(() => {

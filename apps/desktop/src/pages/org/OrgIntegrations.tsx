@@ -14,6 +14,7 @@ import { DriveFullCard } from '../../components/integrations/DriveFullCard.js'
 import { SwapAccountModal } from '../../components/integrations/SwapAccountModal.js'
 import { DisconnectModal } from '../../components/integrations/DisconnectModal.js'
 import { AdminsList } from '../../components/integrations/AdminsList.js'
+import { captureException } from '../../lib/observability.js'
 
 type Props = { orgId: string }
 
@@ -122,7 +123,7 @@ export function OrgIntegrations({ orgId }: Props) {
       await openExternal(authUrl)
       // Aguarda o deep link callback (capturado em App.tsx) refresh do store
     } catch (err) {
-      console.error('OAuth init failed:', err)
+      captureException(err, { feature: 'org-integrations', step: 'oauth-init-failed' })
       toastError('Não foi possível abrir o Google. Tente novamente.')
     } finally {
       setConnecting(false)
@@ -138,7 +139,7 @@ export function OrgIntegrations({ orgId }: Props) {
       toastSuccess('Drive desconectado')
       setDisconnectOpen(false)
     } catch (err) {
-      console.error('Disconnect failed:', err)
+      captureException(err, { feature: 'org-integrations', step: 'disconnect-failed' })
       toastError('Falha ao desconectar. Tente novamente.')
     }
   }

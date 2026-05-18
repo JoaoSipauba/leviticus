@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { captureException } from '../lib/observability.js'
 import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
 import { deleteFile as deleteCloudFile } from '../lib/cloud-storage/client.js'
 import { supabase } from '../lib/supabase.js'
@@ -432,7 +433,7 @@ export function SongCard({
         })
         setDownloaded(true)
       } catch (err) {
-        console.error('Drive download failed:', err)
+        captureException(err, { feature: 'song-card', step: 'drive-download', extras: { songId: song.id } })
         toastError('Não foi possível baixar do Drive. Tente novamente.')
         return
       }
@@ -469,7 +470,7 @@ export function SongCard({
     })
 
     if (deleteError) {
-      console.error('[SongCard] delete error:', deleteError)
+      captureException(deleteError, { feature: 'song-card', step: 'delete-rpc', extras: { songId: song.id } })
       throw new Error('Não foi possível excluir esta música. Tente novamente.')
     }
     const result = data as { ok: boolean; error?: string } | null
@@ -482,7 +483,7 @@ export function SongCard({
         // Música já não existe no Supabase — segue limpando o cache local.
         console.warn('[SongCard] música já não existia no Supabase')
       } else {
-        console.error('[SongCard] delete unexpected envelope:', result)
+        captureException(new Error('delete_song RPC retornou envelope inesperado'), { feature: 'song-card', step: 'delete-bad-envelope', extras: { songId: song.id, result } })
         throw new Error('Não foi possível excluir esta música. Tente novamente.')
       }
     }
@@ -497,7 +498,7 @@ export function SongCard({
     // pra ocupar espaço em disco.
     if (downloaded) {
       await deleteSongFile(song.id).catch((e) => {
-        console.warn('[SongCard] não foi possível apagar arquivo local:', e)
+        captureException(e, { feature: 'song-card', step: 'delete-local-file', extras: { songId: song.id } })
       })
     }
 
@@ -509,7 +510,7 @@ export function SongCard({
     // arquivo já deletado, etc).
     if (orgId && song.cloud_file_id) {
       void deleteCloudFile(orgId, song.cloud_file_id).catch((e) => {
-        console.warn('[SongCard] não foi possível apagar do Drive:', e)
+        captureException(e, { feature: 'song-card', step: 'delete-drive-file', extras: { songId: song.id } })
       })
     }
     if (orgId) await syncOrg(orgId)
@@ -526,7 +527,7 @@ export function SongCard({
     try {
       await deleteSongFile(song.id)
     } catch (e) {
-      console.error('[SongCard] deleteSongFile error:', e)
+      captureException(e, { feature: 'song-card', step: 'remove-from-device', extras: { songId: song.id } })
       toastError('Não foi possível remover a música do dispositivo.')
       return
     }
@@ -662,7 +663,7 @@ export function SongCard({
                   setTimeout(() => setJustCompleted(false), 800)
                   toastSuccess('Música baixada')
                 } catch (err) {
-                  console.error('Drive download failed:', err)
+                  captureException(err, { feature: 'song-card', step: 'drive-download', extras: { songId: song.id } })
                   toastError('Não foi possível baixar do Drive. Tente novamente.')
                 } finally {
                   setDrivePct(null)
@@ -721,7 +722,7 @@ export function SongCard({
             console.log('[SongCard] exportado:', path)
             toastSuccess('MP3 exportado', path)
           } catch (e) {
-            console.error('[SongCard] export mp3 error:', e)
+            captureException(e, { feature: 'song-card', step: 'export-mp3', extras: { songId: song.id } })
             toastError(
               'Falha ao exportar MP3',
               e instanceof Error ? e.message : 'Tente novamente.'

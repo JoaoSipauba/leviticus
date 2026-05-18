@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 type Expiry = '24h' | '7d' | '30d' | 'never'
 
@@ -38,7 +39,7 @@ export function InviteCodeModal({
       p_org_id: orgId, p_label: label.trim() || null, p_expires_at: computeExpiresAt(expiry),
     })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data)
+      captureException(e ?? data, { feature: 'invite-code-modal' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
