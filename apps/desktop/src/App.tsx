@@ -7,6 +7,8 @@ import { UpdateNotification } from './components/UpdateNotification.js'
 import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
 import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
+import { setUserContext } from './lib/observability.js'
+import * as Sentry from '@sentry/react'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
@@ -120,6 +122,14 @@ export function App() {
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session)
+        // Issue #39: identifica usuário no Sentry pra agrupar erros por
+        // pessoa. Limpa contexto no signout.
+        if (session?.user) {
+          const orgId = localStorage.getItem('leviticus_org_id') ?? undefined
+          setUserContext({ id: session.user.id, orgId })
+        } else {
+          setUserContext(null)
+        }
         if (!session) navigate('/login')
       }
     )
@@ -205,10 +215,39 @@ export function App() {
   if (!user) return null
 
   return (
-    <Layout>
-      <Outlet />
-      <UpdateNotification />
-      <Toasts />
-    </Layout>
+    <Sentry.ErrorBoundary
+      fallback={({ resetError }) => (
+        <div style={{
+          position: 'fixed', inset: 0, display: 'flex',
+          alignItems: 'center', justifyContent: 'center',
+          background: '#0a0a0a', color: '#fafafa', padding: 24,
+          textAlign: 'center', fontFamily: '-apple-system, system-ui, sans-serif',
+        }}>
+          <div style={{ maxWidth: 420 }}>
+            <h1 style={{ fontSize: 18, margin: 0, marginBottom: 8 }}>Algo deu errado</h1>
+            <p style={{ fontSize: 14, color: '#a1a1aa', marginBottom: 20, lineHeight: 1.5 }}>
+              O app encontrou um erro inesperado. Já reportamos pra equipe.
+              Você pode tentar recarregar ou fechar e abrir o app de novo.
+            </p>
+            <button
+              onClick={() => { resetError(); window.location.reload() }}
+              style={{
+                background: '#a78bfa', color: '#09090b', border: 'none',
+                padding: '10px 20px', borderRadius: 8, fontSize: 14,
+                fontWeight: 600, cursor: 'pointer',
+              }}
+            >
+              Recarregar app
+            </button>
+          </div>
+        </div>
+      )}
+    >
+      <Layout>
+        <Outlet />
+        <UpdateNotification />
+        <Toasts />
+      </Layout>
+    </Sentry.ErrorBoundary>
   )
 }

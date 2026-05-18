@@ -165,6 +165,38 @@ Regras:
 
 Antes de marcar uma ação como pronta, verifique: o usuário vê confirmação? Se não, adicione toast.
 
+## Observabilidade (Sentry)
+
+Toda exceção em fluxo crítico precisa ir pro Sentry pra a gente conseguir debugar em produção sem depender de bug report manual. Issue #39.
+
+Padrão: importe `captureException` de [src/lib/observability.ts](apps/desktop/src/lib/observability.ts) e use no `catch`:
+
+```ts
+import { captureException } from '../lib/observability.js'
+import { toastError } from '../store/toasts.js'
+
+try {
+  await uploadSongToDrive(...)
+} catch (e) {
+  captureException(e, { feature: 'add-song', step: 'upload-drive', extras: { songId } })
+  toastError('Música baixada, mas backup falhou. Tente de novo depois.')
+}
+```
+
+Convenções:
+- **`feature`**: módulo do app (`add-song`, `sync`, `audio`, `cloud-storage`, `auth`).
+- **`step`**: etapa dentro do fluxo (`upload`, `download`, `decrypt`, `refresh-token`).
+- **`extras`**: contexto extra que ajuda a reproduzir (`songId`, `orgId`, `url`).
+- **Não passe dados sensíveis** (senhas, tokens, conteúdo de mensagens).
+
+`captureException` **sempre** loga em `console.error` primeiro — funciona em dev mesmo sem DSN. Em prod, manda pro Sentry + console. No-op (sem erro) se `VITE_SENTRY_DSN` não estiver configurada.
+
+Outros helpers:
+- `setUserContext({ id, orgId })` — chamado no login. Agrupa erros por usuário no painel.
+- `addBreadcrumb('mensagem', 'category', { data })` — eventos intermediários úteis (clicou play, abriu modal). Não dispara request — fica no buffer e vai junto da próxima exceção.
+
+Setup em prod: defina `VITE_SENTRY_DSN` como GitHub secret (`Settings → Secrets → VITE_SENTRY_DSN`) e exponha no workflow de build. Em dev local não precisa — Sentry fica desligado e logs ficam só no console (esperado).
+
 ## Testing strategy
 
 Três camadas, em ordem de custo-benefício. Toda nova feature deve ter cobertura na camada mais barata em que faz sentido — não pular pra E2E o que cabe em unit.

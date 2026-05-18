@@ -19,6 +19,7 @@
   "dependencies": {
     "@fontsource/inter": "^5.2.8",
     "@leviticus/core": "workspace:*",
+    "@sentry/react": "^10.53.1",
     "@supabase/supabase-js": "^2.43.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-deep-link": "^2.0.0",

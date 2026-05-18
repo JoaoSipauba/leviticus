@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase.js'
 import { syncOrg } from './sync.js'
 import { useUIStore } from '../store/ui.js'
+import { captureException } from './observability.js'
 
 // Sync reativo: escuta mudanças no Supabase (Realtime) E refocus da janela,
 // dispara `syncOrg` debounced pra atualizar o SQLite local. Antes desse
@@ -48,7 +49,7 @@ function scheduleSync(orgId: string) {
         // a mudança até navegar.
         useUIStore.getState().bumpLibrary()
       })
-      .catch((e) => console.warn('[data-sync] syncOrg falhou:', e))
+      .catch((e) => captureException(e, { feature: 'sync', step: 'reactive-pass' }))
   }, DEBOUNCE_MS)
 }
 
