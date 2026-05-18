@@ -19,7 +19,9 @@ concurrency:
 jobs:
   changes:
     name: Detect changed paths
-    runs-on: ubuntu-latest
+    # Self-hosted Mac do dono — repo é privado e Free GitHub tem só 2000min/mês
+    # de hosted runners. Migrado pra evitar trava por quota mensal.
+    runs-on: [self-hosted, macOS, ARM64, leviticus]
     outputs:
       desktop: ${{ steps.filter.outputs.desktop }}
     steps:
@@ -44,7 +46,7 @@ jobs:
 
   test:
     name: Typecheck + tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, leviticus]
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -73,13 +75,16 @@ jobs:
   e2e:
     name: E2E (todas as jornadas)
     needs: [test, changes]
-    # Roda quando: (a) é PR pra main ou push direto na main, E
-    # (b) houve mudança em código do desktop / pacotes / schema / CI.
-    # Landing-only PRs pulam a suite — não há valor em re-rodar 20min
-    # de build Tauri pra um diff de copy ou CSS de marketing.
-    if: |
-      (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
-      needs.changes.outputs.desktop == 'true'
+    # TEMPORARIAMENTE DESABILITADO: a quota mensal de Ubuntu hosted runners
+    # esgotou. Self-hosted Mac não roda E2E (xvfb + webkit2gtk-driver são
+    # Linux-only; CLAUDE.md explica que tauri-webdriver-automation pra macOS
+    # é community e não-obrigatório). Resolver via self-hosted Linux ou
+    # migração pro Windows runner. Issue: #73
+    #
+    # Quando reativar, restaurar a condição original:
+    #   (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
+    #   needs.changes.outputs.desktop == 'true'
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -203,7 +208,7 @@ jobs:
     name: CI passed
     needs: [test, e2e]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, macOS, ARM64, leviticus]
     steps:
       - name: Aggregate upstream results
         env:
