@@ -1,5 +1,12 @@
-import { Howl } from 'howler'
+import { Howl, Howler } from 'howler'
 import { convertFileSrc } from '@tauri-apps/api/core'
+
+// Howler mantém um pool de elementos HTML5Audio (default: 10). Quando o
+// pool esgota, ele reusa um Audio "potencialmente travado" e logga
+// "HTML5 Audio pool exhausted". Pode acontecer em sessões longas com
+// muitas trocas de faixa — o navegador segura o Audio em "loading state"
+// brevemente depois do unload(). Aumentamos a folga.
+;(Howler as unknown as { html5PoolSize: number }).html5PoolSize = 25
 
 let _howl: Howl | null = null
 let _currentSrc: string | null = null
