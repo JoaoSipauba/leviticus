@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  Check, ChevronLeft, ListEnd, ListMusic, Play, Repeat1,
-  RotateCcw, Undo2, Volume2, VolumeX, X,
+  ChevronLeft, ListEnd, ListMusic, Play, Repeat1,
+  Volume2, VolumeX, X,
 } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { Slider } from './Slider.js'
 import { Tooltip } from './Tooltip.js'
 import { usePlayerStore } from '../store/player.js'
-import { usePlayedStore } from '../store/played.js'
 import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
@@ -30,27 +29,6 @@ type Props = {
 
 import { formatDuration as fmt } from '../lib/format-duration.js'
 
-// Constrói a ordem visual: atual → próximas (não-tocadas) → tocadas (no fim).
-// Mantém ordem relativa dentro de cada grupo. A música atual NÃO é movida pra
-// status "played" mesmo que esteja em playedSet — ela fica no topo até trocar.
-function buildVisualOrder(songs: Song[], currentId: string | null, playedIds: Set<string>): Song[] {
-  const upcoming: Song[] = []
-  const played: Song[] = []
-  let current: Song | null = null
-
-  for (const s of songs) {
-    if (s.id === currentId) {
-      current = s
-    } else if (playedIds.has(s.id)) {
-      played.push(s)
-    } else {
-      upcoming.push(s)
-    }
-  }
-
-  return current ? [current, ...upcoming, ...played] : [...upcoming, ...played]
-}
-
 export function PlayerExpanded({
   pos, duration, onSeek, onClose,
   repeat, autoplay, muted,
@@ -61,24 +39,13 @@ export function PlayerExpanded({
     isPlaying, volume,
   } = usePlayerStore()
 
-  const playedIds = usePlayedStore(
-    (s) => currentPlaylist ? new Set(s.playedByPlaylist[currentPlaylist.id] ?? []) : new Set<string>(),
-  )
-  const markPlayed = usePlayedStore((s) => s.markPlayed)
-  const unmarkPlayed = usePlayedStore((s) => s.unmarkPlayed)
-  const clearPlayed = usePlayedStore((s) => s.clearPlayed)
 
   const [queueOpen, setQueueOpen] = useState(false)
-  const [confirmReset, setConfirmReset] = useState(false)
 
-  // Ordem visual computada da playlist atual + estado de "tocadas"
-  const visualOrder = useMemo(
-    () => buildVisualOrder(playlistSongs, currentSong?.id ?? null, playedIds),
-    [playlistSongs, currentSong?.id, playedIds],
-  )
-
-  // Índice da música atual na ordem visual — usado em labels "X/N".
-  const currentVisualIdx = currentSong ? visualOrder.findIndex((s) => s.id === currentSong.id) : -1
+  // Issue #32 atualizado: a fila renderiza EXATAMENTE na ordem da playlist
+  // (sem reordenação por "tocadas" ou current-at-top). Trocar de música
+  // não rearranja a fila — só destaca a current.
+  const currentIdx = currentSong ? playlistSongs.findIndex((s) => s.id === currentSong.id) : -1
 
   // Fila é read-only — reordenação só pelo editor do culto (PlaylistDetail).
   // Issue #32: ter dois lugares pra reordenar (fila + editor) divergia da
@@ -151,18 +118,6 @@ export function PlayerExpanded({
     }
   }
 
-  function togglePlayed(song: Song) {
-    if (!currentPlaylist) return
-    if (playedIds.has(song.id)) unmarkPlayed(currentPlaylist.id, song.id)
-    else markPlayed(currentPlaylist.id, song.id)
-  }
-
-  function handleResetPlayed() {
-    if (!currentPlaylist) return
-    clearPlayed(currentPlaylist.id)
-    setConfirmReset(false)
-  }
-
   // ─── render ───────────────────────────────────────────────────────────────
 
   return (
@@ -201,7 +156,7 @@ export function PlayerExpanded({
             <span className="text-sm font-medium">Fila</span>
             {playlistSongs.length > 0 && (
               <span className="text-xs font-mono ml-1 opacity-70">
-                {Math.max(currentVisualIdx + 1, 1)}/{playlistSongs.length}
+                {Math.max(currentIdx + 1, 1)}/{playlistSongs.length}
               </span>
             )}
           </button>
@@ -257,7 +212,7 @@ export function PlayerExpanded({
         {currentPlaylist && (
           <p className="text-body text-sm mb-3">
             {currentPlaylist.name}
-            {currentVisualIdx >= 0 && ` · ${currentVisualIdx + 1}/${playlistSongs.length}`}
+            {currentIdx >= 0 && ` · ${currentIdx + 1}/${playlistSongs.length}`}
           </p>
         )}
 
@@ -388,61 +343,28 @@ export function PlayerExpanded({
         <div className="h-full flex flex-col">
           {/* Header */}
           <div className="px-6 pt-6 pb-4 border-b border-hairline">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-caps text-brand mb-1">FILA</p>
-                <p className="text-heading text-base font-semibold truncate">
-                  {currentPlaylist?.name ?? 'Sem culto ativo'}
-                </p>
-                <p className="text-body text-xs mt-0.5">
-                  {playlistSongs.length} faixas · {playedIds.size} tocadas
-                </p>
-              </div>
-
-              {playedIds.size > 0 && currentPlaylist && (
-                confirmReset ? (
-                  <div className="flex flex-col gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={handleResetPlayed}
-                      className="px-2 py-1 rounded-md text-xs font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors cursor-pointer"
-                    >
-                      Confirmar
-                    </button>
-                    <button
-                      onClick={() => setConfirmReset(false)}
-                      className="px-2 py-1 rounded-md text-xs font-medium text-body bg-white/[0.05] border border-hairline hover:bg-white/[0.08] transition-colors cursor-pointer"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                ) : (
-                  <Tooltip text="Resetar tocadas">
-                    <button
-                      onClick={() => setConfirmReset(true)}
-                      className="w-8 h-8 rounded-md flex items-center justify-center text-muted hover:bg-white/[0.08] hover:text-body transition-colors cursor-pointer flex-shrink-0"
-                    >
-                      <RotateCcw size={14} strokeWidth={2} />
-                    </button>
-                  </Tooltip>
-                )
-              )}
+            <div className="min-w-0">
+              <p className="text-caps text-brand mb-1">FILA</p>
+              <p className="text-heading text-base font-semibold truncate">
+                {currentPlaylist?.name ?? 'Sem culto ativo'}
+              </p>
+              <p className="text-body text-xs mt-0.5">
+                {playlistSongs.length} faixa{playlistSongs.length === 1 ? '' : 's'}
+              </p>
             </div>
           </div>
 
-          {/* Lista */}
+          {/* Lista — ordem do culto, sem rearranjo. */}
           <div className="flex-1 overflow-y-auto styled-scroll px-2 py-2 space-y-0.5">
-            {visualOrder.map((song, idx) => {
+            {playlistSongs.map((song, idx) => {
               const isCurrent = song.id === currentSong.id
-              const isPlayed = !isCurrent && playedIds.has(song.id)
               return (
                 <QueueRow
                   key={song.id}
                   song={song}
                   displayIdx={idx}
                   isCurrent={isCurrent}
-                  isPlayed={isPlayed}
                   onPlay={() => void playFromQueue(song)}
-                  onTogglePlayed={() => togglePlayed(song)}
                 />
               )
             })}
@@ -465,28 +387,24 @@ export function PlayerExpanded({
 // ─── Queue row ──────────────────────────────────────────────────────────────
 
 function QueueRow({
-  song, displayIdx, isCurrent, isPlayed,
-  onPlay, onTogglePlayed,
+  song, displayIdx, isCurrent,
+  onPlay,
 }: {
-  song: Song; displayIdx: number; isCurrent: boolean; isPlayed: boolean
-  onPlay: () => void; onTogglePlayed: () => void
+  song: Song; displayIdx: number; isCurrent: boolean
+  onPlay: () => void
 }) {
   return (
-    <>
-      <div
-        className="group flex items-center gap-2 px-2 py-2 rounded-xl transition-colors relative"
-        style={{
-          background: isCurrent ? 'rgba(59,130,246,0.12)' : 'transparent',
-          border: isCurrent ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
-          opacity: isPlayed ? 0.55 : 1,
-        }}
-      >
+    <div
+      className="group flex items-center gap-2 px-2 py-2 rounded-xl transition-colors relative"
+      style={{
+        background: isCurrent ? 'rgba(59,130,246,0.12)' : 'transparent',
+        border: isCurrent ? '1px solid rgba(59,130,246,0.3)' : '1px solid transparent',
+      }}
+    >
         <span className="w-5 flex-shrink-0" />
 
         <div className="w-5 flex items-center justify-end flex-shrink-0">
-          {isPlayed
-            ? <Check size={14} className="text-emerald-400" strokeWidth={2.5} />
-            : <span className="text-muted text-xs font-mono">{displayIdx + 1}</span>}
+          <span className="text-muted text-xs font-mono">{displayIdx + 1}</span>
         </div>
 
         <div className="relative w-9 h-9 rounded-md overflow-hidden flex-shrink-0 bg-white/[0.04]">
@@ -521,21 +439,9 @@ function QueueRow({
           <p className="text-muted text-xs truncate">{song.artist}</p>
         </div>
 
-        <Tooltip text={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}>
-          <button
-            onClick={(e) => { e.stopPropagation(); onTogglePlayed() }}
-            className="w-7 h-7 rounded-md flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-white/[0.08] transition-all flex-shrink-0"
-            style={{ color: isPlayed ? '#34d399' : '#9ca3af' }}
-            aria-label={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
-          >
-            {isPlayed ? <Undo2 size={13} strokeWidth={2.5} /> : <Check size={14} strokeWidth={2.5} />}
-          </button>
-        </Tooltip>
-
         <span className="text-muted text-xs font-mono flex-shrink-0 w-9 text-right">
           {song.duration_seconds ? fmt(song.duration_seconds) : '--:--'}
         </span>
-      </div>
-    </>
+    </div>
   )
 }
