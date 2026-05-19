@@ -198,38 +198,50 @@ export function OrgIntegrations({ orgId }: Props) {
         />
       )}
 
-      {status === 'connected' && account && quota && (
-        <ConnectedAccountCard
-          email={account.account_email}
-          providerName="Google Drive"
-          total={quota.total}
-          // usedByLeviticus = soma de cloud_file_size das songs com backup_status='uploaded'
-          // (DB local é fonte da verdade pro que o app subiu — ver getLeviticusUsedBytes).
-          // usedByOthers = uso total da conta menos o que Leviticus contribuiu.
-          // Issue #81.
-          usedByLeviticus={leviticusUsedBytes}
-          usedByOthers={Math.max(0, quota.used - leviticusUsedBytes)}
-          uploadedCount={uploadedCount}
-          lastSyncedAt={account.last_quota_check_at}
-          canManage={canManage}
-          onSwap={() => setSwapOpen(true)}
-          onDisconnect={() => setDisconnectOpen(true)}
-        />
-      )}
+      {status === 'connected' && account && quota && (() => {
+        // Clamping defensivo: se leviticusUsedBytes > quota.used (cenário
+        // raro mas possível: usuário deletou arquivos do Drive manualmente,
+        // quota.used reduziu mas DB local ainda marca backup_status='uploaded'
+        // até próximo sync reconciliar), usar quota.used como teto.
+        // Evita "X de Y usados" com X > Y no QuotaBar.
+        const leviticusClamped = Math.min(leviticusUsedBytes, quota.used)
+        return (
+          <ConnectedAccountCard
+            email={account.account_email}
+            providerName="Google Drive"
+            total={quota.total}
+            // usedByLeviticus = soma de cloud_file_size das songs com
+            // backup_status='uploaded' (DB local é fonte da verdade do que o
+            // app subiu — ver getLeviticusUsedBytes).
+            // usedByOthers = uso total menos Leviticus, clamping em 0.
+            // Issue #81.
+            usedByLeviticus={leviticusClamped}
+            usedByOthers={Math.max(0, quota.used - leviticusClamped)}
+            uploadedCount={uploadedCount}
+            lastSyncedAt={account.last_quota_check_at}
+            canManage={canManage}
+            onSwap={() => setSwapOpen(true)}
+            onDisconnect={() => setDisconnectOpen(true)}
+          />
+        )
+      })()}
 
-      {status === 'quota_full' && account && quota && (
-        <DriveFullCard
-          email={account.account_email}
-          provider="google_drive"
-          total={quota.total}
-          usedByLeviticus={leviticusUsedBytes}
-          usedByOthers={Math.max(0, quota.used - leviticusUsedBytes)}
-          pendingCount={0}
-          pendingBytesNeeded={0}
-          canManage={canManage}
-          onSwap={() => setSwapOpen(true)}
-        />
-      )}
+      {status === 'quota_full' && account && quota && (() => {
+        const leviticusClamped = Math.min(leviticusUsedBytes, quota.used)
+        return (
+          <DriveFullCard
+            email={account.account_email}
+            provider="google_drive"
+            total={quota.total}
+            usedByLeviticus={leviticusClamped}
+            usedByOthers={Math.max(0, quota.used - leviticusClamped)}
+            pendingCount={0}
+            pendingBytesNeeded={0}
+            canManage={canManage}
+            onSwap={() => setSwapOpen(true)}
+          />
+        )
+      })()}
 
       {!canManage && status !== 'disconnected' && (
         <div className="mt-4">
