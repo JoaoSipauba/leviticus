@@ -27,14 +27,15 @@ import { FileTab } from './add-song/FileTab.js'
 import { detectFromBytes, type DetectedFormat } from '../lib/cloud-storage/format-detection.js'
 import { writeFile, mkdir, BaseDirectory } from '@tauri-apps/plugin-fs'
 import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
-import { readDurationFromBlob, backfillDurationFromFile } from '../lib/audio-meta.js'
+import { readDurationFromBlob } from '../lib/audio-meta.js'
 import { useIntegrationsStore } from '../store/integrations.js'
-import { toastSuccess, toastError } from '../store/toasts.js'
+import { toastSuccess } from '../store/toasts.js'
 import { captureException } from '../lib/observability.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
-import { fetchYoutubeMetadata, downloadSong, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
+import { fetchYoutubeMetadata, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
+import { useDownloadsStore } from '../store/downloads.js'
 import { pauseAudio } from '../lib/audio.js'
 import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
@@ -633,7 +634,7 @@ const SONG_TYPE_OPTIONS: { value: SongType; label: string; color: string; active
 export function AddSongModal() {
   const { showAddSong, closeAddSong, bumpLibrary } = useUIStore()
   const navigate = useNavigate()
-  const { setDownloading } = usePlayerStore()
+  const enqueueDownload = useDownloadsStore((s) => s.enqueue)
   const cloudStatus = useIntegrationsStore((s) => s.status)
 
   // animation state
@@ -1306,12 +1307,11 @@ export function AddSongModal() {
       }
 
       // 3. Copia o arquivo pra $APPLOCALDATA/audio/{songId}.{ext}
-      setStep(3)
-      setProgress(0)
+      //    Issue #71: copy local é rápido (~segundos), mantém UI bloqueada
+      //    por essa parte. Upload pro Drive vai pra background depois.
       const ext = detectedFormat.ext
       const localPath = `audio/${songId}.${ext}`
       const buf = new Uint8Array(await selectedFile.arrayBuffer())
-      // Garante a pasta audio/ existe
       try { await mkdir('audio', { baseDir: BaseDirectory.AppLocalData, recursive: true }) } catch {}
       await writeFile(localPath, buf, { baseDir: BaseDirectory.AppLocalData })
 
@@ -1320,35 +1320,37 @@ export function AddSongModal() {
       const absDir = await appLocalDataDir()
       const absPath = `${absDir}/${localPath}`
 
-      // 4. Upload pro Drive (se conectado)
+      // 4. Sync + sucesso na UI imediato
+      await syncOrg(currentOrgId)
+      bumpLibrary()
       if (cloudStatus === 'connected') {
-        try {
-          // progress é 0..1; uploadSongToDrive entrega pct em 0..100.
-          // Mapeamos [0..100] → [0.1..0.95] pra deixar 5% de folga no fim.
-          setProgress(0.1)
-          await uploadSongToDrive({
-            orgId: currentOrgId,
-            songId,
-            filePath: absPath,
-            ext,
-            kind: detectedFormat.kind,
-            onProgress: (pct) => setProgress(0.1 + (pct / 100) * 0.85),
-          })
-          setProgress(1)
-          toastSuccess('Música adicionada e salva no backup')
-        } catch (uploadErr) {
-          captureException(uploadErr, { feature: 'add-song', step: 'upload-file-to-drive' })
-          toastError('Música adicionada, mas backup falhou. Tente de novo depois.')
-          // status já foi marcado como 'failed' dentro do upload-song.ts
-        }
+        toastSuccess('Música adicionada — backup em background')
       } else {
         toastSuccess('Música adicionada — sem backup (Drive desconectado)')
       }
+      setStep(4)
+      setSaving(false)
 
-      // 5. Sync + UI
-      await syncOrg(currentOrgId)
-      bumpLibrary()
-      setTimeout(() => setStep(4), 400)
+      // 5. Upload pro Drive em background (fire-and-forget). Status muda
+      //    de 'pending' → 'uploaded' silenciosamente via sync reativo.
+      if (cloudStatus === 'connected') {
+        void (async () => {
+          try {
+            await uploadSongToDrive({
+              orgId: currentOrgId,
+              songId,
+              filePath: absPath,
+              ext,
+              kind: detectedFormat.kind,
+            })
+          } catch (uploadErr) {
+            captureException(uploadErr, { feature: 'add-song', step: 'upload-file-to-drive', extras: { songId } })
+            // status='failed' já setado em upload-song.ts. Sync-worker
+            // retentará no próximo pass (5min).
+          }
+        })()
+      }
+      return
     } catch (err) {
       captureException(err, { feature: 'add-song', step: 'confirm-file-upload' })
       setError(err instanceof Error ? err.message : 'Falha ao adicionar música')
@@ -1431,83 +1433,18 @@ export function AddSongModal() {
       }
     }
 
-    // Move to download step before starting download
-    setStep(3)
-    setProgress(0)
-    setDownloading(true, 0)
-
-    try {
-      await downloadSong(song.id, metadata.normalizedUrl, (p) => {
-        realProgressRef.current = p
-        setProgress((prev) => Math.max(prev, p))
-        setDownloading(true, p)
-      })
-      // Após download: lê duração do arquivo baixado (fonte da verdade).
-      // oEmbed/yt-dlp metadata pode ter mentido ou vir null — re-ler do
-      // arquivo real elimina dúvida. Fire-and-forget; não bloqueia o flow.
-      // Issue #27.
-      void backfillDurationFromFile(song.id)
-
-      // Grava a extensão REAL do arquivo no DB. yt-dlp baixa m4a por
-      // padrão (pode cair pra webm/opus); sem isso, o download do Drive
-      // tentava salvar como .mp3 e Howler não tocava o conteúdo m4a.
-      try {
-        const { findSongFile } = await import('../lib/ytdlp.js')
-        const localPath = await findSongFile(song.id)
-        if (localPath) {
-          const realExt = localPath.split('.').pop()?.toLowerCase()
-          if (realExt) {
-            const { error: fmtErr } = await supabase
-              .from('songs')
-              .update({ original_format: realExt })
-              .eq('id', song.id)
-            if (fmtErr) console.warn('[add-song] failed to set original_format:', fmtErr.message)
-          }
-        }
-      } catch (e) {
-        console.warn('[add-song] original_format detection failed:', e)
-      }
-
-      await syncOrg(orgId)
-      bumpLibrary()
-
-      // Upload pro Drive em BACKGROUND — não bloqueia a UI. Modal fecha
-      // assim que o yt-dlp termina; o backup acontece silenciosamente e
-      // a Library mostra o badge mudar de 'pending' → 'uploaded' quando
-      // concluir (setBackupStatus chama bumpLibrary). Feedback agregado
-      // fica no LibraryBackupBanner ("Subindo pro Drive: X/Y").
-      if (cloudStatus === 'connected') {
-        void (async () => {
-          try {
-            const { findSongFile } = await import('../lib/ytdlp.js')
-            const localFilePath = await findSongFile(song.id)
-            if (!localFilePath) return
-            const ext = localFilePath.split('.').pop()?.toLowerCase() ?? 'm4a'
-            const kind = (ext === 'wav' || ext === 'flac' || ext === 'aiff' || ext === 'aif')
-              ? 'lossless' as const
-              : 'lossy' as const
-            await uploadSongToDrive({ orgId, songId: song.id, filePath: localFilePath, ext, kind })
-          } catch (uploadErr) {
-            captureException(uploadErr, { feature: 'add-song', step: 'upload-youtube-to-drive', extras: { songId: song.id } })
-            // status='failed' já setado em upload-song.ts. Sync-worker
-            // de 5min vai retentar quando rodar o próximo pass.
-          }
-        })()
-      }
-
-      // brief pause before success screen
-      setTimeout(() => setStep(4), 400)
-    } catch (e) {
-      await supabase.from('song_groups').delete().eq('song_id', song.id)
-      await supabase.from('songs').delete().eq('id', song.id)
-      await syncOrg(orgId)
-      captureException(e, { feature: 'add-song', step: 'youtube-download', extras: { songId: song.id } })
-      setError(e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.')
-      setStep(2)
-    } finally {
-      setDownloading(false)
-      setSaving(false)
-    }
+    // Issue #71: download em background. Em vez de bloquear o usuário na
+    // tela "Baixando…" (step 3) por minutos, enfileiramos no
+    // useDownloadsStore — o DownloadDock global mostra progresso e o app
+    // continua usável. Upload pro Drive é registrado em Layout via
+    // subscribeCompleted (acontece quando o download termina, ainda em
+    // background).
+    enqueueDownload(song.id, metadata.normalizedUrl)
+    await syncOrg(orgId)
+    bumpLibrary()
+    toastSuccess('Música adicionada — baixando em background')
+    setStep(4)
+    setSaving(false)
   }
 
   function toggleGroup(id: string) {
