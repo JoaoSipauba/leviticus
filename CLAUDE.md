@@ -72,6 +72,25 @@ cd worker && pnpm dev   # tsx watch (development)
 ### HTTP permissions
 `src-tauri/capabilities/default.json` — the `http:allow-fetch` permission lists allowed URL patterns. If a new remote URL is needed, add it here. Current scope: `http://127.0.0.1:54321/**`, `https://*.supabase.co/**`, `https://*.supabase.io/**`.
 
+### Regra: nunca use `fetch` nativo pra HTTP cross-origin
+
+**Sempre** importe `fetch` de `@tauri-apps/plugin-http` (alias comum: `tauriFetch`). O `fetch` nativo do WebKit aplica CORS, e servidores externos (Google Drive, Supabase Edge Functions, oEmbed, etc.) não autorizam `Origin: http://localhost:1420` ou `Origin: tauri://localhost`. Resultado: navegador bloqueia com `Access-Control-Allow-Origin`.
+
+Padrão em qualquer arquivo que faz HTTP:
+```ts
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
+const res = await tauriFetch(url, { method: 'POST', headers: {...}, body: JSON.stringify(body) })
+```
+
+Em testes Vitest, mock o módulo aliasando pro `globalThis.fetch` stubado:
+```ts
+vi.mock('@tauri-apps/plugin-http', () => ({
+  fetch: (...args: unknown[]) => (globalThis.fetch as any)(...args),
+}))
+```
+
+URLs novos precisam ser adicionados ao `http:allow-fetch` em `capabilities/default.json`.
+
 ### Audio playback
 `src/audio.ts` (not in `src/lib/`) — singleton Howler.js instance. **Must use `html5: true`** because the `asset://` Tauri protocol requires HTML5 audio mode. File paths are converted via `convertFileSrc()` before passing to Howler. The `PlayerMini` component polls `getPosition()` every 500ms while playing.
 
@@ -104,6 +123,27 @@ Two locations — they must stay in sync:
 - **Always use icons from lucide-react** (already installed) for visual representations. Example: `<Check size={16} />` instead of "✓", `<Music size={20} />` instead of any music emoji.
 - Import icons with named imports: `import { Check, Music, Plus } from 'lucide-react'`.
 
+## Funcionalidades core — padrões da indústria
+
+Pra funcionalidades **CORE** do app — áudio, player, drag-and-drop, formulários complexos, autenticação, upload de arquivos, sync offline-first — siga os padrões consolidados da indústria. Não invente sua versão a menos que tenha razão muito específica (e a razão precisa ser commitada no código + CLAUDE.md).
+
+**Antes de implementar uma feature core**, pesquise o estado da arte (1-2 referências bastam, ex: MDN, biblioteca mais usada, blog técnico recente). Documente no PR a abordagem escolhida e POR QUE diverge se divergir.
+
+**Sinais de que você está reinventando errado:**
+- Acumulando workarounds (visibilitychange, defensive checks, polling com guards) — geralmente o padrão da indústria já resolve isso na arquitetura
+- Comportamento erra "ocasionalmente" — bug de race condition / event timing é sintoma de polling onde devia ter listener
+- 3+ issues abertas no mesmo arquivo apontando pra mesma área — refactor pendente
+
+**Áudio especificamente:**
+- Preferir eventos do `HTMLMediaElement` (`timeupdate`, `ended`, `loadedmetadata`, `error`) a polling com `setInterval`
+- `timeupdate` é browser-managed: pausa em tab inativa, dispara ~250ms automático
+- `ended` é a fonte da verdade pro fim — defensive `pos >= duration` só como sanity check
+- Howler.js é uma escolha legítima como wrapper, mas com `html5: true` (necessário em Tauri pelo `asset://`) o `onend` é flaky — favorecer listeners nativos quando possível
+
+**Drag-and-drop, formulários, etc.**: aplicar a mesma régua. Pesquisar 1-2 referências, divergir só com razão escrita.
+
+A dívida arquitetural histórica de áudio (Howler+polling) está documentada em #63 — não bloqueia ship, mas sinaliza que o padrão "polling com workarounds" deve ser evitado em features novas.
+
 ## Error messages
 
 Always show clear, friendly error messages in Portuguese. Rules:
@@ -124,6 +164,57 @@ Regras:
 - **Mudanças mudas ok**: filtros, edição em tempo real de campos, navegação — não precisam de toast porque a própria UI reflete o resultado.
 
 Antes de marcar uma ação como pronta, verifique: o usuário vê confirmação? Se não, adicione toast.
+
+## Observabilidade (Sentry)
+
+Toda exceção em fluxo crítico precisa ir pro Sentry pra a gente conseguir debugar em produção sem depender de bug report manual. Issue #39.
+
+Padrão: importe `captureException` de [src/lib/observability.ts](apps/desktop/src/lib/observability.ts) e use no `catch`:
+
+```ts
+import { captureException } from '../lib/observability.js'
+import { toastError } from '../store/toasts.js'
+
+try {
+  await uploadSongToDrive(...)
+} catch (e) {
+  captureException(e, { feature: 'add-song', step: 'upload-drive', extras: { songId } })
+  toastError('Música baixada, mas backup falhou. Tente de novo depois.')
+}
+```
+
+Convenções:
+- **`feature`**: módulo do app (`add-song`, `sync`, `audio`, `cloud-storage`, `auth`).
+- **`step`**: etapa dentro do fluxo (`upload`, `download`, `decrypt`, `refresh-token`).
+- **`extras`**: contexto extra que ajuda a reproduzir (`songId`, `orgId`, `url`).
+- **Não passe dados sensíveis** (senhas, tokens, conteúdo de mensagens).
+
+`captureException` **sempre** loga em `console.error` primeiro — funciona em dev mesmo sem DSN. Em prod, manda pro Sentry + console. No-op (sem erro) se `VITE_SENTRY_DSN` não estiver configurada.
+
+Outros helpers:
+- `setUserContext({ id, orgId })` — chamado no login. Agrupa erros por usuário no painel.
+- `addBreadcrumb('mensagem', 'category', { data })` — eventos intermediários úteis (clicou play, abriu modal). Não dispara request — fica no buffer e vai junto da próxima exceção.
+
+Setup em prod: defina `VITE_SENTRY_DSN` como GitHub secret (`Settings → Secrets → VITE_SENTRY_DSN`) e exponha no workflow de build. Em dev local não precisa — Sentry fica desligado e logs ficam só no console (esperado).
+
+### Cobertura no Rust (backend Tauri)
+
+`tauri-plugin-sentry` + `sentry` crate inicializados em [src-tauri/src/lib.rs](apps/desktop/src-tauri/src/lib.rs) no `run()`. Captura:
+
+- **Panics do Rust** (`panic!` / `unwrap()` em `None` / `expect()` que falha)
+- **Crashes nativos** via minidumps (segfault, OOM, abort) — exceto em iOS
+- **Erros de commands Tauri** que retornam `Err(String)` ainda **não** vão automaticamente — pra capturar, use `sentry::capture_error(&err)` antes do `return Err(...)` dentro do comando
+
+O plugin faz **bridge entre Rust e JS SDK**: breadcrumbs e tags ficam unificados nos events. Ou seja, um panic no Rust traz junto o histórico de cliques que aconteceu antes no frontend, e vice-versa.
+
+**Setup do DSN no Rust:** `option_env!("VITE_SENTRY_DSN")` lê em **compile time**.
+- Prod: release.yml expõe a secret via `env:` antes do `pnpm tauri build` — propagado pro cargo.
+- Dev local: precisa exportar antes de buildar. Exemplo:
+  ```bash
+  export VITE_SENTRY_DSN=https://...@sentry.io/...
+  pnpm tauri dev
+  ```
+  Sem o export, `option_env!` devolve None e o init é skip (no-op). Frontend Sentry continua funcionando normal.
 
 ## Testing strategy
 
@@ -341,3 +432,109 @@ The app must always feel fast and snappy to the user. Every interaction should f
 - **State updates on user input**: update state synchronously and immediately — never make visual feedback wait for a promise to resolve when the result is already known.
 - **Audio/media**: seek and volume changes must be applied to the media element before any visual state update, so the audio never lags behind the UI.
 - When in doubt: remove the animation before shipping, rather than ship something that feels slow.
+
+## Acompanhar achados — abertura de issues
+
+Sempre que encontrar, durante o trabalho, algo que **não vai ser tratado naquela tarefa** mas tem impacto futuro, abra uma issue no GitHub. Isso impede que bugs, riscos ou melhorias se percam no histórico de PRs.
+
+**Abrir issue quando:**
+
+- Bug em código existente que não está no escopo da task atual
+- Vulnerabilidade ou risco de segurança identificado
+- Melhoria de UX/performance/DX que vale a pena mas extrapola o escopo
+- Tech debt que ficou explícito (ex: arquivo grande demais, lógica duplicada, workaround feio)
+- Gap de documentação detectado
+- Inconsistência entre módulos
+- Limitação ou edge case que pode afetar usuário em produção
+- Comportamento estranho de ferramenta/teste (flakiness, build lento, etc.) que vai ser sentido por outros devs
+
+**NÃO abrir quando:**
+
+- O item já está coberto pelo plano em execução
+- É algo a ser feito numa task imediatamente seguinte do mesmo plano
+- O "achado" é só uma observação subjetiva ("podia ser mais limpo") sem impacto concreto
+
+### Como abrir
+
+Use `gh issue create --label <cat> --label <pri> --title "..." --body "..."`. Antes, faça `gh issue list --search "<termos>"` pra evitar duplicar. O body deve responder:
+
+1. **O que** — descrição curta do problema/melhoria
+2. **Onde** — file path + linha ou módulo afetado
+3. **Por que importa** — qual o impacto se não tratado
+4. **Como reproduzir** (pra bug) ou **proposta** (pra enhancement)
+5. **Contexto** — link pro commit/PR/plano onde foi descoberto
+
+### Categorias (labels `type:*`)
+
+| Label | Quando usar |
+|---|---|
+| `type:bug` | Comportamento incorreto em código que já está em uso |
+| `type:security` | Vulnerabilidade, exposição de credencial, falha de auth/RLS |
+| `type:performance` | Lentidão, alto uso de memória, gargalo mensurável |
+| `type:ux` | Comportamento confuso, falta de feedback, copy ruim, fluxo travado |
+| `type:enhancement` | Melhoria de feature existente |
+| `type:feature` | Funcionalidade nova |
+| `type:tech-debt` | Refactor, código morto, arquitetura precisa de ajuste |
+| `type:dx` | Developer experience: testes lentos, build flaky, scripts manuais |
+| `type:docs` | Documentação faltando ou incorreta |
+
+### Prioridades (labels `priority:*`)
+
+| Label | Critério | Exemplo |
+|---|---|---|
+| `priority:critical` | Bloqueia uso ou expõe dado sensível. Tratar antes do próximo release | Token vazado em log, crash no boot, RLS quebrado |
+| `priority:high` | Afeta usuário observavelmente mas tem workaround. Próximo ciclo | Botão não dá feedback, race condition em sync ocasional |
+| `priority:medium` | Vale a pena fazer, sem urgência | Limpar warning de deprecation, melhorar mensagem de erro, refator localizado |
+| `priority:low` | Nice to have, backlog longo prazo | Refatorar componente grande sem dor atual, adicionar i18n |
+
+### Durante execução de planos (Claude Code)
+
+- Se notar algo durante uma task que não está no escopo, **abra a issue imediatamente** depois do commit principal (ou no fim da task)
+- Se um subagent reportar `DONE_WITH_CONCERNS`, avalie cada concern — se for fora do escopo do plano atual, vira issue
+- Sempre incluir link pro commit ou PR onde o achado foi descoberto no body da issue
+- Reportar pro usuário no resumo da task: "Abri issue #N pra X"
+
+### Setup inicial (uma vez)
+
+As labels precisam existir no repo. Comandos pra criar (rodar uma vez por repo):
+
+```bash
+gh label create "type:bug" --color "d73a4a" --description "Defeito em código existente"
+gh label create "type:security" --color "b60205" --description "Vulnerabilidade ou risco"
+gh label create "type:performance" --color "fbca04" --description "Performance"
+gh label create "type:ux" --color "1d76db" --description "Experiência do usuário"
+gh label create "type:enhancement" --color "a2eeef" --description "Melhoria de feature"
+gh label create "type:feature" --color "0e8a16" --description "Funcionalidade nova"
+gh label create "type:tech-debt" --color "5319e7" --description "Dívida técnica"
+gh label create "type:dx" --color "c5def5" --description "Developer experience"
+gh label create "type:docs" --color "0075ca" --description "Documentação"
+gh label create "priority:critical" --color "b60205" --description "Antes do próximo release"
+gh label create "priority:high" --color "d93f0b" --description "Próximo ciclo"
+gh label create "priority:medium" --color "fbca04" --description "Sem urgência, vale fazer"
+gh label create "priority:low" --color "c5def5" --description "Backlog longo prazo"
+```
+
+## Status das issues — automação
+
+Issues têm 3 estados visíveis: backlog (sem label de status), `status:in-review`, `status:in-dev`, e closed (= em produção).
+
+Transições automáticas via [.github/workflows/issue-status.yml](.github/workflows/issue-status.yml) + [.github/workflows/release-close-issues.yml](.github/workflows/release-close-issues.yml):
+
+| Quando | Estado da issue |
+|---|---|
+| Issue criada | sem label de status (backlog) |
+| PR aberta com `Closes #N` / `Fixes #N` no body, base `dev` ou `main` | `status:in-review` |
+| PR mergeada em `dev` | `status:in-dev` + comentário "Mergeada via #X" |
+| PR fechada sem merge | status removido (volta pro backlog) |
+| Release `v*` publicada (após PR de `dev → main` + release-bump) | todas as `status:in-dev` viram closed + comentário "Publicado em vX.Y.Z" |
+
+### Convenção pro PR body
+
+Toda PR que resolve issue deve incluir `Closes #N` no body (ou `Fixes #N` / `Resolves #N`). Caso resolva múltiplas, repita: `Closes #44, Closes #45, Closes #46`. Sem isso, o workflow não consegue mapear PR → issue.
+
+PR que faz parte do trabalho mas não fecha a issue (ex: refactor parcial): mencione `Refs #N` em vez de `Closes` — não dispara label change.
+
+### Edge cases
+
+- **Hotfix direto em main** (raro): a issue só fecha se tiver `status:in-dev` na próxima release. Se não, fechar manualmente.
+- **Issue reaberta após release**: precisa re-label manual se aplicável.

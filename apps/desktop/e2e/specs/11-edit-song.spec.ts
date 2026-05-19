@@ -44,7 +44,7 @@ describe('Journey C — EditSongModal', () => {
     const videoId = 'c1edit1234a'
     const url = `https://youtube.com/watch?v=${videoId}`
 
-    const addBtn = $('button=Adicionar')
+    const addBtn = $('button*=Adicionar')
     await addBtn.waitForExist({ timeout: 15_000 })
     await addBtn.click()
 

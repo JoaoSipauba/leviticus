@@ -6,6 +6,8 @@ import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
+import { Skeleton } from '../../components/Skeleton.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -36,6 +38,8 @@ const PERM_GROUPS: PermGroup[] = [
 ]
 
 export function OrgRoles({ orgId }: { orgId: string }) {
+  // Issue #65: skeleton enquanto load() resolve. Sem isso, aba abre vazia.
+  const [loading, setLoading] = useState(true)
   const [roles, setRoles] = useState<Role[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [perms, setPerms] = useState<Set<Permission>>(new Set())
@@ -57,6 +61,7 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     const display = r.map((x) => ({ id: x.id, name: x.name, memberCount: x.member_count }))
     setRoles(display)
     if (!selectedId && display.length > 0) setSelectedId(display[0]!.id)
+    setLoading(false)
   }
 
   async function loadPerms(roleId: string) {
@@ -85,12 +90,12 @@ export function OrgRoles({ orgId }: { orgId: string }) {
       if (wantOn) {
         const { error: e } = await supabase.from('role_permissions').insert({ role_id: selectedId, permission: perm })
         if (e && !e.message.includes('duplicate')) {
-          console.error(e); setError('Algo deu errado ao salvar.'); await loadPerms(selectedId); return
+          captureException(e, { feature: 'org-roles' }); setError('Algo deu errado ao salvar.'); await loadPerms(selectedId); return
         }
       } else {
         const { error: e } = await supabase.from('role_permissions').delete().match({ role_id: selectedId, permission: perm })
         if (e) {
-          console.error(e); setError('Algo deu errado ao salvar.'); await loadPerms(selectedId); return
+          captureException(e, { feature: 'org-roles' }); setError('Algo deu errado ao salvar.'); await loadPerms(selectedId); return
         }
       }
       setError(null)
@@ -101,7 +106,7 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     if (!newName.trim()) return
     if (newName.trim() === 'Dono') { toastError('"Dono" é reservado'); setError('"Dono" é reservado.'); return }
     const { data, error: e } = await supabase.from('roles').insert({ org_id: orgId, name: newName.trim() }).select().single()
-    if (e || !data) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado. Tente novamente.'); return }
+    if (e || !data) { captureException(e, { feature: 'org-roles' }); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado. Tente novamente.'); return }
     await syncOrg(orgId)
     setShowNew(false); setNewName('')
     setSelectedId(data.id)
@@ -113,7 +118,7 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     if (!selectedId || isDono || !renameValue.trim()) return
     if (renameValue.trim() === 'Dono') { toastError('"Dono" é reservado'); setError('"Dono" é reservado.'); return }
     const { error: e } = await supabase.from('roles').update({ name: renameValue.trim() }).eq('id', selectedId)
-    if (e) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
+    if (e) { captureException(e, { feature: 'org-roles' }); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
     await syncOrg(orgId)
     setEditingName(false)
     toastSuccess('Papel renomeado')
@@ -128,7 +133,7 @@ export function OrgRoles({ orgId }: { orgId: string }) {
     }
     if (!window.confirm(`Deletar o papel "${selected?.name}"?`)) return
     const { error: e } = await supabase.from('roles').delete().eq('id', selectedId)
-    if (e) { console.error(e); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
+    if (e) { captureException(e, { feature: 'org-roles' }); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
     await syncOrg(orgId)
     toastSuccess('Papel deletado')
     setSelectedId(null)
@@ -137,6 +142,25 @@ export function OrgRoles({ orgId }: { orgId: string }) {
 
   function permActive(perm: Permission): boolean {
     return isDono ? true : perms.has(perm)
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+        <div className="flex flex-col gap-2">
+          <Skeleton h={36} w="100%" rounded="lg" mb={4} />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} h={48} w="100%" rounded="lg" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-2">
+          <Skeleton h={28} w={220} mb={8} />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} h={36} w="100%" rounded="md" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (

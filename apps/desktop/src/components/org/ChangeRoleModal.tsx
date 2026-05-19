@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 type RoleOpt = { id: string; name: string }
 
@@ -44,7 +45,7 @@ export function ChangeRoleModal({
       p_user_id: userId, p_org_id: orgId, p_role_id: pick, p_group_id: null,
     })
     if (rpcError || (data && (data as any).ok === false)) {
-      console.error(rpcError ?? data)
+      captureException(rpcError ?? data, { feature: 'change-role-modal' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)

@@ -7,6 +7,7 @@ import { useAuthStore } from '../store/auth.js'
 import { Logo } from '../components/brand/Logo.js'
 import { GlowBackdrop } from '../components/brand/GlowBackdrop.js'
 import { GlassCard } from '../components/brand/GlassCard.js'
+import { captureException } from '../lib/observability.js'
 
 type Org = { id: string; name: string }
 
@@ -53,7 +54,7 @@ export function OrgSelect() {
     })
 
     if (error) {
-      console.error(error)
+      captureException(error, { feature: 'org-select' })
       setError('Algo deu errado. Tente novamente.')
       setLoading(false)
       return

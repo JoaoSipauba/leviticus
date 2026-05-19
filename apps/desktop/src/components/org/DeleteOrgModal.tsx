@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { X, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 export function DeleteOrgModal({
   open, orgId, orgName, onClose,
@@ -22,7 +23,7 @@ export function DeleteOrgModal({
     setPending(true); setError(null)
     const { data, error: e } = await supabase.rpc('delete_organization', { p_org_id: orgId })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data)
+      captureException(e ?? data, { feature: 'delete-org-modal' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setPending(false)

@@ -6,6 +6,7 @@ import { getDb } from '../lib/db.js'
 import { useUIStore } from '../store/ui.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import type { SongType } from '@leviticus/core'
+import { captureException } from '../lib/observability.js'
 
 type GroupRow = { id: string; name: string }
 
@@ -257,7 +258,7 @@ export function EditSongModal() {
     })
 
     if (saveErr) {
-      console.error('[EditSong] update_song rpc error:', saveErr.code, saveErr.message)
+      captureException(saveErr, { feature: 'edit-song-modal', step: 'update-song-rpc-error', extras: { code: saveErr.code, message: saveErr.message } })
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
       return

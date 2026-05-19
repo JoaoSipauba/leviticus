@@ -13,16 +13,10 @@ import {
 } from '../lib/playback.js'
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
+import { backfillDurationFromFile } from '../lib/audio-meta.js'
 import * as mediaSession from '../lib/mediaSession.js'
 
-function fmt(s: number): string {
-  const h = Math.floor(s / 3600)
-  const rem = s % 3600
-  const m = Math.floor(rem / 60)
-  const sec = Math.floor(rem % 60)
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`
-  return `${m}:${sec.toString().padStart(2, '0')}`
-}
+import { formatDuration as fmt } from '../lib/format-duration.js'
 
 export function PlayerMini() {
   const {
@@ -32,7 +26,12 @@ export function PlayerMini() {
   } = usePlayerStore()
 
   const [expanded, setExpanded] = useState(false)
-  const [duration, setDuration] = useState(0)
+  // Inicializa com a duração vinda da DB row (metadata do YouTube / upload).
+  // Esse valor é confiável e evita o "flash" de duration do song anterior
+  // até o polling de 500ms ler getDuration() do Howl. Em VBR mp3 sem tag TLEN,
+  // Howler.duration() ocasionalmente reporta 2× o real — então preferimos
+  // o valor da DB sempre que possível. Issue #42.
+  const [duration, setDuration] = useState(currentSong?.duration_seconds ?? 0)
   const [pos, setPos] = useState(0)
   const [muted, setMuted] = useState(false)
   const [lastVolume, setLastVolume] = useState(1)
@@ -99,6 +98,53 @@ export function PlayerMini() {
   useEffect(() => { playNextRef.current = playNext }, [playNext])
   useEffect(() => { playPreviousRef.current = playPrevious }, [playPrevious])
 
+  // Wake lock — previne dimming/sleep do display enquanto música toca.
+  // WKWebView no macOS suporta `navigator.wakeLock.request('screen')`.
+  // Sem este lock, o display escurece após o timeout do SO, o áudio continua
+  // mas o slider de progresso congela (Issue #30) e o operador acha que
+  // travou. Issue #29.
+  //
+  // Lock é auto-liberado pelo browser quando a aba/janela perde visibilidade,
+  // então re-adquirimos no `visibilitychange` se ainda estamos tocando.
+  useEffect(() => {
+    let sentinel: { release: () => Promise<void> } | null = null
+    let cancelled = false
+    const supported = typeof navigator !== 'undefined' && 'wakeLock' in navigator
+
+    async function acquire() {
+      if (!supported || sentinel) return
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sentinel = await (navigator as any).wakeLock.request('screen')
+        if (cancelled && sentinel) { await sentinel.release(); sentinel = null }
+      } catch (err) {
+        // navigator.wakeLock pode falhar (permissões, plataforma). Não é fatal.
+        console.warn('[player] wakeLock acquire failed', err)
+      }
+    }
+    async function release() {
+      if (!sentinel) return
+      try { await sentinel.release() } catch { /* ignore */ }
+      sentinel = null
+    }
+
+    if (isPlaying) {
+      void acquire()
+      // Re-acquire se volta a visibility após estar oculto (lock é liberado
+      // automaticamente quando page fica hidden).
+      const onVisible = () => {
+        if (document.visibilityState === 'visible' && !sentinel) void acquire()
+      }
+      document.addEventListener('visibilitychange', onVisible)
+      return () => {
+        cancelled = true
+        document.removeEventListener('visibilitychange', onVisible)
+        void release()
+      }
+    }
+    return () => { cancelled = true; void release() }
+  }, [isPlaying])
+
   // Botões de mídia do macOS (F7 / F8 / F9)
   useEffect(() => {
     const unlisten = Promise.all([
@@ -139,20 +185,95 @@ export function PlayerMini() {
     return unregister
   }, [])
 
+  // Reset imediato de pos/duration ao trocar de música. Sem isso, a UI mostra
+  // o valor da faixa anterior até o próximo tick do polling (até 500ms),
+  // causando o "flash" reportado na issue #42. Inicializa com a duração da
+  // DB (metadata confiável) — getDuration() do Howl só sobrescreve quando
+  // a faixa carrega e reporta valor válido > 0.
+  useEffect(() => {
+    setPos(0)
+    setDuration(currentSong?.duration_seconds ?? 0)
+    songEndedRef.current = false // nova música → guard reaberto. Issue #62.
+  }, [currentSong?.id])
+
+  // Set de songIds que já tentamos backfill nesta sessão — evita disparar
+  // múltiplos UPDATEs pra mesma música. Issue #27.
+  const backfilledRef = useRef<Set<string>>(new Set())
+
+  // Guard contra chamar handleSongEnd múltiplas vezes pra mesma faixa.
+  // Resetado quando currentSong muda. Issue #62.
+  const songEndedRef = useRef<boolean>(false)
+
   // Polling de posição
   useEffect(() => {
     if (!isPlaying) return
-    const interval = setInterval(() => {
+    const dbDuration = currentSong?.duration_seconds ?? 0
+
+    function tick() {
       const p = getPosition()
-      const d = getDuration()
+      const howlD = getDuration()
       setPos(p)
-      setDuration(d)
+      // Priorize Howl quando reporta valor sane (> 0 e dentro de 30% da DB).
+      // Caso Howler retorne lixo (VBR mp3 sem tag TLEN ocasionalmente reporta
+      // 2× o real), fica com a duração da DB. Issue #42.
+      const chosen = (howlD > 0 && (dbDuration === 0 || Math.abs(howlD - dbDuration) / dbDuration < 0.3))
+        ? howlD
+        : dbDuration || howlD
+      setDuration(chosen)
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
-      mediaSession.updatePosition({ position: p, duration: d })
-    }, 500)
-    return () => clearInterval(interval)
-  }, [isPlaying, setPosition, currentSong?.id])
+      mediaSession.updatePosition({ position: p, duration: chosen })
+
+      // Backfill: música sem duration_seconds no DB → dispara backfill que
+      // lê arquivo local (HTMLMediaElement) e atualiza SQLite local +
+      // Supabase. Issue #27.
+      if (
+        currentSong &&
+        !currentSong.duration_seconds &&
+        !backfilledRef.current.has(currentSong.id)
+      ) {
+        backfilledRef.current.add(currentSong.id)
+        void backfillDurationFromFile(currentSong.id)
+      }
+
+      // Detecta fim da música mesmo quando Howler.onend não dispara — em
+      // html5 mode o evento pode ser perdido. Quando pos atinge ou
+      // ultrapassa duration (com pequena margem) e ainda estamos isPlaying
+      // do ponto de vista do store, força handleSongEnd manualmente.
+      // Sem isso, isPlaying fica true após o fim → polling continua e o
+      // slider parece "progredir além". Issue #62.
+      if (
+        chosen > 0 &&
+        p >= chosen - 0.25 &&
+        !songEndedRef.current
+      ) {
+        songEndedRef.current = true
+        void handleSongEnd()
+      }
+    }
+
+    const interval = setInterval(tick, 500)
+
+    // Re-sincroniza assim que a aba/janela volta a estar visível. WKWebView no
+    // macOS throttle setInterval quando display escurece — o áudio continua
+    // tocando (Howler é um <audio> nativo, fora do throttle de timers JS),
+    // mas o polling do progresso para. Sem este listener, ao acender a tela
+    // o slider fica congelado no tempo de quando escureceu, e demora mais um
+    // tick (500ms) pra alcançar. Issue #30.
+    function onVisible() {
+      if (document.visibilityState === 'visible') tick()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    // focus também ajuda em alguns macOS onde visibilitychange não dispara
+    // (window perde foco mas display continua aceso, ex: ⌘Tab pra outro app).
+    window.addEventListener('focus', tick)
+
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', tick)
+    }
+  }, [isPlaying, setPosition, currentSong?.id, currentSong?.duration_seconds])
 
   // Atalhos de teclado — só funcionam quando o player full está aberto
   // (exceção: F sempre, pra abrir/fechar a tela cheia). Evita toques acidentais

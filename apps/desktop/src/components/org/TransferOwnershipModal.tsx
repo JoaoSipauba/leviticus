@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 type Candidate = { user_id: string; name: string; email: string }
 
@@ -45,7 +46,7 @@ export function TransferOwnershipModal({
     setPending(true); setError(null)
     const { data, error: e } = await supabase.rpc('transfer_ownership', { p_org_id: orgId, p_new_owner_id: pick })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data)
+      captureException(e ?? data, { feature: 'transfer-ownership-modal' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setPending(false)

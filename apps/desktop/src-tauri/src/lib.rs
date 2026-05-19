@@ -1,3 +1,4 @@
+mod cloud_storage;
 mod ffmpeg;
 mod yt_dlp;
 
@@ -6,11 +7,55 @@ use tauri::Emitter;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
 pub fn run() {
+    // Issue #39 — observabilidade do backend Tauri. Init do Sentry PRECISA
+    // acontecer antes do builder pra capturar panics que aconteçam durante
+    // setup do app. DSN vem de env var em BUILD TIME (option_env!) — vazio
+    // = no-op silencioso (esperado em dev local sem export VITE_SENTRY_DSN).
+    //
+    // Em prod o release.yml injeta a secret. Pra ativar localmente:
+    //   `export VITE_SENTRY_DSN=https://...@sentry.io/...; pnpm tauri dev`
+    let sentry_dsn = option_env!("VITE_SENTRY_DSN").unwrap_or("");
+    let _sentry_guard = if !sentry_dsn.is_empty() {
+        Some(sentry::init((
+            sentry_dsn,
+            sentry::ClientOptions {
+                release: sentry::release_name!(),
+                auto_session_tracking: true,
+                // Mesmo env do frontend pra agrupar eventos certos.
+                environment: Some(
+                    if cfg!(debug_assertions) { "development" } else { "production" }.into(),
+                ),
+                ..Default::default()
+            },
+        )))
+    } else {
+        None
+    };
+
+    // Minidumps cobrem crashes nativos (segfault, OOM, abort) — não dá
+    // pra fazer em iOS pela sandbox da plataforma. Bind ao guard mantém
+    // o handler vivo durante toda a execução. ClientInitGuard derefa
+    // pro Client, daí `&*g` retorna `&Client`.
+    #[cfg(not(target_os = "ios"))]
+    let _minidump_guard = _sentry_guard
+        .as_ref()
+        .map(|g| tauri_plugin_sentry::minidump::init(&*g));
+
     let mut builder = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             yt_dlp::ensure_yt_dlp,
             ffmpeg::ensure_ffmpeg,
+            cloud_storage::cloud_storage_hash_file,
+            cloud_storage::cloud_storage_rename_file,
+            cloud_storage::cloud_storage_file_size,
+            cloud_storage::cloud_storage_download_to_file,
         ]);
+
+    // Plugin Sentry — só registra se o sentry::init acima foi feito.
+    // Bridge entre Rust SDK e JS SDK: breadcrumbs/contexto unificados.
+    if let Some(g) = _sentry_guard.as_ref() {
+        builder = builder.plugin(tauri_plugin_sentry::init(&*g));
+    }
 
     // E2E only: ativa o WebDriver plugin em builds debug pra que o
     // `tauri-wd` CLI consiga controlar o app durante testes E2E no macOS.
@@ -22,6 +67,7 @@ pub fn run() {
     }
 
     builder
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
@@ -56,6 +102,12 @@ pub fn run() {
                             version: 5,
                             description: "org_settings_columns",
                             sql: include_str!("../migrations/005_org_settings_columns.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
+                        tauri_plugin_sql::Migration {
+                            version: 6,
+                            description: "cloud_storage",
+                            sql: include_str!("../migrations/006_cloud_storage.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
                     ],

@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase.js'
 import { getDb } from '../lib/db.js'
 import { formatPlaylistTimeRange, formatTime } from '../lib/playlist.js'
 import { Logo } from './brand/Logo.js'
+import { LogoutChoiceModal } from './LogoutChoiceModal.js'
+import { toastSuccess } from '../store/toasts.js'
 
 type CultoState = 'live' | 'soon'
 type ActiveCulto = { playlist: Playlist; state: CultoState; minutesLeft?: number }
@@ -26,10 +28,15 @@ function detectCulto(rows: Playlist[]): ActiveCulto | null {
   return null
 }
 
+// Ordem por frequência × criticidade no fluxo do culto (issue #35):
+// 1. Cultos — ponto de entrada da operação ao vivo
+// 2. Biblioteca — preparação do repertório
+// 3. Ministérios — gerenciamento ocasional
+// 4. Organização — config rara
 const links = [
+  { to: '/services', label: 'Cultos', Icon: CalendarDays },
   { to: '/library', label: 'Biblioteca', Icon: Music },
   { to: '/ministries', label: 'Ministérios', Icon: LayoutGrid },
-  { to: '/services', label: 'Cultos', Icon: CalendarDays },
   { to: '/manage', label: 'Organização', Icon: Users },
 ]
 
@@ -39,6 +46,7 @@ export function Sidebar() {
   const [orgName, setOrgName] = useState<string | null>(null)
   const [activeCulto, setActiveCulto] = useState<ActiveCulto | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
+  const [logoutOpen, setLogoutOpen] = useState(false)
   const orgId = localStorage.getItem('leviticus_org_id')
   const intervalRef = useRef<number | null>(null)
 
@@ -212,12 +220,30 @@ export function Sidebar() {
         )}
 
         <button
-          onClick={signOut}
+          onClick={() => setLogoutOpen(true)}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg w-full text-left text-sm font-medium transition-colors text-[#6b7280] hover:text-[#9ca3af] hover:bg-white/5"
         >
           <LogOut size={15} strokeWidth={2} />
           Sair
         </button>
+
+        <LogoutChoiceModal
+          open={logoutOpen}
+          orgName={orgName}
+          onClose={() => setLogoutOpen(false)}
+          onExitOrg={() => {
+            // Limpa orgId mas mantém sessão Supabase. Navega pro seletor
+            // de org pra usuário escolher outra. Issue #33.
+            localStorage.removeItem('leviticus_org_id')
+            setLogoutOpen(false)
+            toastSuccess('Organização desconectada')
+            navigate('/org')
+          }}
+          onSignOut={() => {
+            setLogoutOpen(false)
+            void signOut()
+          }}
+        />
 
         {appVersion && (
           <div className="px-3 pb-1 text-right">

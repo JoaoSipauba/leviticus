@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { captureException } from '../lib/observability.js'
 
 type Props = {
   open: boolean
@@ -89,7 +90,7 @@ export function AddSongToPlaylistModal({
         p_section_label: sectionLabel,
       })
       if (e) {
-        console.error('[AddSongToPlaylistModal]', e)
+        captureException(e, { feature: 'add-song-to-playlist-modal', step: 'error' })
         throw new Error('Não foi possível adicionar.')
       }
       const r = data as { ok: boolean; error?: string; section_id?: string } | null

@@ -9,19 +9,17 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { captureException } from '../lib/observability.js'
+import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
+import { deleteFile as deleteCloudFile } from '../lib/cloud-storage/client.js'
 import { supabase } from '../lib/supabase.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
+import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 
-function fmtDuration(seconds: number): string {
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = Math.floor(seconds % 60)
-  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-  return `${m}:${s.toString().padStart(2, '0')}`
-}
+import { formatDuration as fmtDuration } from '../lib/format-duration.js'
 
 const TYPE_CONFIG: Record<SongType, { label: string; hex: string; icon: React.ReactNode }> = {
   normal:       { label: 'Normal',       hex: '#9ca3af', icon: <Music size={9} strokeWidth={2.5} /> },
@@ -359,6 +357,10 @@ export function SongCard({
   // verde por ~800ms antes de revelar o overlay de play. Sincronizado com a
   // animação CSS .completed-badge.
   const [justCompleted, setJustCompleted] = useState(false)
+  // Estado local pra download do Drive — não vai pelo downloadsStore (esse
+  // é só pra fila do yt-dlp). Sem isso, a UI ficava parada em "Baixar"
+  // durante o download e o usuário pensava que não estava acontecendo nada.
+  const [drivePct, setDrivePct] = useState<number | null>(null)
   const { play, currentSong, isPlaying } = usePlayerStore()
   const bumpLibrary = useUIStore((s) => s.bumpLibrary)
   const downloadStatus = useDownloadsStore(selectStatus(song.id))
@@ -407,12 +409,36 @@ export function SongCard({
   }, [song.id, subscribeCanceled])
 
   async function handlePlay() {
-    if (!downloaded) return
     if (isCurrentlyPlaying) {
       pauseAudio()
       usePlayerStore.getState().pause()
       return
     }
+
+    if (!downloaded) {
+      if (!song.cloud_file_id) {
+        toastError('Música sem backup e sem arquivo local. Adicione novamente.')
+        return
+      }
+      try {
+        toastSuccess('Baixando do Drive…')
+        const ext = song.original_format ?? 'mp3'
+        await downloadSongFromDrive({
+          orgId: localStorage.getItem('leviticus_org_id') ?? '',
+          songId: song.id,
+          cloudFileId: song.cloud_file_id,
+          ext,
+          expectedHash: song.cloud_file_hash ?? undefined,
+          expectedSize: song.cloud_file_size ?? undefined,
+        })
+        setDownloaded(true)
+      } catch (err) {
+        captureException(err, { feature: 'song-card', step: 'drive-download', extras: { songId: song.id } })
+        toastError('Não foi possível baixar do Drive. Tente novamente.')
+        return
+      }
+    }
+
     const filePath = await getSongFilename(song.id)
     playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
     if (playlistContext) {
@@ -444,7 +470,7 @@ export function SongCard({
     })
 
     if (deleteError) {
-      console.error('[SongCard] delete error:', deleteError)
+      captureException(deleteError, { feature: 'song-card', step: 'delete-rpc', extras: { songId: song.id } })
       throw new Error('Não foi possível excluir esta música. Tente novamente.')
     }
     const result = data as { ok: boolean; error?: string } | null
@@ -457,7 +483,7 @@ export function SongCard({
         // Música já não existe no Supabase — segue limpando o cache local.
         console.warn('[SongCard] música já não existia no Supabase')
       } else {
-        console.error('[SongCard] delete unexpected envelope:', result)
+        captureException(new Error('delete_song RPC retornou envelope inesperado'), { feature: 'song-card', step: 'delete-bad-envelope', extras: { songId: song.id, result } })
         throw new Error('Não foi possível excluir esta música. Tente novamente.')
       }
     }
@@ -472,11 +498,21 @@ export function SongCard({
     // pra ocupar espaço em disco.
     if (downloaded) {
       await deleteSongFile(song.id).catch((e) => {
-        console.warn('[SongCard] não foi possível apagar arquivo local:', e)
+        captureException(e, { feature: 'song-card', step: 'delete-local-file', extras: { songId: song.id } })
       })
     }
 
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+
+    // Apaga do Drive também — sem isso, arquivos acumulam pra sempre na
+    // pasta de backup mesmo depois de a música ser removida da biblioteca.
+    // Fire-and-forget — falha não bloqueia exclusão do app (token expirado,
+    // arquivo já deletado, etc).
+    if (orgId && song.cloud_file_id) {
+      void deleteCloudFile(orgId, song.cloud_file_id).catch((e) => {
+        captureException(e, { feature: 'song-card', step: 'delete-drive-file', extras: { songId: song.id } })
+      })
+    }
     if (orgId) await syncOrg(orgId)
     bumpLibrary()
   }
@@ -491,7 +527,7 @@ export function SongCard({
     try {
       await deleteSongFile(song.id)
     } catch (e) {
-      console.error('[SongCard] deleteSongFile error:', e)
+      captureException(e, { feature: 'song-card', step: 'remove-from-device', extras: { songId: song.id } })
       toastError('Não foi possível remover a música do dispositivo.')
       return
     }
@@ -557,10 +593,11 @@ export function SongCard({
       )}
 
       {/* Thumbnail com play/pause overlay */}
-      <div
-        className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
-        style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
-      >
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div
+          className={`relative rounded-lg overflow-hidden flex-shrink-0 bg-white/[0.04] ${isList ? 'w-10 h-10' : 'w-14 h-14'}`}
+          style={showDownloadAlert ? { boxShadow: '0 0 0 1.5px rgba(239,68,68,0.55)' } : undefined}
+        >
         {song.thumbnail_url ? (
           <img src={song.thumbnail_url} alt="" draggable={false} className="w-full h-full object-cover" />
         ) : (
@@ -580,6 +617,14 @@ export function SongCard({
             Sem isso, a UI saltaria do ring direto pro play overlay. */}
         {justCompleted ? (
           <DownloadBadge state="completed" compact={isList} />
+        ) : drivePct !== null ? (
+          // Download do Drive em andamento — progresso 0..100 já vindo
+          // do downloadToFile. DownloadBadge espera 0..1, então /100.
+          <DownloadBadge
+            state="downloading"
+            progress={drivePct / 100}
+            compact={isList}
+          />
         ) : downloadStatus.state === 'downloading' ? (
           <DownloadBadge
             state="downloading"
@@ -597,9 +642,40 @@ export function SongCard({
             online={online}
             compact={isList}
             alert={!!playlistContext}
-            onDownload={() => enqueueDownload(song.id, song.youtube_url)}
+            onDownload={async () => {
+              // Prefere Drive quando temos backup: muito mais rápido,
+              // não depende do YouTube e funciona pra músicas que saíram
+              // do ar. Fallback pro yt-dlp se não houver cloud_file_id.
+              if (song.cloud_file_id) {
+                setDrivePct(0)
+                try {
+                  await downloadSongFromDrive({
+                    orgId: localStorage.getItem('leviticus_org_id') ?? '',
+                    songId: song.id,
+                    cloudFileId: song.cloud_file_id,
+                    ext: song.original_format ?? 'mp3',
+                    expectedHash: song.cloud_file_hash ?? undefined,
+                    expectedSize: song.cloud_file_size ?? undefined,
+                    onProgress: (p) => setDrivePct(p.pct),
+                  })
+                  setDownloaded(true)
+                  setJustCompleted(true)
+                  setTimeout(() => setJustCompleted(false), 800)
+                  toastSuccess('Música baixada')
+                } catch (err) {
+                  captureException(err, { feature: 'song-card', step: 'drive-download', extras: { songId: song.id } })
+                  toastError('Não foi possível baixar do Drive. Tente novamente.')
+                } finally {
+                  setDrivePct(null)
+                }
+              } else {
+                enqueueDownload(song.id, song.youtube_url)
+              }
+            }}
           />
         )}
+        </div>
+        <BackupStatusBadge status={song.backup_status} />
       </div>
 
       <div className="flex-1 min-w-0">
@@ -628,11 +704,12 @@ export function SongCard({
         </button>
       )}
 
-      {song.duration_seconds != null && (
-        <span className="text-body text-sm font-medium font-mono flex-shrink-0">
-          {fmtDuration(song.duration_seconds)}
-        </span>
-      )}
+      {/* Duração: mostra valor real ou placeholder "--:--" quando faltando.
+          Sem o placeholder o card colapsa e desalinha visualmente, e o
+          usuário não percebe que é dado faltando vs intencional. Issue #27. */}
+      <span className="text-body text-sm font-medium font-mono flex-shrink-0">
+        {song.duration_seconds != null ? fmtDuration(song.duration_seconds) : '--:--'}
+      </span>
 
       <ActionsMenu
         online={online}
@@ -645,7 +722,7 @@ export function SongCard({
             console.log('[SongCard] exportado:', path)
             toastSuccess('MP3 exportado', path)
           } catch (e) {
-            console.error('[SongCard] export mp3 error:', e)
+            captureException(e, { feature: 'song-card', step: 'export-mp3', extras: { songId: song.id } })
             toastError(
               'Falha ao exportar MP3',
               e instanceof Error ? e.message : 'Tente novamente.'

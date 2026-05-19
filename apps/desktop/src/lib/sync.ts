@@ -11,8 +11,11 @@ export async function syncOrg(orgId: string): Promise<void> {
   const [
     songs, groups, playlists, songGroups, playlistSongs,
     org, members, roles, rolePerms, roleAssigns, invites, allRoles,
+    cloudAccount,
   ] = await Promise.all([
-    supabase.from('songs').select('id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, created_at, updated_at').eq('org_id', orgId).gte('updated_at', since),
+    supabase.from('songs').select(
+      'id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, cloud_file_id, cloud_file_size, cloud_file_hash, source, original_format, backup_status, created_at, updated_at'
+    ).eq('org_id', orgId).gte('updated_at', since),
     supabase.from('groups').select('id, org_id, name, color_index, updated_at').eq('org_id', orgId).gte('updated_at', since),
     supabase.from('playlists').select('id, org_id, name, scheduled_at, scheduled_end, created_at, updated_at').eq('org_id', orgId).gte('updated_at', since),
     supabase.from('song_groups').select('song_id, group_id, songs!inner(org_id)').eq('songs.org_id', orgId),
@@ -24,6 +27,9 @@ export async function syncOrg(orgId: string): Promise<void> {
     supabase.from('user_role_assignments').select('id, user_id, org_id, role_id, group_id').eq('org_id', orgId),
     supabase.from('org_invite_codes').select('id, org_id, code, label, created_by, expires_at, is_active').eq('org_id', orgId),
     supabase.from('roles').select('id').eq('org_id', orgId),
+    supabase.from('cloud_storage_accounts_public').select(
+      'org_id, provider, account_email, account_user_id, app_folder_id, connected_by, connected_at, last_quota_total, last_quota_used, last_quota_check_at, updated_at'
+    ).eq('org_id', orgId).maybeSingle(),
   ])
 
   if (songs.error) throw new Error(`sync songs failed: ${songs.error.message}`)
@@ -38,14 +44,20 @@ export async function syncOrg(orgId: string): Promise<void> {
   if (roleAssigns.error) throw new Error(`sync user_role_assignments failed: ${roleAssigns.error.message}`)
   if (invites.error) throw new Error(`sync org_invite_codes failed: ${invites.error.message}`)
   if (allRoles.error) throw new Error(`sync roles (full) failed: ${allRoles.error.message}`)
+  if (cloudAccount.error) throw new Error(`sync cloud_storage_accounts failed: ${cloudAccount.error.message}`)
 
   for (const s of songs.data) {
     await db.execute(
       `INSERT OR REPLACE INTO songs
-       (id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, org_id, youtube_url, title, artist, thumbnail_url, duration_seconds, song_type,
+        cloud_file_id, cloud_file_size, cloud_file_hash, source, original_format, backup_status,
+        created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [s.id, s.org_id, s.youtube_url, s.title, s.artist,
-       s.thumbnail_url, s.duration_seconds, s.song_type ?? 'normal', s.created_at, s.updated_at]
+       s.thumbnail_url, s.duration_seconds, s.song_type ?? 'normal',
+       s.cloud_file_id, s.cloud_file_size, s.cloud_file_hash,
+       s.source ?? 'youtube', s.original_format, s.backup_status ?? 'pending',
+       s.created_at, s.updated_at]
     )
   }
 
@@ -146,6 +158,22 @@ export async function syncOrg(orgId: string): Promise<void> {
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [inv.id, inv.org_id, inv.code, inv.label, inv.created_by, inv.expires_at, inv.is_active ? 1 : 0]
     )
+  }
+
+  // cloud_storage_accounts — single row per org, sourced from public view (no tokens)
+  if (cloudAccount.data) {
+    const a = cloudAccount.data
+    await db.execute(
+      `INSERT OR REPLACE INTO cloud_storage_accounts
+       (org_id, provider, account_email, account_user_id, app_folder_id,
+        connected_by, connected_at, last_quota_total, last_quota_used, last_quota_check_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [a.org_id, a.provider, a.account_email, a.account_user_id, a.app_folder_id,
+       a.connected_by, a.connected_at, a.last_quota_total, a.last_quota_used, a.last_quota_check_at, a.updated_at]
+    )
+  } else {
+    // Conta desconectada — limpa cache local
+    await db.execute(`DELETE FROM cloud_storage_accounts WHERE org_id = ?`, [orgId])
   }
 
   await setLastSync(orgId, new Date().toISOString())

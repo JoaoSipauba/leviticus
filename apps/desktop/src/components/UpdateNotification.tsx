@@ -3,6 +3,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { Download, RotateCw, X, Loader2 } from 'lucide-react'
 import { usePlayerStore } from '../store/player.js'
+import { captureException } from '../lib/observability.js'
 
 type Status =
   | { kind: 'idle' }
@@ -54,7 +55,13 @@ export function UpdateNotification() {
       } catch (e) {
         // Falha silenciosa — backend pode estar offline, pubkey ausente etc.
         // Não mostra erro pro usuário porque updater é opcional.
-        console.warn('[updater] check falhou:', e)
+        // Em dev (tauri.conf.dev.json tem endpoints=[]), o erro é
+        // "Updater does not have any endpoints set" — esperado, ignora
+        // pra não poluir o console.
+        const msg = String((e as Error)?.message ?? e)
+        if (!msg.includes('does not have any endpoints')) {
+          console.warn('[updater] check falhou:', e)
+        }
         scheduleNext(CHECK_INTERVAL_MS)
       } finally {
         checkingRef.current = false
@@ -114,7 +121,7 @@ export function UpdateNotification() {
       })
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Algo deu errado. Tente novamente.'
-      console.error('[updater] download falhou:', e)
+      captureException(e, { feature: 'update-notification', step: 'download-falhou' })
       setStatus({ kind: 'error', message: msg })
     }
   }
@@ -136,7 +143,7 @@ export function UpdateNotification() {
       // o relaunch abaixo nem chega a executar — app é morto antes).
       await relaunch()
     } catch (e) {
-      console.error('[updater] install/relaunch falhou:', e)
+      captureException(e, { feature: 'update-notification', step: 'install-relaunch-falhou' })
       setStatus({ kind: 'error', message: 'Não foi possível aplicar a atualização. Tente reiniciar manualmente.' })
     }
   }

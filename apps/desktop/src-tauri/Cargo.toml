@@ -1,6 +1,6 @@
 [package]
 name = "leviticus-desktop"
-version = "0.8.0"
+version = "0.7.3"
 description = "Leviticus — church music player"
 authors = ["you"]
 edition = "2021"
@@ -23,6 +23,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-http = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
+tauri-plugin-deep-link = "2"
 # E2E only: plugin compilado e ativado apenas em builds debug (via
 # cfg(debug_assertions) em lib.rs). Permite que o `tauri-wd` CLI controle
 # o app via WebDriver no macOS. Em release builds, o código é compilado
@@ -38,3 +39,14 @@ futures-util = "0.3"
 flate2 = "1"
 sha2 = "0.10"
 hex = "0.4"
+# Issue #39 (Rust side). Comunica panics e crashes do backend Tauri pro
+# mesmo projeto Sentry do frontend. tauri-plugin-sentry expõe um plugin
+# Tauri que faz bridge entre o Rust SDK e o JS SDK — breadcrumbs e
+# contexto ficam unificados nos events. Em dev sem DSN definido em
+# build-time, o init é skip (option_env! retorna None) e o plugin
+# inicializa em modo no-op.
+sentry = "0.42"
+tauri-plugin-sentry = "0.5"
+
+[dev-dependencies]
+tempfile = "3"

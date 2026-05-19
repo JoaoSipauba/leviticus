@@ -24,7 +24,10 @@ export const router = createBrowserRouter([
     path: '/',
     element: <App />,
     children: [
-      { index: true, element: <Navigate to="/library" replace /> },
+      // Issue #35: app abre em Cultos — operador no dia do culto não precisa
+      // clicar pra chegar onde tá a ação. Biblioteca continua acessível
+      // direto pelo sidebar.
+      { index: true, element: <Navigate to="/services" replace /> },
       { path: 'library', element: <Library /> },
       { path: 'add', element: <Navigate to="/library" replace /> },
       { path: 'ministries', element: <Groups /> },

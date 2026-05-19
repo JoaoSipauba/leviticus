@@ -68,13 +68,22 @@ describe('Journey F — PlaylistDetail flows', () => {
       async () => /\/library$/.test(await browser.getUrl()),
       { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T1)' }
     )
-    await new Promise((r) => setTimeout(r, 4_000))
+    // 8s pra dar tempo de syncOrg + monitores de boot resolverem antes
+    // de navegar pra detail. Sem isso, PlaylistDetail redireciona pra
+    // /services porque a playlist ainda não está no SQLite.
+    await new Promise((r) => setTimeout(r, 8_000))
 
     // Now navigate to the detail page (playlist row is in SQLite)
     await browser.url(`tauri://localhost/services/${playlist.id}`)
     await browser.waitUntil(
       async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
       { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail' }
+    )
+    // Confere que NÃO redirecionou pra /services list (PlaylistDetail
+    // navega pra /services se a playlist não está no SQLite).
+    await browser.waitUntil(
+      async () => !/\/services$/.test(await browser.getUrl()),
+      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services (T1)' }
     )
 
     // Click "Adicionar seção"
@@ -125,27 +134,37 @@ describe('Journey F — PlaylistDetail flows', () => {
 
     // Reload at /library to retrigger syncOrg (pulls new playlist into SQLite).
     // PlaylistDetail redirects to /services if the row isn't in SQLite, so we
-    // navigate to detail and retry the reload+sync cycle until it sticks.
-    let landed = false
-    for (let attempt = 0; attempt < 3 && !landed; attempt++) {
-      await browser.url('tauri://localhost/library')
-      await browser.waitUntil(
-        async () => /\/library$/.test(await browser.getUrl()),
-        { timeout: 15_000 }
-      )
-      await browser.execute(() => { window.location.reload() })
-      await browser.waitUntil(
-        async () => /\/library$/.test(await browser.getUrl()),
-        { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T2)' }
-      )
-      await new Promise((r) => setTimeout(r, 5_000))
+    // navigate to detail until URL sticks (waitUntil cobre delay variável).
+    // Mesma sequência do T1 (sem loop com sleep fixo): reload em /library
+    // pra puxar a playlist criada via admin, depois navega pro detail.
+    // Sleep fixo curto (1.5s) era flaky em dev builds debug.
+    await browser.url('tauri://localhost/library')
+    await browser.waitUntil(
+      async () => /\/library$/.test(await browser.getUrl()),
+      { timeout: 15_000 }
+    )
+    await browser.execute(() => { window.location.reload() })
+    await browser.waitUntil(
+      async () => /\/library$/.test(await browser.getUrl()),
+      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T2)' }
+    )
+    // Espera mais (~8s) pra syncOrg do boot puxar a playlist criada via
+    // admin pro SQLite. Sem isso, PlaylistDetail navega de volta pra
+    // /services porque a row não existe local. Tempos novos somam com
+    // os monitors de rede/sync que entraram em #16/#31.
+    await new Promise((r) => setTimeout(r, 8_000))
 
-      await browser.url(`tauri://localhost/services/${playlist.id}`)
-      await new Promise((r) => setTimeout(r, 1_500))
-      const url = await browser.getUrl()
-      if (url.includes(`/services/${playlist.id}`)) landed = true
-    }
-    if (!landed) throw new Error('Did not land on PlaylistDetail (T2) after 3 reload attempts')
+    await browser.url(`tauri://localhost/services/${playlist.id}`)
+    await browser.waitUntil(
+      async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
+      { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail (T2)' }
+    )
+    // Garante que NÃO voltou pra /services list. Se PlaylistDetail
+    // renderizou, o botão "Adicionar seção" aparece em <15s.
+    await browser.waitUntil(
+      async () => !/\/services$/.test(await browser.getUrl()),
+      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services (playlist not synced yet)' }
+    )
 
     // ─── Step 1: Create a section ──────────────────────────────────────────
     const addSectionBtn = $('button*=Adicionar seção')

@@ -1,5 +1,13 @@
-import { Howl } from 'howler'
+import { Howl, Howler } from 'howler'
 import { convertFileSrc } from '@tauri-apps/api/core'
+import { captureException } from './observability.js'
+
+// Howler mantém um pool de elementos HTML5Audio (default: 10). Quando o
+// pool esgota, ele reusa um Audio "potencialmente travado" e logga
+// "HTML5 Audio pool exhausted". Pode acontecer em sessões longas com
+// muitas trocas de faixa — o navegador segura o Audio em "loading state"
+// brevemente depois do unload(). Aumentamos a folga.
+;(Howler as unknown as { html5PoolSize: number }).html5PoolSize = 25
 
 let _howl: Howl | null = null
 let _currentSrc: string | null = null
@@ -42,8 +50,8 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
     volume: callbacks?.volume ?? 1,
     onend: callbacks?.onEnd,
     onload: callbacks?.onLoad,
-    onloaderror: (_id, err) => console.error('[audio] load error:', err),
-    onplayerror: (_id, err) => console.error('[audio] play error:', err),
+    onloaderror: (_id, err) => captureException(err, { feature: 'audio', step: 'load' }),
+    onplayerror: (_id, err) => captureException(err, { feature: 'audio', step: 'play' }),
   })
 
   return _howl
@@ -62,8 +70,8 @@ export function restartCurrent(): void {
     volume: _currentCallbacks?.volume ?? 1,
     onend: _currentCallbacks?.onEnd,
     onload: _currentCallbacks?.onLoad,
-    onloaderror: (_id, err) => console.error('[audio] load error:', err),
-    onplayerror: (_id, err) => console.error('[audio] play error:', err),
+    onloaderror: (_id, err) => captureException(err, { feature: 'audio', step: 'load' }),
+    onplayerror: (_id, err) => captureException(err, { feature: 'audio', step: 'play' }),
   })
 }
 

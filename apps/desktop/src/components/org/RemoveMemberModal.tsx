@@ -3,6 +3,7 @@ import { X, AlertTriangle } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
 
 export function RemoveMemberModal({
   open, orgId, userId, memberName, mode, onClose, onDone,
@@ -25,7 +26,7 @@ export function RemoveMemberModal({
       p_user_id: userId, p_org_id: orgId,
     })
     if (e || (data as any)?.ok === false) {
-      console.error(e ?? data)
+      captureException(e ?? data, { feature: 'remove-member-modal' })
       const code = (data as any)?.error
       const msg =
         code === 'cannot_remove_owner' ? 'O dono não pode ser removido. Transfira a propriedade primeiro.' :

@@ -5,11 +5,15 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { hasPermission } from '../../lib/permissions.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
+import { captureException } from '../../lib/observability.js'
+import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
 
 export function OrgInfo({ orgId }: { orgId: string }) {
+  // Issue #65: skeleton enquanto load() resolve.
+  const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<Stats>({ members: 0, ministries: 0, playlists: 0 })
   const [form, setForm] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
   const [original, setOriginal] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
@@ -38,6 +42,7 @@ export function OrgInfo({ orgId }: { orgId: string }) {
       setForm(f); setOriginal(f)
     }
     setCanEdit(canEditNow)
+    setLoading(false)
   }
 
   useEffect(() => { void load() }, [orgId])
@@ -53,7 +58,7 @@ export function OrgInfo({ orgId }: { orgId: string }) {
       .update({ name: form.name.trim(), city: form.city.trim() || null, timezone: form.timezone.trim() || 'America/Sao_Paulo' })
       .eq('id', orgId)
     if (updateError) {
-      console.error(updateError)
+      captureException(updateError, { feature: 'org-info' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
       setSaving(false)
@@ -70,6 +75,22 @@ export function OrgInfo({ orgId }: { orgId: string }) {
     { label: 'Ministérios', value: stats.ministries, bg: 'linear-gradient(135deg,#14532d,#16a34a)', stroke: '#86efac', Icon: LayoutGrid },
     { label: 'Cultos cadastrados', value: stats.playlists, bg: 'linear-gradient(135deg,#4c1d95,#7c3aed)', stroke: '#c4b5fd', Icon: CalendarDays },
   ]
+
+  if (loading) {
+    return (
+      <div>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} h={88} w="100%" rounded="xl" />
+          ))}
+        </div>
+        <div className="flex flex-col gap-3">
+          <CardSkeleton lines={2} />
+          <CardSkeleton lines={2} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div>

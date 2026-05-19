@@ -34,11 +34,20 @@ describe('Journey B — Add song variations', () => {
 
   // ─── Helper: open the AddSong modal and switch to "Colar URL" tab ─────────
   async function openAddSongModal() {
-    const addBtn = $('button=Adicionar')
+    const addBtn = $('button*=Adicionar')
     await addBtn.waitForExist({ timeout: 15_000 })
     await addBtn.click()
+    // Espera o modal renderizar — tab "Colar URL" precisa existir antes do
+    // click. Sem waitForExist, em builds mais lentos o test prosseguia sem
+    // trocar de tab e o input do youtube nem estava no DOM.
     const pasteTab = $('button=Colar URL')
-    if (await pasteTab.isExisting()) await pasteTab.click()
+    await pasteTab.waitForExist({ timeout: 5_000, timeoutMsg: 'AddSongModal não abriu (Colar URL tab missing)' })
+    await pasteTab.click()
+    // Garante que o input está visível antes do helper a chamar.
+    await $('input[placeholder*="youtube.com"]').waitForExist({
+      timeout: 5_000,
+      timeoutMsg: 'Input do YouTube não apareceu após clicar Colar URL',
+    })
   }
 
   // ─── Helper: fetch metadata for a URL and advance to step 2 ──────────────

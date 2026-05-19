@@ -1,11 +1,27 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import request from 'supertest'
 import express from 'express'
-import { requireAuth } from '../middleware/auth.js'
+
+// Issue #21: o middleware chama `supabase.auth.getUser(token)` que faz
+// network request. Sem Supabase local rodando, o fetch sofre timeout de
+// 5s e o teste flakey. Mock retorna { error } instantâneo — comportamento
+// idêntico (rota responde 401 Invalid token) sem network.
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: () => ({
+    auth: {
+      getUser: vi.fn().mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid JWT' },
+      }),
+    },
+  }),
+}))
+
+const { requireAuth } = await import('../middleware/auth.js')
 
 const app = express()
 app.use(express.json())
-app.get('/protected', requireAuth, (req, res) => {
+app.get('/protected', requireAuth, (_req, res) => {
   res.json({ ok: true })
 })
 

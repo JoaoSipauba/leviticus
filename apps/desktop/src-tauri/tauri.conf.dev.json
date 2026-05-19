@@ -11,6 +11,14 @@
       "active": false,
       "pubkey": "",
       "endpoints": []
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["leviticus"]
+      }
+    },
+    "shell": {
+      "open": true
     }
   },
   "bundle": {
