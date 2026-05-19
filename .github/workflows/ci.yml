@@ -187,7 +187,9 @@ jobs:
         env:
           VITE_SUPABASE_URL: http://127.0.0.1:54321
           VITE_SUPABASE_ANON_KEY: ${{ steps.supabase-keys.outputs.anon }}
-        run: pnpm tauri build --debug --config src-tauri/tauri.conf.dev.json
+        # --no-bundle: E2E só precisa do .exe; pular bundling do WixTools
+        # (Windows) que requer candle.exe que não vem no Build Tools básico.
+        run: pnpm tauri build --debug --no-bundle --config src-tauri/tauri.conf.dev.json
 
       - name: Run E2E tests
         working-directory: apps/desktop/e2e
