@@ -406,3 +406,15 @@ s3_secret_key = "env(S3_SECRET_KEY)"
 # declarative_schema_path = "./database"
 # JSON string passed through to pg-delta SQL formatting.
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
+
+# ── Edge Functions config ──────────────────────────────────────────────────
+# Issue: o gateway do Supabase Edge Functions exige JWT no header Authorization
+# por default. O endpoint /oauth-callback recebe redirect direto do Google sem
+# header de auth — o gateway retornava 401 + JSON antes do código rodar, então
+# o HTML de sucesso (com deep link leviticus://) nunca era renderizado.
+#
+# Desabilitar verify_jwt é seguro porque o próprio index.ts faz auth manual
+# via authenticate(req, orgId) em todos os demais endpoints. O oauth-callback
+# valida o `state` parameter assinado por HMAC pra anti-CSRF.
+[functions.cloud-storage-proxy]
+verify_jwt = false
