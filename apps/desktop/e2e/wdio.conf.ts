@@ -1,16 +1,41 @@
 // apps/desktop/e2e/wdio.conf.ts
 //
-// Default WebdriverIO config for the e2e harness. Targets Windows + Linux via
-// tauri-driver oficial (CI roda em Windows self-hosted). macOS local
-// development usa wdio.local.conf.ts que estende daqui e troca o driver.
+// Default WebdriverIO config for the e2e harness. Targets Windows + macOS via
+// @crabnebula/tauri-driver (fork oficial que suporta Tauri 2 e ambos OS).
+// CI roda em Windows self-hosted; macOS local dev usa o mesmo arquivo.
+//
+// Issue #73: substituímos o tauri-driver crate oficial v0.1.4 (que só suporta
+// Tauri v1, falha com hyper::IncompleteMessage ao spawnar Tauri 2 no Windows)
+// pelo fork @crabnebula/tauri-driver instalável via npm.
 
 import { spawn, type ChildProcess } from 'node:child_process'
 import { platform } from 'node:os'
+import { createRequire } from 'node:module'
 import { appBinaryPath } from './helpers/env.js'
 import { takeScreenshot } from './helpers/app.js'
 
+const require = createRequire(import.meta.url)
 let tauriDriver: ChildProcess | null = null
 const isWindows = platform() === 'win32'
+
+/**
+ * Resolve o binário do @crabnebula/tauri-driver via npm package.json.
+ * Usar require.resolve pra não depender de PATH global.
+ */
+function resolveTauriDriverBin(): string {
+  // O package @crabnebula/tauri-driver expõe um bin chamado "tauri-driver".
+  // node_modules/.bin/tauri-driver (.cmd no Windows).
+  const ext = isWindows ? '.cmd' : ''
+  try {
+    // tenta resolve via require do package raiz
+    require.resolve('@crabnebula/tauri-driver/package.json')
+    // se chegou aqui, está instalado — usa o shim em .bin
+    return `node_modules/.bin/tauri-driver${ext}`
+  } catch {
+    // fallback: assume PATH global
+    return isWindows ? 'tauri-driver.exe' : 'tauri-driver'
+  }
+}
 
 export const config: WebdriverIO.Config = {
   runner: 'local',
@@ -63,10 +88,10 @@ export const config: WebdriverIO.Config = {
     // Windows: `detached: true` em spawn() não cria process group (Win não tem
     // esse conceito) — em vez disso, abriria uma nova janela do console. Usamos
     // taskkill /T /F no afterSession pra matar a árvore inteira.
-    tauriDriver = spawn(isWindows ? 'tauri-driver.exe' : 'tauri-driver', [], {
+    tauriDriver = spawn(resolveTauriDriverBin(), [], {
       stdio: [null, process.stdout, process.stderr],
       detached: !isWindows,
-      shell: isWindows, // resolve tauri-driver.exe via PATH (Cargo bin dir)
+      shell: isWindows, // .cmd shim no Windows precisa de shell
     })
   },
 

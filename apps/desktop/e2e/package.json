@@ -8,6 +8,7 @@
     "e2e:local": "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY') wdio run ./wdio.local.conf.ts"
   },
   "devDependencies": {
+    "@crabnebula/tauri-driver": "^2.0.9",
     "@supabase/supabase-js": "^2.43.0",
     "@types/mocha": "^10.0.6",
     "@types/node": "^22.0.0",

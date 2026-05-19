@@ -81,17 +81,12 @@ jobs:
   e2e:
     name: E2E (todas as jornadas)
     needs: [test, changes]
-    # TEMPORARIAMENTE DESABILITADO: tauri-driver oficial v0.1.4 não consegue
-    # spawnar app Tauri 2 no Windows (testado via SSH local: 0 processos
-    # leviticus-desktop criados, hyper::IncompleteMessage no driver). É feito
-    # pra Tauri v1. Pra Tauri 2 + Windows precisa abordagem alternativa
-    # (tauri-plugin-webdriver-automation v0.1.3 community ou outro driver).
-    # Tracking: #73.
-    #
-    # Quando reativar, restaurar condição:
-    #   (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
-    #   needs.changes.outputs.desktop == 'true'
-    if: false
+    # Roda só em PR/push pra main + se mudou código desktop/pacotes/schema/CI.
+    # Issue #73: usa @crabnebula/tauri-driver (fork oficial compat Tauri 2)
+    # em vez do tauri-driver crate oficial v0.1.4 (que só funciona com Tauri 1).
+    if: |
+      (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
+      needs.changes.outputs.desktop == 'true'
     runs-on: [self-hosted, leviticus, Windows, X64]
     timeout-minutes: 45
     # Default shell bash em todos os steps — o Windows runner tem Git Bash
@@ -129,24 +124,9 @@ jobs:
           cache-on-failure: true
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Adiciona ~/.cargo/bin ao PATH
-        # Git Bash em Windows não enxerga ~/.cargo/bin por default. tauri-driver
-        # e cargo-binstall foram instalados lá no setup do runner.
-        run: echo "$USERPROFILE\\.cargo\\bin" >> $GITHUB_PATH
-
-      - name: Verifica tauri-driver instalado
-        # Pré-instalado no runner via `cargo binstall -y tauri-driver` (one-time
-        # setup). Se não estiver, instala on-demand via binstall (binário pré-
-        # compilado — `cargo install --locked` falha por yanked deps).
-        # WebView2 e msedgedriver vêm com Windows + edge install global.
-        run: |
-          if ! command -v tauri-driver.exe >/dev/null 2>&1; then
-            echo "tauri-driver não encontrado, instalando via cargo binstall…"
-            cargo binstall -y tauri-driver
-          fi
-          tauri-driver.exe --help | head -3
-
       - name: Install JS dependencies
+        # @crabnebula/tauri-driver vem como devDependency em apps/desktop/e2e
+        # após esse install. Não precisa mais cargo install/binstall.
         run: pnpm install --frozen-lockfile
 
       - name: Build core package
