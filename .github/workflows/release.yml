@@ -91,18 +91,30 @@ jobs:
         if: matrix.platform_key == 'windows-x86_64'
         uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Tauri build
-        # macOS usa bash. Windows usa powershell — Git Bash em Windows tem
-        # `link` (GNU coreutils) que conflita com `link.exe` do MSVC ao
-        # cargo invocar o linker.
-        shell: ${{ matrix.platform_key == 'windows-x86_64' && 'powershell' || 'bash' }}
+      - name: Tauri build (macOS)
+        # bash funciona no macOS. GitHub Actions não permite matrix context
+        # no campo `shell` (line: 98), então split em 2 steps com if.
+        if: matrix.platform_key == 'darwin-aarch64'
+        shell: bash
         working-directory: apps/desktop
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          # Issue #39 — observabilidade. Vazio = no-op (Sentry desligado).
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+        run: pnpm tauri build --bundles ${{ matrix.bundles }}
+
+      - name: Tauri build (Windows)
+        # powershell pra evitar conflito link GNU/link.exe MSVC.
+        if: matrix.platform_key == 'windows-x86_64'
+        shell: powershell
+        working-directory: apps/desktop
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
         run: pnpm tauri build --bundles ${{ matrix.bundles }}
 
