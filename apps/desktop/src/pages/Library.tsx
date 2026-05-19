@@ -26,14 +26,23 @@ export function Library() {
   const { openAddSong, librarySeed, openEditSong } = useUIStore()
   const online = useOnlineStatus()
   const listRef = useRef<HTMLDivElement>(null)
+  // hasLoadedRef: true após o primeiro load completar com sucesso. Usado pra
+  // diferenciar "boot" (mostra skeleton) de "refresh em background" (não
+  // mostra) quando librarySeed bumpa por sync reativo. Issue #80.
+  const hasLoadedRef = useRef(false)
   const navigate = useNavigate()
   const cloudStatus = useIntegrationsStore((s) => s.status)
   const [pendingCount, setPendingCount] = useState(0)
   const [showOnlyPending, setShowOnlyPending] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
+    async function load(silent: boolean) {
+      // Silent refresh (issue #80): quando librarySeed bumpa (sync reativo
+      // após upload em background), evita mostrar skeleton — só atualiza os
+      // dados em background. Skeleton só no load inicial (songs vazias).
+      // Sem isso, a Library piscava a cada upload pro Drive porque o
+      // sync-worker dispara updates de backup_status em rajada.
+      if (!silent) setLoading(true)
       const db = await getDb()
       const rows = await db.select<Song[]>(
         'SELECT * FROM songs WHERE org_id = ? ORDER BY created_at DESC',
@@ -59,7 +68,8 @@ export function Library() {
       setSongGroupMap(map)
       const count = await countPendingBackup(orgId)
       setPendingCount(count)
-      setLoading(false)
+      if (!silent) setLoading(false)
+      hasLoadedRef.current = true
 
       // Backfill assíncrono de duration_seconds: pra cada música sem duração
       // que tem arquivo local, lê o arquivo, atualiza SQLite + Supabase, e
@@ -80,7 +90,8 @@ export function Library() {
         }
       })()
     }
-    load()
+    // Primeiro load: mostra skeleton. Re-loads (sync reativo): silent.
+    load(hasLoadedRef.current)
   }, [orgId, librarySeed])
 
   useEffect(() => {
