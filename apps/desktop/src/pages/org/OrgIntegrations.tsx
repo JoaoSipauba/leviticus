@@ -3,6 +3,7 @@ import { open as openExternal } from '@tauri-apps/plugin-shell'
 import { useIntegrationsStore } from '../../store/integrations.js'
 import { hasPermission } from '../../lib/permissions.js'
 import * as cs from '../../lib/cloud-storage/client.js'
+import { getLeviticusUsedBytes } from '../../lib/cloud-storage/quota.js'
 import { getDb } from '../../lib/db.js'
 import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
@@ -32,6 +33,7 @@ export function OrgIntegrations({ orgId }: Props) {
   const [swapOpen, setSwapOpen] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
   const [uploadedCount, setUploadedCount] = useState(0)
+  const [leviticusUsedBytes, setLeviticusUsedBytes] = useState(0)
   const [admins, setAdmins] = useState<Array<{ id: string; name: string; roleName: string }>>([])
 
   // Carrega permissão + conta + quota + counts
@@ -48,7 +50,10 @@ export function OrgIntegrations({ orgId }: Props) {
     return () => clearInterval(id)
   }, [status, orgId, refreshQuota])
 
-  // Carrega contagem de músicas com backup_status='uploaded'
+  // Carrega contagem + bytes totais de músicas com backup_status='uploaded'.
+  // Re-roda quando quota check atualiza (sync-worker terminou upload).
+  // Issue #81: usedByLeviticus precisa vir do DB local, não de fórmula
+  // baseada em snapshots de storageQuota.
   useEffect(() => {
     void (async () => {
       const db = await getDb()
@@ -57,8 +62,9 @@ export function OrgIntegrations({ orgId }: Props) {
         [orgId, 'uploaded']
       )
       setUploadedCount(rows[0]?.cnt ?? 0)
+      setLeviticusUsedBytes(await getLeviticusUsedBytes(orgId))
     })()
-  }, [orgId, account?.account_email])
+  }, [orgId, account?.account_email, account?.last_quota_check_at])
 
   // Admins list — só busca quando o usuário NÃO tem permissão e precisa contatar admin
   useEffect(() => {
@@ -197,10 +203,12 @@ export function OrgIntegrations({ orgId }: Props) {
           email={account.account_email}
           providerName="Google Drive"
           total={quota.total}
-          usedByLeviticus={account.last_quota_used && account.last_quota_total
-            ? Math.max(0, (account.last_quota_used ?? 0) - (quota.used - (account.last_quota_used ?? 0)))
-            : 0}
-          usedByOthers={Math.max(0, quota.used)}
+          // usedByLeviticus = soma de cloud_file_size das songs com backup_status='uploaded'
+          // (DB local é fonte da verdade pro que o app subiu — ver getLeviticusUsedBytes).
+          // usedByOthers = uso total da conta menos o que Leviticus contribuiu.
+          // Issue #81.
+          usedByLeviticus={leviticusUsedBytes}
+          usedByOthers={Math.max(0, quota.used - leviticusUsedBytes)}
           uploadedCount={uploadedCount}
           lastSyncedAt={account.last_quota_check_at}
           canManage={canManage}
@@ -214,8 +222,8 @@ export function OrgIntegrations({ orgId }: Props) {
           email={account.account_email}
           provider="google_drive"
           total={quota.total}
-          usedByLeviticus={0}
-          usedByOthers={quota.used}
+          usedByLeviticus={leviticusUsedBytes}
+          usedByOthers={Math.max(0, quota.used - leviticusUsedBytes)}
           pendingCount={0}
           pendingBytesNeeded={0}
           canManage={canManage}
