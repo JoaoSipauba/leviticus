@@ -127,9 +127,12 @@ jobs:
         env:
           SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          PLATFORM: ${{ matrix.platform_key }}
         run: |
           set -euo pipefail
+          # PLATFORM inline aqui em vez de env: — Git Bash em Windows às vezes
+          # não herda env vars do step quando shell: bash é usado em
+          # self-hosted runner não-LocalSystem.
+          PLATFORM="${{ matrix.platform_key }}"
           BUNDLE_DIR="apps/desktop/src-tauri/target/release/bundle"
           VERSION=$(node -p "require('./apps/desktop/package.json').version")
           TAG="v${VERSION}"
