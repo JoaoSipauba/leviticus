@@ -81,14 +81,17 @@ jobs:
   e2e:
     name: E2E (todas as jornadas)
     needs: [test, changes]
-    # Roda só em PR pra main / push direto na main, e somente se mudou código
-    # do desktop / pacotes / schema / CI. Landing-only PRs não disparam.
-    if: |
-      (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
-      needs.changes.outputs.desktop == 'true'
-    # Self-hosted Windows: tauri-driver oficial roda em Windows nativamente
-    # (WebView2 + msedgedriver). Mac não tem driver oficial pra WKWebView
-    # (CLAUDE.md), e quota Ubuntu hosted esgotou. Migrado em #73.
+    # TEMPORARIAMENTE DESABILITADO: tauri-driver oficial v0.1.4 não consegue
+    # spawnar app Tauri 2 no Windows (testado via SSH local: 0 processos
+    # leviticus-desktop criados, hyper::IncompleteMessage no driver). É feito
+    # pra Tauri v1. Pra Tauri 2 + Windows precisa abordagem alternativa
+    # (tauri-plugin-webdriver-automation v0.1.3 community ou outro driver).
+    # Tracking: #73.
+    #
+    # Quando reativar, restaurar condição:
+    #   (github.ref == 'refs/heads/main' || github.base_ref == 'main') &&
+    #   needs.changes.outputs.desktop == 'true'
+    if: false
     runs-on: [self-hosted, leviticus, Windows, X64]
     timeout-minutes: 45
     # Default shell bash em todos os steps — o Windows runner tem Git Bash
