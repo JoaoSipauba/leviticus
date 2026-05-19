@@ -85,10 +85,16 @@ jobs:
       - name: Tests (todos os pacotes)
         run: pnpm test
 
+      - name: Setup MSVC environment (Windows only)
+        # Necessário pra Cargo achar link.exe do MSVC em vez do `link` GNU
+        # do Git for Windows que aparece antes no PATH default.
+        if: matrix.platform_key == 'windows-x86_64'
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Tauri build
-        # macOS usa bash. Windows usa pwsh — Git Bash em Windows tem binário
-        # 'link' (coreutils) que conflita com 'link.exe' do MSVC ao cargo
-        # invocar o linker. PowerShell resolve link.exe corretamente.
+        # macOS usa bash. Windows usa powershell — Git Bash em Windows tem
+        # `link` (GNU coreutils) que conflita com `link.exe` do MSVC ao
+        # cargo invocar o linker.
         shell: ${{ matrix.platform_key == 'windows-x86_64' && 'powershell' || 'bash' }}
         working-directory: apps/desktop
         env:
