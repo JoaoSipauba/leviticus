@@ -83,6 +83,10 @@ jobs:
         run: pnpm typecheck
 
       - name: Tests (todos os pacotes)
+        # Vars Supabase local — src/env.ts faz requireEnv() em import-time.
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
         run: pnpm test
 
       - name: Setup MSVC environment (Windows only)
