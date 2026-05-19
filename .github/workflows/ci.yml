@@ -167,9 +167,20 @@ jobs:
 
       - name: Setup MSVC environment
         # Importa PATH/INCLUDE/LIB do MSVC build tools (vcvarsall.bat).
-        # Sem isso, o cargo no Windows acha o `link` GNU do Git for Windows
-        # antes do `link.exe` real do MSVC e falha com 'extra operand'.
         uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Resolve MSVC linker absolute path
+        # Mesmo com msvc-dev-cmd, o Git\usr\bin\link.exe (GNU) persiste no
+        # PATH antes do link.exe do MSVC. Força o linker via env var do Cargo
+        # que aceita caminho absoluto, contornando ambiguidade de PATH.
+        shell: powershell
+        run: |
+          $msvc = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC"
+          $ver = (Get-ChildItem $msvc -Directory | Sort-Object Name -Descending | Select-Object -First 1).Name
+          $linkPath = "$msvc\$ver\bin\Hostx64\x64\link.exe"
+          if (-not (Test-Path $linkPath)) { throw "link.exe não encontrado em $linkPath" }
+          "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=$linkPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding ASCII
+          Write-Host "Linker setado: $linkPath"
 
       - name: Build app (debug)
         working-directory: apps/desktop
