@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from 'react'
 import { WifiOff } from 'lucide-react'
 import { Sidebar } from './Sidebar.js'
 import { PlayerMini } from './PlayerMini.js'
+import { DownloadDock } from './DownloadDock.js'
 import { AddSongModal } from './AddSongModal.js'
 import { EditSongModal } from './EditSongModal.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
@@ -202,6 +203,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
       <AddSongModal />
       <EditSongModal />
+      {/* Issue #71: dock global de downloads em background. Self-hides quando
+          não há nada em fila/erro. */}
+      <DownloadDock />
       {!online && (
         <div
           style={{
