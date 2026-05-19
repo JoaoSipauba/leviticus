@@ -65,6 +65,12 @@ jobs:
         run: pnpm typecheck
 
       - name: Tests
+        # Vars do Supabase local (mesmas do .env.devlocal) — necessárias
+        # porque src/env.ts faz requireEnv() em import-time e runner não tem
+        # .env.local (gitignored). Valores públicos do supabase-cli local.
+        env:
+          VITE_SUPABASE_URL: http://127.0.0.1:54321
+          VITE_SUPABASE_ANON_KEY: sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH
         run: pnpm test
 
   bump:
