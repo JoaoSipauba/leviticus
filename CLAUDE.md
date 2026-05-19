@@ -346,13 +346,15 @@ Toda alteração de schema no Supabase precisa ser **retrocompatível com a vers
 
 ## Releasing
 
-Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda em runner macOS Apple Silicon, gera `.dmg` (e bundle assinado pra updater) e cria a GitHub Release automaticamente.
+Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda nos **self-hosted runners** (Mac M1 + Windows JOAO-PC), gera `.dmg` + `.exe` + bundle assinado pra updater, e cria a GitHub Release automaticamente.
+
+Setup detalhado dos runners e gotchas Windows: ver [docs/self-hosted-runners.md](docs/self-hosted-runners.md). Em particular: **o runner Windows precisa rodar como user `joaos` (não service SYSTEM)** — sem isso, `makensis` falha com `error 0x2` ([tauri-apps/tauri#9895](https://github.com/tauri-apps/tauri/issues/9895)). Pra subir após reboot, logar no Windows e rodar `run.cmd` em foreground.
 
 ### Fluxo de release (automático)
 
 Cada push na `main` dispara o workflow [`Release Bump`](.github/workflows/release-bump.yml):
 
-1. Job `test`: typecheck + unit tests no Ubuntu (~1 min).
+1. Job `test`: typecheck + unit tests no self-hosted Mac (~1 min).
 2. Job `bump`: se testes passaram, roda `pnpm release --ci`. O plugin conventional-changelog do release-it olha os commits desde a última tag e decide:
    - `feat:` → bump minor
    - `fix:` ou `perf:` → bump patch
