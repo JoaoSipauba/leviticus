@@ -136,6 +136,38 @@ describe('Library', () => {
     expect(screen.getByText('Quão Grande é Deus')).toBeInTheDocument()
   })
 
+  it('silent refresh: re-loads após librarySeed bump não mostram skeleton (issue #80)', async () => {
+    // Setup: 1 música, vai carregar normalmente
+    setupDbSelect([makeSong({ id: 's1', title: 'Reckless Love' })])
+
+    const { container, rerender } = render(<Library />)
+
+    // Carga inicial: skeleton enquanto resolve, depois song aparece
+    await waitFor(() => {
+      expect(screen.getByText('Reckless Love')).toBeInTheDocument()
+    })
+    // Sem skeleton no estado estável pós-load inicial
+    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+
+    // Simula bump do librarySeed (e.g. sync reativo após upload pro Drive)
+    // Atualiza dados pra simular novo backup_status
+    setupDbSelect([makeSong({ id: 's1', title: 'Reckless Love', backup_status: 'uploaded' })])
+    uiStoreState.librarySeed = 1
+    rerender(<Library />)
+
+    // Crítico: durante o re-load, skeleton NÃO deve aparecer (silent refresh).
+    // Antes do fix, setLoading(true) faria skeletons piscarem aqui.
+    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+    // E a música continua na tela (não foi unmount)
+    expect(screen.getByText('Reckless Love')).toBeInTheDocument()
+
+    // Quando re-load concluir, ainda sem skeleton
+    await waitFor(() => {
+      expect(screen.getAllByTestId('song-card')).toHaveLength(1)
+    })
+    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+  })
+
   it('biblioteca vazia: CTA grande + esconde search/filtros (issue #34)', async () => {
     setupDbSelect([])
 
