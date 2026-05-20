@@ -10,7 +10,6 @@ import { useNavigate } from 'react-router-dom'
 import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.js'
 import { startInitialSync } from '../lib/cloud-storage/sync-worker.js'
 import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
-import { countPendingBackup } from '../lib/cloud-storage/pending-queue.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
 
@@ -32,7 +31,6 @@ export function Library() {
   const hasLoadedRef = useRef(false)
   const navigate = useNavigate()
   const cloudStatus = useIntegrationsStore((s) => s.status)
-  const [pendingCount, setPendingCount] = useState(0)
   const [showOnlyPending, setShowOnlyPending] = useState(false)
 
   useEffect(() => {
@@ -66,8 +64,6 @@ export function Library() {
       setSongs(rows)
       setGroups(grps)
       setSongGroupMap(map)
-      const count = await countPendingBackup(orgId)
-      setPendingCount(count)
       if (!silent) setLoading(false)
       hasLoadedRef.current = true
 
@@ -95,11 +91,6 @@ export function Library() {
   }, [orgId, librarySeed])
 
   useEffect(() => {
-    if (!orgId) return
-    void countPendingBackup(orgId).then(setPendingCount)
-  }, [orgId, cloudStatus, librarySeed])
-
-  useEffect(() => {
     const el = listRef.current
     if (!el) return
     let timer: ReturnType<typeof setTimeout>
@@ -112,6 +103,16 @@ export function Library() {
     return () => { el.removeEventListener('scroll', onScroll); clearTimeout(timer) }
   }, [])
 
+  // Backup: o banner/chip só sinaliza músicas cuja PRIMEIRA tentativa de
+  // upload falhou (backup_status='failed') — algo que o usuário precisa
+  // resolver com retry manual. Música recém-adicionada fica 'pending'
+  // (na fila de download ou aguardando o primeiro upload) e NÃO conta:
+  // o upload ainda vai acontecer sozinho em background.
+  const failedCount = songs.filter((s) => s.backup_status === 'failed').length
+  // Drive não conectado: nenhuma música sobe. Mostramos um aviso informativo
+  // ("salvas apenas no dispositivo") em vez do banner de retry.
+  const hasLocalOnlySongs = songs.some((s) => s.backup_status !== 'uploaded')
+
   const filtered = songs.filter((s) => {
     const matchesSearch =
       !search ||
@@ -119,7 +120,7 @@ export function Library() {
       s.artist.toLowerCase().includes(search.toLowerCase())
     const matchesGroup =
       !groupFilter || (songGroupMap.get(s.id) ?? []).includes(groupFilter)
-    const matchesBackup = !showOnlyPending || s.backup_status !== 'uploaded'
+    const matchesBackup = !showOnlyPending || s.backup_status === 'failed'
     return matchesSearch && matchesGroup && matchesBackup
   })
 
@@ -186,7 +187,8 @@ export function Library() {
       </div>
 
       <LibraryBackupBanner
-        pendingCount={pendingCount}
+        failedCount={failedCount}
+        hasLocalOnlySongs={hasLocalOnlySongs}
         status={cloudStatus}
         onConfigure={() => {
           // Quando status já é 'connected', "Resolver" deve disparar o
@@ -239,7 +241,7 @@ export function Library() {
             ))}
           </select>
           <BackupFilterChip
-            count={pendingCount}
+            count={failedCount}
             active={showOnlyPending}
             onToggle={() => setShowOnlyPending((v) => !v)}
           />

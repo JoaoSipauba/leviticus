@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CloudOff, AlertCircle, UploadCloud, WifiOff } from 'lucide-react'
+import { CloudOff, AlertCircle, UploadCloud, WifiOff, HardDrive } from 'lucide-react'
 import type { IntegrationStatus } from '../../store/integrations.js'
 import {
   getInitialSyncProgress, subscribeInitialSyncProgress,
@@ -8,12 +8,20 @@ import {
 import { useOnlineStatus } from '../../lib/useOnlineStatus.js'
 
 type Props = {
-  pendingCount: number
+  // Quantidade de músicas cuja PRIMEIRA tentativa de upload falhou
+  // (backup_status='failed'). Músicas 'pending' (na fila de download ou
+  // aguardando o primeiro upload) NÃO entram aqui — o banner de retry só
+  // aparece depois que uma tentativa real falhou.
+  failedCount: number
+  // Existe ao menos uma música ainda não salva no Drive. Usado só pra
+  // decidir se mostramos o aviso "salvas apenas no dispositivo" quando o
+  // Drive não está conectado.
+  hasLocalOnlySongs: boolean
   status: IntegrationStatus
   onConfigure: () => void
 }
 
-export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props) {
+export function LibraryBackupBanner({ failedCount, hasLocalOnlySongs, status, onConfigure }: Props) {
   // Subscribe ao progresso do initial-sync. Quando rodando, sobrescreve a
   // copy do banner pra "Subindo X/Y…" — feedback claro durante onboarding
   // de Drive recém-conectado. Issue #44.
@@ -26,7 +34,7 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
 
   // Estado offline tem prioridade sobre tudo: usuário sabe que o problema
   // é a internet, não algo do app/Drive. Backup retoma quando reconectar.
-  if (!online && pendingCount > 0) {
+  if (!online && failedCount > 0) {
     return (
       <div
         className="rounded-xl px-3.5 py-3 mb-3 flex items-center gap-3"
@@ -36,7 +44,7 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-semibold" style={{ color: '#e7e5e4' }}>
             Sem internet — backup vai retomar quando conectar
-            {pendingCount > 0 && ` (${pendingCount} pendente${pendingCount === 1 ? '' : 's'})`}
+            {` (${failedCount} pendente${failedCount === 1 ? '' : 's'})`}
           </div>
         </div>
       </div>
@@ -44,7 +52,8 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
   }
 
   // Initial sync rodando tem prioridade sobre tudo — mostra progresso mesmo
-  // se pendingCount=0 (o pendingCount externo pode estar stale durante o sync).
+  // se failedCount=0 (o initial-sync sobe músicas 'pending', que não contam
+  // como falha mas merecem feedback de progresso).
   if (progress.inProgress && progress.total > 0) {
     return (
       <div
@@ -62,23 +71,48 @@ export function LibraryBackupBanner({ pendingCount, status, onConfigure }: Props
     )
   }
 
-  if (pendingCount === 0) return null
+  // Drive não conectado: nenhuma música sobe. Não é um erro de upload — é
+  // setup pendente. Mostramos um aviso informativo (tom neutro), não o
+  // banner de retry. Só `disconnected` — `unknown` é o estado de loading
+  // e mostrar a mensagem nele causaria flash. Issue #71.
+  if (status === 'disconnected' && hasLocalOnlySongs) {
+    return (
+      <div
+        className="rounded-xl px-3.5 py-3 mb-3 flex items-center gap-3"
+        style={{ background: '#1c1917', border: '1px solid #44403c' }}
+      >
+        <HardDrive size={18} color="#a8a29e" strokeWidth={2} className="flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <div className="text-[13px] font-semibold" style={{ color: '#e7e5e4' }}>
+            Sem backup configurado — músicas salvas apenas no dispositivo
+          </div>
+        </div>
+        <button
+          onClick={onConfigure}
+          className="rounded-md px-3 py-1.5 text-[12px] font-semibold flex-shrink-0"
+          style={{ background: '#a8a29e', color: '#09090b', border: 'none', cursor: 'pointer' }}
+        >
+          Configurar
+        </button>
+      </div>
+    )
+  }
+
+  // Sem falhas de upload → nada a sinalizar. Músicas 'pending' continuam
+  // baixando/subindo em background sem incomodar o usuário.
+  if (failedCount === 0) return null
 
   const critical = status === 'quota_full'
   const Icon = critical ? AlertCircle : CloudOff
-
-  const notConnected = status === 'disconnected' || status === 'unknown'
 
   const message =
     status === 'quota_full' ? 'Drive cheio — backup pausado'
     : status === 'token_expired' ? 'Conexão com Drive expirou'
     : status === 'folder_missing' ? 'Pasta de backup não encontrada no Drive'
-    : notConnected ? `${pendingCount} música${pendingCount === 1 ? '' : 's'} sem backup. Configure o Drive pra guardar as músicas da igreja.`
-    : `${pendingCount} música${pendingCount === 1 ? '' : 's'} aguardando upload.`
+    : `${failedCount} música${failedCount === 1 ? '' : 's'} aguardando upload.`
 
   const buttonLabel =
-    notConnected ? 'Configurar'
-    : status === 'token_expired' ? 'Reconectar'
+    status === 'token_expired' ? 'Reconectar'
     : status === 'folder_missing' ? 'Recriar pasta'
     : 'Resolver'
 
