@@ -1,15 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Music, LayoutGrid, CalendarDays, LogOut, Home, Users } from 'lucide-react'
+import { Music, LayoutGrid, CalendarDays, LogOut, Home, Users, Heart } from 'lucide-react'
+import { open } from '@tauri-apps/plugin-shell'
 import { getVersion } from '@tauri-apps/api/app'
 import type { Playlist } from '@leviticus/core'
 import { useAuthStore } from '../store/auth.js'
 import { supabase } from '../lib/supabase.js'
 import { getDb } from '../lib/db.js'
 import { formatPlaylistTimeRange, formatTime } from '../lib/playlist.js'
+import { DONATION_URL } from '../lib/donation.js'
+import { captureException } from '../lib/observability.js'
 import { Logo } from './brand/Logo.js'
 import { LogoutChoiceModal } from './LogoutChoiceModal.js'
-import { toastSuccess } from '../store/toasts.js'
+import { toastSuccess, toastError } from '../store/toasts.js'
 
 type CultoState = 'live' | 'soon'
 type ActiveCulto = { playlist: Playlist; state: CultoState; minutesLeft?: number }
@@ -218,6 +221,21 @@ export function Sidebar() {
             </span>
           </div>
         )}
+
+        <button
+          onClick={async () => {
+            try {
+              await open(DONATION_URL)
+            } catch (e) {
+              captureException(e, { feature: 'donation', step: 'open-url' })
+              toastError('Não foi possível abrir a página de doação. Tente novamente.')
+            }
+          }}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg w-full text-left text-[13px] font-medium transition-colors text-[#9ca3af] hover:text-[#fca5cf] hover:bg-[#f472b6]/[0.07]"
+        >
+          <Heart size={15} strokeWidth={2} color="#f472b6" />
+          Apoiar o Leviticus
+        </button>
 
         <button
           onClick={() => setLogoutOpen(true)}
