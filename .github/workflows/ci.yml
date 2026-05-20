@@ -174,6 +174,28 @@ jobs:
         # (Windows) que requer candle.exe que não vem no Build Tools básico.
         run: pnpm tauri build --debug --no-bundle --config src-tauri/tauri.conf.dev.json
 
+      - name: Setup msedgedriver
+        # tauri-driver (@crabnebula) precisa do msedgedriver.exe no PATH pra
+        # dirigir o WebView2 — sem ele sai com CannotFindBinaryPath e nenhuma
+        # spec roda. Baixa a versão exata do Edge instalado (Edge auto-atualiza,
+        # então fixar versão quebraria; resolver em runtime é o robusto).
+        shell: powershell
+        run: |
+          $appDir = 'C:\Program Files (x86)\Microsoft\Edge\Application'
+          $ver = (Get-ChildItem $appDir -Directory |
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+            Sort-Object { [version]$_.Name } -Descending |
+            Select-Object -First 1).Name
+          if (-not $ver) { throw "Versao do Edge nao encontrada em $appDir" }
+          Write-Host "Edge instalado: $ver"
+          $dest = Join-Path $env:RUNNER_TEMP 'edgedriver'
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          $zip = Join-Path $dest 'edgedriver.zip'
+          Invoke-WebRequest -Uri "https://msedgedriver.microsoft.com/$ver/edgedriver_win64.zip" -OutFile $zip
+          Expand-Archive -Force -Path $zip -DestinationPath $dest
+          & "$dest\msedgedriver.exe" --version
+          Add-Content -Path $env:GITHUB_PATH -Value $dest
+
       - name: Run E2E tests
         working-directory: apps/desktop/e2e
         env:
