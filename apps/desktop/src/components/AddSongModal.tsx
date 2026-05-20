@@ -632,7 +632,7 @@ const SONG_TYPE_OPTIONS: { value: SongType; label: string; color: string; active
 // ─── main component ────────────────────────────────────────────────────────
 
 export function AddSongModal() {
-  const { showAddSong, closeAddSong, bumpLibrary } = useUIStore()
+  const { showAddSong, closeAddSong, bumpLibrary, addSongContext } = useUIStore()
   const navigate = useNavigate()
   const enqueueDownload = useDownloadsStore((s) => s.enqueue)
   const cloudStatus = useIntegrationsStore((s) => s.status)
@@ -646,6 +646,10 @@ export function AddSongModal() {
   // baixando) de música de arquivo (áudio já local, pronta pra tocar).
   // Issue #71.
   const [step4Queued, setStep4Queued] = useState(false)
+  // step 4: setado quando a música foi criada mas o vínculo com a seção do
+  // culto falhou (contexto-de-culto). A música não se perde — fica na
+  // biblioteca; o aviso orienta o usuário a vincular manualmente.
+  const [step4LinkFailed, setStep4LinkFailed] = useState(false)
 
   // step 1
   const [url, setUrl] = useState('')
@@ -1044,7 +1048,9 @@ export function AddSongModal() {
     setTitle('')
     setArtist('')
     setGroups([])
-    setSelectedGroups([])
+    // Contexto-de-culto: pré-marca o ministério da seção (se houver).
+    setSelectedGroups(addSongContext?.groupId ? [addSongContext.groupId] : [])
+    setStep4LinkFailed(false)
     setSongType('normal')
     setOrgId('')
     setProgress(0)
@@ -1259,6 +1265,27 @@ export function AddSongModal() {
     }
   }
 
+  // Contexto-de-culto: vincula a música recém-criada à seção do culto via
+  // RPC add_song_to_playlist. No-op (ok:true) quando não há contexto — o
+  // fluxo aberto pela Biblioteca não é afetado. Retorna ok=false se o
+  // vínculo falhar; a música já está na biblioteca, então não se perde.
+  async function linkSongToPlaylist(songId: string): Promise<boolean> {
+    if (!addSongContext) return true
+    const { data, error: linkErr } = await supabase.rpc('add_song_to_playlist', {
+      p_playlist_id: addSongContext.playlistId,
+      p_song_id: songId,
+      p_section_id: addSongContext.sectionId,
+      p_group_id: addSongContext.groupId,
+      p_section_label: addSongContext.sectionLabel,
+    })
+    if (linkErr) {
+      captureException(linkErr, { feature: 'add-song', step: 'link-to-playlist', extras: { songId } })
+      return false
+    }
+    const r = data as { ok: boolean } | null
+    return Boolean(r?.ok)
+  }
+
   // ── step 2 logic ──────────────────────────────────────────────────────────
 
   async function handleConfirmFile() {
@@ -1324,19 +1351,25 @@ export function AddSongModal() {
       const absDir = await appLocalDataDir()
       const absPath = `${absDir}/${localPath}`
 
-      // 4. Sync + sucesso na UI imediato
+      // 4. Contexto-de-culto: vincula à seção antes do sync.
+      const linked = await linkSongToPlaylist(songId)
+
+      // 5. Sync + sucesso na UI imediato
       await syncOrg(currentOrgId)
       bumpLibrary()
-      if (cloudStatus === 'connected') {
+      if (addSongContext) {
+        toastSuccess('Música adicionada ao culto')
+      } else if (cloudStatus === 'connected') {
         toastSuccess('Música adicionada — backup em background')
       } else {
         toastSuccess('Música adicionada — sem backup (Drive desconectado)')
       }
       setStep4Queued(false)
+      setStep4LinkFailed(!linked)
       setStep(4)
       setSaving(false)
 
-      // 5. Upload pro Drive em background (fire-and-forget). Status muda
+      // 6. Upload pro Drive em background (fire-and-forget). Status muda
       //    de 'pending' → 'uploaded' silenciosamente via sync reativo.
       if (cloudStatus === 'connected') {
         void (async () => {
@@ -1445,10 +1478,20 @@ export function AddSongModal() {
     // subscribeCompleted (acontece quando o download termina, ainda em
     // background).
     enqueueDownload(song.id, metadata.normalizedUrl, metadata.title)
+
+    // Contexto-de-culto: vincula à seção antes do sync, pra que o syncOrg
+    // já traga a linha de playlist_songs pro SQLite local.
+    const linked = await linkSongToPlaylist(song.id)
+
     await syncOrg(orgId)
     bumpLibrary()
-    toastSuccess('Música adicionada — baixando em background')
+    toastSuccess(
+      addSongContext
+        ? 'Música adicionada ao culto — baixando em background'
+        : 'Música adicionada — baixando em background'
+    )
     setStep4Queued(true)
+    setStep4LinkFailed(!linked)
     setStep(4)
     setSaving(false)
   }
@@ -1534,7 +1577,11 @@ export function AddSongModal() {
               )}
               {step === 2 && 'Edite se precisar'}
               {step === 3 && 'Não feche esta janela'}
-              {step === 4 && (step4Queued ? 'Baixando em background' : 'Pronta para tocar na biblioteca')}
+              {step === 4 && (
+                addSongContext ? 'Adicionada ao culto'
+                : step4Queued ? 'Baixando em background'
+                : 'Pronta para tocar na biblioteca'
+              )}
             </div>
           </div>
 
@@ -2232,13 +2279,36 @@ export function AddSongModal() {
               </div>
 
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6' }}>Música adicionada!</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6' }}>
+                  {addSongContext ? 'Música adicionada ao culto!' : 'Música adicionada!'}
+                </div>
                 <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
                   {step4Queued
                     ? 'Baixando em background — acompanhe o progresso no canto inferior'
                     : 'Pronta para tocar na biblioteca'}
                 </div>
               </div>
+
+              {/* Aviso: a música foi criada mas o vínculo com a seção do
+                  culto falhou. A música não se perde — está na biblioteca. */}
+              {step4LinkFailed && (
+                <div
+                  className="animate-fade-slide-in"
+                  style={{
+                    width: '100%',
+                    fontSize: 12,
+                    color: '#fcd34d',
+                    background: 'rgba(120,53,15,0.25)',
+                    border: '1px solid rgba(251,191,36,0.25)',
+                    borderRadius: 9,
+                    padding: '8px 11px',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  Música baixada, mas não foi possível adicionar ao culto.
+                  Adicione pela aba "Da biblioteca".
+                </div>
+              )}
 
               {/* song card */}
               <div
@@ -2278,16 +2348,17 @@ export function AddSongModal() {
                 </div>
               </div>
 
-              {/* actions */}
+              {/* actions — em contexto-de-culto o botão fecha o modal
+                  (volta pro culto) em vez de navegar pra biblioteca. */}
               <div style={{ display: 'flex', gap: 8, width: '100%' }}>
                 <BtnGhost
                   onClick={() => {
                     triggerClose()
-                    navigate('/library')
+                    if (!addSongContext) navigate('/library')
                   }}
                   style={{ flex: 1, fontSize: 12 }}
                 >
-                  Ver biblioteca
+                  {addSongContext ? 'Concluído' : 'Ver biblioteca'}
                 </BtnGhost>
                 <BtnPrimary
                   onClick={resetToStep1}

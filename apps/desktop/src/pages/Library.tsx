@@ -167,7 +167,7 @@ export function Library() {
             vazia a CTA grande é o caminho principal (não competir com ela). */}
         {!isLibraryEmpty && (
           <button
-            onClick={online ? openAddSong : undefined}
+            onClick={online ? () => openAddSong() : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
             className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand"
@@ -279,7 +279,7 @@ export function Library() {
               Adicione suas músicas para organizar setlists, ministérios e cultos da igreja.
             </p>
             <button
-              onClick={online ? openAddSong : undefined}
+              onClick={online ? () => openAddSong() : undefined}
               disabled={!online}
               title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
               className="inline-flex items-center gap-2 font-semibold text-white transition-colors bg-brand-active hover:bg-brand"

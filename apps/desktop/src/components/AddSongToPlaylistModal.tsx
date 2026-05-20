@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X, Music, Loader2, Check } from 'lucide-react'
+import { Search, X, Music, Loader2, Check, Library, Download } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { captureException } from '../lib/observability.js'
+import { hasPermission } from '../lib/permissions.js'
+import { useUIStore } from '../store/ui.js'
 
 type Props = {
   open: boolean
@@ -33,14 +35,28 @@ export function AddSongToPlaylistModal({
   const [adding, setAdding] = useState<string | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  // Issue: aba "Baixar nova" só aparece pra quem pode adicionar músicas.
+  const [canAddNew, setCanAddNew] = useState(false)
   const online = useOnlineStatus()
+  const openAddSong = useUIStore((s) => s.openAddSong)
 
   useEffect(() => {
     if (!open) return
     setQuery(''); setError(null); setAddedIds(new Set())
     setFilterToGroup(Boolean(groupId))
     void load()
+    const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+    if (orgId) {
+      void hasPermission('add_songs', orgId).then(setCanAddNew)
+    }
   }, [open, playlistId])
+
+  // "Baixar nova": fecha o seletor e abre o AddSongModal com o contexto
+  // desta seção — a música baixada é vinculada à seção ao final.
+  function handleAddNew() {
+    onClose()
+    openAddSong({ playlistId, sectionId, groupId, sectionLabel })
+  }
 
   async function load() {
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
@@ -127,8 +143,34 @@ export function AddSongToPlaylistModal({
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Adicionar música</h2>
-          <button onClick={onClose} className="text-body hover:text-heading"><X size={18} /></button>
+          <button onClick={onClose} className="text-body hover:text-heading transition-colors"><X size={18} /></button>
         </div>
+
+        {/* Segmented control: escolher entre a biblioteca existente ou
+            baixar uma música nova direto na seção. A aba "Baixar nova" só
+            aparece pra quem tem permissão de adicionar músicas. */}
+        {canAddNew && (
+          <div className="px-5 pb-3">
+            <div
+              className="flex gap-1 p-1 rounded-lg"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold"
+                style={{ background: 'rgba(124,58,237,0.22)', color: '#c4b5fd' }}
+              >
+                <Library size={13} /> Da biblioteca
+              </div>
+              <button
+                onClick={handleAddNew}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors text-muted hover:text-heading hover:bg-white/[0.06]"
+                style={{ background: 'transparent', border: 'none' }}
+              >
+                <Download size={13} /> Baixar nova
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="px-5 pb-3">
           <div className="relative">

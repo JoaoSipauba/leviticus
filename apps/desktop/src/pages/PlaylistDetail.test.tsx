@@ -3,12 +3,16 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
 // ─── hoisted refs ─────────────────────────────────────────────────────────
 
-const { dbSelectMock, rpcMock, syncOrgMock, navigateMock } = vi.hoisted(() => {
+const { dbSelectMock, rpcMock, syncOrgMock, navigateMock, uiStoreState } = vi.hoisted(() => {
   const dbSelectMock = vi.fn()
   const rpcMock = vi.fn().mockResolvedValue({ error: null })
   const syncOrgMock = vi.fn().mockResolvedValue(undefined)
   const navigateMock = vi.fn()
-  return { dbSelectMock, rpcMock, syncOrgMock, navigateMock }
+  // Objeto estável: useUIStore com selector precisa retornar o MESMO valor
+  // entre renders. Sem isso, `useUIStore((s) => s.librarySeed)` devolveria
+  // um objeto novo a cada render → effect em loop → OOM.
+  const uiStoreState = { openAddSong: vi.fn(), librarySeed: 0 }
+  return { dbSelectMock, rpcMock, syncOrgMock, navigateMock, uiStoreState }
 })
 
 // Stable sets/fns declared outside hoisted so they keep identity across renders.
@@ -104,7 +108,8 @@ vi.mock('../store/toasts.js', () => ({
 }))
 
 vi.mock('../store/ui.js', () => ({
-  useUIStore: () => ({ openAddSong: vi.fn() }),
+  useUIStore: (selector?: (s: typeof uiStoreState) => unknown) =>
+    selector ? selector(uiStoreState) : uiStoreState,
 }))
 
 vi.mock('react-router-dom', () => ({

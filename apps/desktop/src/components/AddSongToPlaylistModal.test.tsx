@@ -2,10 +2,11 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AddSongToPlaylistModal } from './AddSongToPlaylistModal.js'
+import { useUIStore } from '../store/ui.js'
 
 // ─── hoisted mock variables ────────────────────────────────────────────────
 
-const { rpcMock, dbSelectMock, syncOrgMock, useOnlineStatusMock } =
+const { rpcMock, dbSelectMock, syncOrgMock, useOnlineStatusMock, hasPermissionMock } =
   vi.hoisted(() => {
     const rpcMock = vi.fn()
     // First call returns songs, second returns song_groups links
@@ -20,7 +21,8 @@ const { rpcMock, dbSelectMock, syncOrgMock, useOnlineStatusMock } =
       ])
     const syncOrgMock = vi.fn().mockResolvedValue(undefined)
     const useOnlineStatusMock = vi.fn().mockReturnValue(true)
-    return { rpcMock, dbSelectMock, syncOrgMock, useOnlineStatusMock }
+    const hasPermissionMock = vi.fn().mockResolvedValue(true)
+    return { rpcMock, dbSelectMock, syncOrgMock, useOnlineStatusMock, hasPermissionMock }
   })
 
 // ─── module mocks ──────────────────────────────────────────────────────────
@@ -43,6 +45,10 @@ vi.mock('../lib/sync.js', () => ({
 
 vi.mock('../lib/useOnlineStatus.js', () => ({
   useOnlineStatus: useOnlineStatusMock,
+}))
+
+vi.mock('../lib/permissions.js', () => ({
+  hasPermission: hasPermissionMock,
 }))
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -82,6 +88,7 @@ beforeEach(() => {
       { song_id: 's1', group_id: 'g1' },
     ])
   useOnlineStatusMock.mockReturnValue(true)
+  hasPermissionMock.mockResolvedValue(true)
 })
 
 afterEach(() => {
@@ -267,5 +274,45 @@ describe('AddSongToPlaylistModal', () => {
     await userEvent.type(searchInput, 'xyzimpossível')
 
     expect(screen.getByText('Nenhuma música encontrada.')).toBeInTheDocument()
+  })
+
+  // ─── segmented control: "Baixar nova" (download direto no culto) ──────────
+
+  it('segmented control aparece quando o usuário tem permissão add_songs', async () => {
+    hasPermissionMock.mockResolvedValue(true)
+    renderModal()
+    await screen.findByText('Quão Grande é o Meu Deus')
+    expect(await screen.findByText('Da biblioteca')).toBeInTheDocument()
+    expect(screen.getByText('Baixar nova')).toBeInTheDocument()
+  })
+
+  it('aba "Baixar nova" escondida quando falta a permissão add_songs', async () => {
+    hasPermissionMock.mockResolvedValue(false)
+    renderModal()
+    await screen.findByText('Quão Grande é o Meu Deus')
+    expect(screen.queryByText('Baixar nova')).not.toBeInTheDocument()
+    expect(screen.queryByText('Da biblioteca')).not.toBeInTheDocument()
+  })
+
+  it('clicar "Baixar nova" fecha o seletor e abre o AddSongModal com o contexto da seção', async () => {
+    hasPermissionMock.mockResolvedValue(true)
+    const openAddSongSpy = vi.fn()
+    const prevOpenAddSong = useUIStore.getState().openAddSong
+    useUIStore.setState({ openAddSong: openAddSongSpy })
+
+    const { onClose } = renderModal()
+    await screen.findByText('Quão Grande é o Meu Deus')
+
+    await userEvent.click(await screen.findByText('Baixar nova'))
+
+    expect(onClose).toHaveBeenCalled()
+    expect(openAddSongSpy).toHaveBeenCalledWith({
+      playlistId: PLAYLIST_ID,
+      sectionId: SECTION_ID,
+      groupId: GROUP_ID,
+      sectionLabel: 'Abertura',
+    })
+
+    useUIStore.setState({ openAddSong: prevOpenAddSong })
   })
 })
