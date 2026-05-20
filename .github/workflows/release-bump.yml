@@ -87,6 +87,11 @@ jobs:
         with:
           fetch-depth: 0  # release-it precisa enxergar todas as tags
           ref: main
+          # PAT de uma conta admin: o release-it precisa dar push do commit
+          # chore(release) direto na main, e a branch protection rejeita push
+          # do GITHUB_TOKEN (github-actions[bot] não burla required checks).
+          # Como enforce_admins está off, o push de um admin é isento.
+          token: ${{ secrets.RELEASE_TOKEN }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
