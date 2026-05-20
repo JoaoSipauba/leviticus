@@ -7,18 +7,13 @@ import { captureException } from './observability.js'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
 // primeiro boot baixa do GitHub releases do yt-dlp; depois disso é
-// O(1) (só um stat no Rust). Tem que rodar ANTES de qualquer Command
-// que chame "yt-dlp" porque a capability aponta pra esse path.
-let ensurePromise: Promise<string> | null = null
+// O(1) no caminho feliz (só um stat no Rust). Tem que rodar ANTES de
+// qualquer Command que chame "yt-dlp" porque a capability aponta pra
+// esse path. Sem cache JS: o Rust já tem fast-path próprio, e cachear
+// aqui mascara casos onde o binário sumiu por baixo do app (cleanup
+// manual, antivírus, etc).
 function ensureYtDlp(): Promise<string> {
-  if (!ensurePromise) {
-    ensurePromise = invoke<string>('ensure_yt_dlp').catch((e) => {
-      // Reset cache em erro pra próxima tentativa rebaixar
-      ensurePromise = null
-      throw e
-    })
-  }
-  return ensurePromise
+  return invoke<string>('ensure_yt_dlp')
 }
 
 export const DOWNLOAD_CANCELED = 'canceled'
