@@ -34,6 +34,9 @@ export function AddSongToPlaylistModal({
   const [filterToGroup, setFilterToGroup] = useState(true)
   const [adding, setAdding] = useState<string | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
+  // Issue #67 pt.2: músicas que JÁ estavam na seção antes de abrir o modal —
+  // aparecem com check + desabilitadas pra evitar duplicata silenciosa.
+  const [alreadyInSection, setAlreadyInSection] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   // Issue: aba "Baixar nova" só aparece pra quem pode adicionar músicas.
   const [canAddNew, setCanAddNew] = useState(false)
@@ -76,6 +79,18 @@ export function AddSongToPlaylistModal({
       groupsBySong.set(l.song_id, arr)
     }
     setAllSongs(songs.map((s) => ({ ...s, group_ids: groupsBySong.get(s.id) ?? [] })))
+
+    // Músicas já vinculadas a esta seção do culto. Seção avulsa ainda não
+    // materializada (sectionId null) → nenhuma música, set vazio.
+    if (sectionId) {
+      const inSection = await db.select<{ song_id: string }[]>(
+        'SELECT song_id FROM playlist_songs WHERE playlist_id = ? AND section_id = ?',
+        [playlistId, sectionId]
+      )
+      setAlreadyInSection(new Set(inSection.map((r) => r.song_id)))
+    } else {
+      setAlreadyInSection(new Set())
+    }
   }
 
   const filtered = useMemo(() => {
@@ -203,16 +218,26 @@ export function AddSongToPlaylistModal({
             </div>
           ) : (
             filtered.map((s) => {
-              const added = addedIds.has(s.id)
+              // "added" = adicionada agora neste modal; "inSection" = já
+              // estava na seção quando o modal abriu (#67 pt.2). Ambos →
+              // check verde + desabilitada (sem reclique = sem duplicata).
+              const justAdded = addedIds.has(s.id)
+              const inSection = alreadyInSection.has(s.id)
+              const done = justAdded || inSection
               return (
                 <button
                   key={s.id}
-                  onClick={() => !added && online && handleAdd(s)}
-                  disabled={added || adding !== null || !online}
-                  title={!online ? 'Sem conexão' : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left ${
+                  onClick={() => !done && online && handleAdd(s)}
+                  disabled={done || adding !== null || !online}
+                  title={
+                    inSection ? 'Já está nesta seção'
+                    : !online ? 'Sem conexão'
+                    : undefined
+                  }
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                     online ? 'hover:bg-white/[0.04] cursor-pointer disabled:cursor-default' : 'cursor-not-allowed opacity-50'
                   }`}
+                  style={inSection ? { opacity: 0.55 } : undefined}
                 >
                   <div className="w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] flex items-center justify-center overflow-hidden">
                     {s.thumbnail_url ? (
@@ -227,7 +252,11 @@ export function AddSongToPlaylistModal({
                   </div>
                   {adding === s.id ? (
                     <Loader2 size={16} className="animate-spin-smooth text-brand" />
-                  ) : added ? (
+                  ) : inSection ? (
+                    <span className="flex items-center gap-1 text-green-500 text-xs font-semibold">
+                      <Check size={15} /> Na seção
+                    </span>
+                  ) : justAdded ? (
                     <Check size={16} className="text-green-500" />
                   ) : (
                     <span className="text-brand text-sm font-semibold">+</span>
