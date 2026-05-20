@@ -5,6 +5,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
+import { useModalDismiss } from '../../lib/useModalDismiss.js'
 
 type Candidate = { user_id: string; name: string; email: string }
 
@@ -57,11 +58,17 @@ export function TransferOwnershipModal({
     setPending(false); onDone(); onClose()
   }
 
+  const { onBackdropClick } = useModalDismiss({
+    onClose,
+    canDismissOutside: pick === null,
+    busy: pending,
+  })
+
   if (!open) return null
   const picked = candidates.find((c) => c.user_id === pick)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
       <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>

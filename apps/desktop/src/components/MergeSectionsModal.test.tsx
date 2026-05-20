@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MergeSectionsModal } from './MergeSectionsModal'
@@ -64,12 +64,19 @@ describe('MergeSectionsModal', () => {
     expect(defaultProps.onConfirm).not.toHaveBeenCalled()
   })
 
-  it('clicar no overlay/backdrop também chama onCancel', async () => {
+  it('clicar no overlay/backdrop também chama onCancel (canDismissOutside=true)', async () => {
     const user = userEvent.setup()
     const { container } = render(<MergeSectionsModal {...defaultProps} />)
     // The backdrop is the outermost fixed div
     const backdrop = container.firstChild as HTMLElement
     await user.click(backdrop)
     expect(defaultProps.onCancel).toHaveBeenCalledTimes(1)
+  })
+
+  it('apertar Escape fecha o modal (chama onCancel)', () => {
+    render(<MergeSectionsModal {...defaultProps} />)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(defaultProps.onCancel).toHaveBeenCalledTimes(1)
+    expect(defaultProps.onConfirm).not.toHaveBeenCalled()
   })
 })

@@ -4,6 +4,7 @@ import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
 
 type Props = {
@@ -130,13 +131,17 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
     }
   }
 
+  // Issue #91: clique-fora só descarta se o form está vazio (nada digitado).
+  const canDismissOutside = name.trim() === ''
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: saving })
+
   if (!open) return null
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.55)' }}
-      onClick={onClose}
+      onClick={onBackdropClick}
     >
       <div
         className="animate-modal-in w-full max-w-md rounded-2xl p-6"

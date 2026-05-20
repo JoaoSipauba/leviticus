@@ -5,6 +5,7 @@ import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useUIStore } from '../store/ui.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 import type { SongType } from '@leviticus/core'
 import { captureException } from '../lib/observability.js'
 
@@ -204,19 +205,14 @@ export function EditSongModal() {
     )
   }, [songToEdit, songToEditGroups])
 
-  // escape key
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') triggerClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [songToEdit])
-
   function triggerClose() {
     if (saving) return
     setClosing(true)
   }
+
+  // Issue #91: Esc fecha (exceto enquanto salva). Clique-fora nunca descarta —
+  // os campos vêm sempre pré-preenchidos com a música existente.
+  useModalDismiss({ onClose: triggerClose, canDismissOutside: false, busy: saving })
 
   function handleAnimationEnd() {
     if (closing) closeEditSong()
@@ -279,9 +275,6 @@ export function EditSongModal() {
   return (
     <div
       ref={overlayRef}
-      onClick={(e) => {
-        if (e.target === overlayRef.current && !busy) triggerClose()
-      }}
       style={{
         position: 'fixed',
         inset: 0,

@@ -1,4 +1,5 @@
 import { RefreshCw, AlertTriangle } from 'lucide-react'
+import { useModalDismiss } from '../../lib/useModalDismiss.js'
 
 type Props = {
   open: boolean
@@ -7,6 +8,8 @@ type Props = {
   totalBytes: number
   onConfirm: () => void
   onCancel: () => void
+  /** true enquanto a migração de músicas roda — trava Esc e clique-fora. */
+  migrating?: boolean
 }
 
 function fmtBytes(bytes: number): string {
@@ -21,15 +24,18 @@ function estimateMin(bytes: number): number {
   return Math.max(1, Math.round(seconds / 60))
 }
 
-export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, onConfirm, onCancel }: Props) {
+export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, onConfirm, onCancel, migrating = false }: Props) {
+  // Confirmação sem formulário: clique-fora seguro. Trava durante a migração.
+  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, busy: migrating })
   if (!open) return null
   const minutes = estimateMin(totalBytes)
   const sizeLabel = fmtBytes(totalBytes)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onBackdropClick}>
       <div className="w-full max-w-md rounded-xl p-6"
-        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+        onClick={(e) => e.stopPropagation()}>
         <div className="mb-3.5 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ background: '#1e1b4b' }}>

@@ -40,6 +40,7 @@ import { pauseAudio } from '../lib/audio.js'
 import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
 import { useUIStore } from '../store/ui.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 
 type GroupRow = { id: string; name: string }
 type Metadata = {
@@ -742,15 +743,6 @@ export function AddSongModal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAddSong])
 
-  // escape key
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && step !== 3) triggerClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [step])
-
   // fake download progress — asymptotic curve that never exceeds 95% until real completion
   useEffect(() => {
     if (step !== 3) return
@@ -804,6 +796,17 @@ export function AddSongModal() {
     stopPreview()
     setClosing(true)
   }
+
+  // Issue #91: Esc fecha sempre (exceto durante o download — step 3, tratado
+  // como `busy`). Clique-fora só descarta no step 1 com o form intocado:
+  // sem URL digitada, sem arquivo selecionado e sem query de busca.
+  const canDismissOutside =
+    step === 1 && url.trim() === '' && selectedFile === null && query.trim() === ''
+  const { onBackdropClick } = useModalDismiss({
+    onClose: triggerClose,
+    canDismissOutside,
+    busy: saving || step === 3,
+  })
 
   function handleAnimationEnd() {
     if (closing) closeAddSong()
@@ -1521,7 +1524,7 @@ export function AddSongModal() {
     <div
       ref={overlayRef}
       onClick={(e) => {
-        if (e.target === overlayRef.current && step !== 3) triggerClose()
+        if (e.target === overlayRef.current) onBackdropClick()
       }}
       style={{
         position: 'fixed',

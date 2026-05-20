@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
+import { useModalDismiss } from '../../lib/useModalDismiss.js'
 import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
@@ -18,6 +19,8 @@ export function RemoveMemberModal({
 }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Confirmação sem formulário: clique-fora seguro. `pending` trava durante a remoção.
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, busy: pending })
   if (!open) return null
 
   async function handleConfirm() {
@@ -49,7 +52,7 @@ export function RemoveMemberModal({
   const cta = mode === 'remove' ? 'Remover' : 'Sair'
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
       <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}
         onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>

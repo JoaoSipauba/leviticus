@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
 import { hasPermission } from '../lib/permissions.js'
 import { useUIStore } from '../store/ui.js'
@@ -141,10 +142,14 @@ export function AddSongToPlaylistModal({
     }
   }
 
+  // Issue #91: clique-fora só descarta sem busca digitada e sem adição em curso.
+  const canDismissOutside = query.trim() === '' && adding === null
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: adding !== null })
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
       <div
         className="animate-modal-in w-full max-w-lg rounded-2xl flex flex-col"
         style={{

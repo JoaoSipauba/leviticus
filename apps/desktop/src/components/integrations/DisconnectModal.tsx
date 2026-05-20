@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { useModalDismiss } from '../../lib/useModalDismiss.js'
 
 type Props = {
   open: boolean
@@ -7,25 +8,35 @@ type Props = {
   songsCount: number
   onConfirm: () => void
   onCancel: () => void
+  /** true enquanto a desconexão roda — trava Esc e clique-fora. */
+  disconnecting?: boolean
 }
 
 const CONFIRM_PHRASE = 'desconectar'
 
-export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel }: Props) {
+export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel, disconnecting = false }: Props) {
   const [typed, setTyped] = useState('')
 
   useEffect(() => {
     if (!open) setTyped('')
   }, [open])
 
+  // Type-to-confirm: clique-fora só é seguro com o input vazio. Trava durante a desconexão.
+  const { onBackdropClick } = useModalDismiss({
+    onClose: onCancel,
+    canDismissOutside: typed.trim() === '',
+    busy: disconnecting,
+  })
+
   if (!open) return null
 
   const canConfirm = typed.trim().toLowerCase() === CONFIRM_PHRASE
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onBackdropClick}>
       <div className="w-full max-w-md rounded-xl p-6"
-        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
+        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
+        onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ background: '#450a0a' }}>
