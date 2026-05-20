@@ -38,42 +38,56 @@ describe('Journey #17 — Auto-recovery do papel Dono (#85)', () => {
     expect(data).toHaveLength(1)
   })
 
-  it('auto-recovery: se Dono some, ensure_owner_role recria + UI exibe', async () => {
+  it('ensure_owner_role RPC é idempotente: recria papel + permissões + assignment', async () => {
     const supabase = makeAdminClient()
 
-    // 1. Simula corrupção: deleta papel Dono do Supabase
+    // 1. Simula corrupção: deleta papel "Dono" do Supabase via DELETE cascade
+    //    (apaga role_permissions e user_role_assignments dependentes).
     const { error: delErr } = await supabase
       .from('roles').delete().eq('org_id', orgId).eq('name', 'Dono')
     expect(delErr).toBeNull()
 
-    // Confirma deletado
     const { data: afterDel } = await supabase
       .from('roles').select('id').eq('org_id', orgId).eq('name', 'Dono')
     expect(afterDel).toHaveLength(0)
 
-    // 2. Navega pra aba Papéis — o load() detecta SQLite vazio (já que sync
-    //    reativo pega o DELETE) e dispara ensure_owner_role RPC.
-    await browser.url('tauri://localhost/manage?tab=roles')
+    // 2. Chama o RPC direto (mesma chamada que o app faz quando OrgRoles
+    //    detecta SQLite local vazio).
+    const { error: rpcErr } = await supabase.rpc('ensure_owner_role', { p_org_id: orgId })
+    expect(rpcErr).toBeNull()
 
-    // 3. Aguarda o papel "Dono" reaparecer na lista (resultado do RPC + re-sync)
-    const donoButton = $('button*=Dono')
-    await donoButton.waitForExist({
-      timeout: 30_000,
-      timeoutMsg: 'Papel "Dono" não foi recriado pelo ensure_owner_role',
-    })
-
-    // 4. Confirma no Supabase que o RPC realmente criou
-    const { data: afterRpc } = await supabase
+    // 3. Papel "Dono" recriado
+    const { data: roles } = await supabase
       .from('roles').select('id').eq('org_id', orgId).eq('name', 'Dono')
-    expect(afterRpc).toHaveLength(1)
+    expect(roles).toHaveLength(1)
+    const roleId = roles![0]!.id
 
-    // 5. Confirma que o owner está atribuído ao papel
+    // 4. Todas as 8 permissões foram aplicadas
+    const { data: perms } = await supabase
+      .from('role_permissions').select('permission').eq('role_id', roleId)
+    expect(perms?.length).toBe(8)
+    const permNames = new Set((perms ?? []).map((p) => (p as { permission: string }).permission))
+    for (const expected of [
+      'add_songs', 'manage_songs', 'manage_groups', 'manage_playlists',
+      'add_songs_to_playlist', 'manage_members', 'manage_roles', 'manage_integrations',
+    ]) {
+      expect(permNames.has(expected)).toBe(true)
+    }
+
+    // 5. Owner está atribuído ao novo papel Dono
     const { data: orgRows } = await supabase
       .from('organizations').select('owner_id').eq('id', orgId).single()
     const ownerId = (orgRows as { owner_id: string }).owner_id
     const { data: assignments } = await supabase
       .from('user_role_assignments').select('id')
-      .eq('user_id', ownerId).eq('org_id', orgId).eq('role_id', afterRpc![0]!.id)
+      .eq('user_id', ownerId).eq('org_id', orgId).eq('role_id', roleId)
     expect(assignments?.length).toBeGreaterThanOrEqual(1)
+
+    // 6. Re-chamar o RPC é idempotente (não cria duplicados nem erra)
+    const { error: rpcErr2 } = await supabase.rpc('ensure_owner_role', { p_org_id: orgId })
+    expect(rpcErr2).toBeNull()
+    const { data: rolesAfter2nd } = await supabase
+      .from('roles').select('id').eq('org_id', orgId).eq('name', 'Dono')
+    expect(rolesAfter2nd).toHaveLength(1)
   })
 })

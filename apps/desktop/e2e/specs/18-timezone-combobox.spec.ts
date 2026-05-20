@@ -29,6 +29,12 @@ describe('Journey #18 — TimezoneCombobox (#86)', () => {
     const supabase = makeAdminClient()
     await browser.url('tauri://localhost/manage?tab=info')
 
+    // Aguarda página carregar antes de procurar combobox.
+    await browser.waitUntil(
+      async () => (await $('label*=Fuso horário')).isExisting(),
+      { timeout: 15_000, timeoutMsg: 'OrgInfo não renderizou label Fuso horário' }
+    )
+
     // Combobox renderiza como <button aria-haspopup="listbox"> com IANA
     // name + offset. Estado inicial: America/Sao_Paulo (default).
     const trigger = $('button[aria-haspopup="listbox"]')
@@ -63,7 +69,7 @@ describe('Journey #18 — TimezoneCombobox (#86)', () => {
     )
 
     // Salva (botão aparece dirty)
-    const saveBtn = $('button=Salvar')
+    const saveBtn = $('button=Salvar alterações')
     await saveBtn.waitForEnabled({ timeout: 5_000 })
     await saveBtn.click()
 
