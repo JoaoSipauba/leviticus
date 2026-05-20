@@ -12,6 +12,8 @@ import { spawn, type ChildProcess } from 'node:child_process'
 import { platform } from 'node:os'
 import { createRequire } from 'node:module'
 import { createConnection } from 'node:net'
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { appBinaryPath } from './helpers/env.js'
 import { takeScreenshot } from './helpers/app.js'
 
@@ -43,22 +45,21 @@ function waitForPort(port: number, host: string, timeoutMs: number): Promise<voi
 }
 
 /**
- * Resolve o binário do @crabnebula/tauri-driver via npm package.json.
- * Usar require.resolve pra não depender de PATH global.
+ * Resolve o caminho absoluto do cli.js do @crabnebula/tauri-driver.
+ *
+ * Rodamos `node <cli.js>` direto em vez do shim `node_modules/.bin/tauri-driver`
+ * (.cmd no Windows): com `shell: true`, o cmd.exe não acha um path relativo
+ * com barras `/` e o spawn falha em silêncio — o driver nunca sobe e todas as
+ * specs caem com "Unable to connect to 127.0.0.1:4444". `node <cli.js>` é
+ * absoluto e dispensa shell, funcionando igual nos dois OS.
  */
-function resolveTauriDriverBin(): string {
-  // O package @crabnebula/tauri-driver expõe um bin chamado "tauri-driver".
-  // node_modules/.bin/tauri-driver (.cmd no Windows).
-  const ext = isWindows ? '.cmd' : ''
-  try {
-    // tenta resolve via require do package raiz
-    require.resolve('@crabnebula/tauri-driver/package.json')
-    // se chegou aqui, está instalado — usa o shim em .bin
-    return `node_modules/.bin/tauri-driver${ext}`
-  } catch {
-    // fallback: assume PATH global
-    return isWindows ? 'tauri-driver.exe' : 'tauri-driver'
+function resolveTauriDriverCli(): string {
+  const pkgJsonPath = require.resolve('@crabnebula/tauri-driver/package.json')
+  const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf8')) as {
+    bin: string | Record<string, string>
   }
+  const binRel = typeof pkg.bin === 'string' ? pkg.bin : pkg.bin['tauri-driver']!
+  return join(dirname(pkgJsonPath), binRel)
 }
 
 export const config: WebdriverIO.Config = {
@@ -112,13 +113,17 @@ export const config: WebdriverIO.Config = {
     // Windows: `detached: true` em spawn() não cria process group (Win não tem
     // esse conceito) — em vez disso, abriria uma nova janela do console. Usamos
     // taskkill /T /F no afterSession pra matar a árvore inteira.
-    tauriDriver = spawn(resolveTauriDriverBin(), [], {
+    // Roda `node <cli.js>` direto — sem shell, sem shim .cmd (ver
+    // resolveTauriDriverCli). Path absoluto funciona igual nos dois OS.
+    tauriDriver = spawn(process.execPath, [resolveTauriDriverCli()], {
       stdio: [null, process.stdout, process.stderr],
       detached: !isWindows,
-      shell: isWindows, // .cmd shim no Windows precisa de shell
     })
     tauriDriver.on('error', (e) => {
       console.error('[tauri-driver] falhou ao iniciar:', e)
+    })
+    tauriDriver.on('exit', (code) => {
+      if (code !== 0 && code !== null) console.error(`[tauri-driver] saiu com código ${code}`)
     })
     // tauri-driver sobe o msedgedriver/WebKitWebDriver e só então abre a 4444.
     // Sem esperar, o wdio conecta cedo demais e falha com "Unable to connect
