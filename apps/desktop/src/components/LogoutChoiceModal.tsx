@@ -25,7 +25,7 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
 
   // Esc + clique-fora unificados via useModalDismiss (#91). Sem formulário,
   // então clique-fora é sempre seguro.
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true })
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, enabled: open })
 
   if (!open) return null
 

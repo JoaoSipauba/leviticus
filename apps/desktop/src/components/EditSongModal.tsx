@@ -212,7 +212,7 @@ export function EditSongModal() {
 
   // Issue #91: Esc fecha (exceto enquanto salva). Clique-fora nunca descarta —
   // os campos vêm sempre pré-preenchidos com a música existente.
-  useModalDismiss({ onClose: triggerClose, canDismissOutside: false, busy: saving })
+  useModalDismiss({ onClose: triggerClose, canDismissOutside: false, busy: saving, enabled: !!songToEdit })
 
   function handleAnimationEnd() {
     if (closing) closeEditSong()

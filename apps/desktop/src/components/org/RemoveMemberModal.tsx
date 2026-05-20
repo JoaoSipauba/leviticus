@@ -20,7 +20,7 @@ export function RemoveMemberModal({
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // Confirmação sem formulário: clique-fora seguro. `pending` trava durante a remoção.
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, busy: pending })
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, busy: pending, enabled: open })
   if (!open) return null
 
   async function handleConfirm() {

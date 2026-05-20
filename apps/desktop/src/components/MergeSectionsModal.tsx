@@ -15,7 +15,7 @@ export function MergeSectionsModal({
   open, sourceLabel, targetLabel, sourceSongCount, targetSongCount, onConfirm, onCancel,
 }: Props) {
   // Modal de confirmação sem formulário: clique-fora é sempre seguro.
-  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true })
+  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, enabled: open })
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>

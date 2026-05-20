@@ -63,6 +63,7 @@ export function ChangeRoleModal({
     onClose,
     canDismissOutside: pick === currentRoleId,
     busy: saving,
+    enabled: open,
   })
 
   if (!open) return null

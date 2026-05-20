@@ -806,6 +806,7 @@ export function AddSongModal() {
     onClose: triggerClose,
     canDismissOutside,
     busy: saving || step === 3,
+    enabled: showAddSong,
   })
 
   function handleAnimationEnd() {
@@ -2308,8 +2309,8 @@ export function AddSongModal() {
                     lineHeight: 1.4,
                   }}
                 >
-                  Música baixada, mas não foi possível adicionar ao culto.
-                  Adicione pela aba "Da biblioteca".
+                  Música adicionada à biblioteca, mas não foi possível
+                  adicionar ao culto. Adicione pela aba "Da biblioteca".
                 </div>
               )}
 

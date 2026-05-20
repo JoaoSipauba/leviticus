@@ -30,9 +30,11 @@ export function DonationBanner() {
   }
 
   async function handleDonate() {
-    markHandled()
     try {
       await open(DONATION_URL)
+      // Só marca o mês como tratado se a página realmente abriu — senão o
+      // usuário perderia o banner sem ter conseguido acessar a doação.
+      markHandled()
     } catch (e) {
       captureException(e, { feature: 'donation', step: 'open-url' })
       toastError('Não foi possível abrir a página de doação. Tente novamente.')

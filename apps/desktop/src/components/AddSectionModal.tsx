@@ -55,7 +55,7 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
   // Issue #91: clique-fora descarta na aba Ministério (nenhum dado digitado)
   // ou na aba Avulso quando o label está vazio.
   const canDismissOutside = tab === 'group' || avulsoLabel.trim() === ''
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside })
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, enabled: open })
 
   if (!open) return null
 

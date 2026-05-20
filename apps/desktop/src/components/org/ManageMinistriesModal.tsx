@@ -108,6 +108,7 @@ export function ManageMinistriesModal({
     onClose,
     canDismissOutside: !dirty,
     busy: saving,
+    enabled: open,
   })
 
   if (!open) return null

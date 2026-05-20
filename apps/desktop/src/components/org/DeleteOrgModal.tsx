@@ -23,6 +23,7 @@ export function DeleteOrgModal({
     onClose,
     canDismissOutside: typed.trim() === '',
     busy: pending,
+    enabled: open,
   })
   if (!open) return null
 

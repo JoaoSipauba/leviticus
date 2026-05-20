@@ -26,7 +26,7 @@ function estimateMin(bytes: number): number {
 
 export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, onConfirm, onCancel, migrating = false }: Props) {
   // Confirmação sem formulário: clique-fora seguro. Trava durante a migração.
-  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, busy: migrating })
+  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, busy: migrating, enabled: open })
   if (!open) return null
   const minutes = estimateMin(totalBytes)
   const sizeLabel = fmtBytes(totalBytes)

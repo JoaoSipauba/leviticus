@@ -49,6 +49,33 @@ describe('useModalDismiss', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('Esc NÃO fecha quando enabled=false (modal fechado)', () => {
+    const onClose = vi.fn()
+    renderHook(() => useModalDismiss({ onClose, canDismissOutside: true, enabled: false }))
+    pressEscape()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('clique-fora NÃO fecha quando enabled=false', () => {
+    const onClose = vi.fn()
+    const { result } = renderHook(() => useModalDismiss({ onClose, canDismissOutside: true, enabled: false }))
+    result.current.onBackdropClick()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('volta a fechar quando enabled passa de false pra true', () => {
+    const onClose = vi.fn()
+    const { rerender } = renderHook(
+      ({ enabled }) => useModalDismiss({ onClose, canDismissOutside: true, enabled }),
+      { initialProps: { enabled: false } },
+    )
+    pressEscape()
+    expect(onClose).not.toHaveBeenCalled()
+    rerender({ enabled: true })
+    pressEscape()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('remove o listener de keydown no unmount', () => {
     const onClose = vi.fn()
     const { unmount } = renderHook(() => useModalDismiss({ onClose, canDismissOutside: true }))

@@ -28,14 +28,24 @@ type UseModalDismissOptions = {
    * migrando). Trava Esc e clique-fora.
    */
   busy?: boolean
+  /**
+   * true quando o modal está realmente aberto. Os modais chamam este hook
+   * antes do `if (!open) return null` (regra dos hooks), então sem isto o
+   * listener de Esc ficaria ativo com o modal fechado — `Esc` fecharia um
+   * modal invisível e o `stopPropagation` engoliria o evento de outro
+   * modal aberto. Default `true` por retrocompat.
+   */
+  enabled?: boolean
 }
 
 export function useModalDismiss({
   onClose,
   canDismissOutside,
   busy = false,
+  enabled = true,
 }: UseModalDismissOptions): { onBackdropClick: () => void } {
   useEffect(() => {
+    if (!enabled) return undefined
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && !busy) {
         e.stopPropagation()
@@ -44,10 +54,10 @@ export function useModalDismiss({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose, busy])
+  }, [onClose, busy, enabled])
 
   function onBackdropClick() {
-    if (canDismissOutside && !busy) onClose()
+    if (enabled && canDismissOutside && !busy) onClose()
   }
 
   return { onBackdropClick }

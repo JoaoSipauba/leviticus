@@ -133,7 +133,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
 
   // Issue #91: clique-fora só descarta se o form está vazio (nada digitado).
   const canDismissOutside = name.trim() === ''
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: saving })
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: saving, enabled: open })
 
   if (!open) return null
 

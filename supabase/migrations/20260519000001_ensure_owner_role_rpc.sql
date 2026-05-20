@@ -46,6 +46,12 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'org_not_found');
   END IF;
 
+  -- Serializa chamadas concorrentes pra mesma org. Sem isso, duas chamadas
+  -- simultâneas fazem SELECT (não acham o papel) e ambas INSERT — criando
+  -- papéis "Dono" duplicados, já que roles não tem UNIQUE(org_id, name).
+  -- Lock por org, liberado automaticamente no fim da transação.
+  PERFORM pg_advisory_xact_lock(hashtext('ensure_owner_role'), hashtext(p_org_id::text));
+
   -- 1. Garante o papel "Dono" pra essa org
   SELECT id INTO v_role_id FROM roles WHERE org_id = p_org_id AND name = 'Dono' LIMIT 1;
   IF v_role_id IS NULL THEN

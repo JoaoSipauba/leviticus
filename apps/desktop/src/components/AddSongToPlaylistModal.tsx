@@ -144,7 +144,7 @@ export function AddSongToPlaylistModal({
 
   // Issue #91: clique-fora só descarta sem busca digitada e sem adição em curso.
   const canDismissOutside = query.trim() === '' && adding === null
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: adding !== null })
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: adding !== null, enabled: open })
 
   if (!open) return null
 

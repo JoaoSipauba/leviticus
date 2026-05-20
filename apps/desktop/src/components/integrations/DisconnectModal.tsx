@@ -26,6 +26,7 @@ export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel, 
     onClose: onCancel,
     canDismissOutside: typed.trim() === '',
     busy: disconnecting,
+    enabled: open,
   })
 
   if (!open) return null

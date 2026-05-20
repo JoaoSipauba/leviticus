@@ -57,6 +57,7 @@ export function InviteCodeModal({
     onClose,
     canDismissOutside: label.trim() === '',
     busy: saving,
+    enabled: open,
   })
 
   if (!open) return null

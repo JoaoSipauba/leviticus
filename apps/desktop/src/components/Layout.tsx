@@ -31,9 +31,13 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     const orgId = localStorage.getItem('leviticus_org_id')
     if (!orgId) return undefined
-    return subscribeCompleted(async (songId) => {
+    // Callback síncrono: o store invoca subscribers sem await, então um
+    // callback async solto vazaria unhandled rejections. Encapsula o
+    // trabalho async numa IIFE com .catch.
+    return subscribeCompleted((songId) => { void (async () => {
       // 1. duration backfill
-      void backfillDurationFromFile(songId)
+      backfillDurationFromFile(songId).catch((e) =>
+        captureException(e, { feature: 'downloads', step: 'duration-backfill' }))
 
       // 2. original_format real (yt-dlp pode cair m4a → webm)
       try {
@@ -72,7 +76,7 @@ export function Layout({ children }: { children: ReactNode }) {
           captureException(uploadErr, { feature: 'downloads', step: 'upload-after-download', extras: { songId } })
         }
       }
-    })
+    })().catch((e) => captureException(e, { feature: 'downloads', step: 'post-download' })) })
   }, [subscribeCompleted, cloudStatus, bumpLibrary])
 
   // Scrollbar custom: WebKit não anima ::-webkit-scrollbar, então criamos um thumb

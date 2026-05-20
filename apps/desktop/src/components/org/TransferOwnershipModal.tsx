@@ -62,6 +62,7 @@ export function TransferOwnershipModal({
     onClose,
     canDismissOutside: pick === null,
     busy: pending,
+    enabled: open,
   })
 
   if (!open) return null

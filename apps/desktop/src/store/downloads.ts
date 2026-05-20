@@ -112,7 +112,11 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
         const timer = setTimeout(() => {
           retryTimers.delete(songId)
           if (!get().byId[songId]) return // cancelado durante backoff
-          startDownloadFor(songId)
+          // Volta pra fila e deixa o processNext decidir — chamar
+          // startDownloadFor direto sobrescreveria activeChild se outro
+          // download estiver rodando, perdendo a referência de cancel.
+          setEntry(songId, { state: 'queued' })
+          processNext()
         }, delay)
         retryTimers.set(songId, timer)
       })
