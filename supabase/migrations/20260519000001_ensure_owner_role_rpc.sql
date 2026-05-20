@@ -31,7 +31,9 @@ DECLARE
   ];
 BEGIN
   -- Só membros da org podem chamar (mas a função em si só lê dados públicos).
-  IF NOT EXISTS (
+  -- service_role bypass: quando auth.uid() é NULL, é chamada admin (testes,
+  -- sync-worker, ou ferramentas administrativas). Permite.
+  IF auth.uid() IS NOT NULL AND NOT EXISTS (
     SELECT 1 FROM organization_members
     WHERE org_id = p_org_id AND user_id = auth.uid()
   ) THEN
