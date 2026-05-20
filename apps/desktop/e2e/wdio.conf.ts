@@ -11,12 +11,36 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { platform } from 'node:os'
 import { createRequire } from 'node:module'
+import { createConnection } from 'node:net'
 import { appBinaryPath } from './helpers/env.js'
 import { takeScreenshot } from './helpers/app.js'
 
 const require = createRequire(import.meta.url)
 let tauriDriver: ChildProcess | null = null
 const isWindows = platform() === 'win32'
+
+/**
+ * Aguarda uma porta TCP aceitar conexão (driver pronto). Faz polling até
+ * conectar ou estourar o timeout.
+ */
+function waitForPort(port: number, host: string, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      const socket = createConnection({ port, host })
+      socket.once('connect', () => { socket.destroy(); resolve() })
+      socket.once('error', () => {
+        socket.destroy()
+        if (Date.now() > deadline) {
+          reject(new Error(`tauri-driver não abriu a porta ${port} em ${timeoutMs}ms`))
+        } else {
+          setTimeout(attempt, 150)
+        }
+      })
+    }
+    attempt()
+  })
+}
 
 /**
  * Resolve o binário do @crabnebula/tauri-driver via npm package.json.
@@ -79,7 +103,7 @@ export const config: WebdriverIO.Config = {
   // In wdio v9, tsx is built-in — point to the local tsconfig.
   tsConfigPath: './tsconfig.json',
 
-  beforeSession: () => {
+  beforeSession: async () => {
     // Linux: spawn tauri-driver no próprio process group (`detached: true`) pra
     // poder kill em cascata o WebKitWebDriver child via PID negativo. Sem isso,
     // o child continua segurando a porta e o próximo spec falha com
@@ -93,6 +117,13 @@ export const config: WebdriverIO.Config = {
       detached: !isWindows,
       shell: isWindows, // .cmd shim no Windows precisa de shell
     })
+    tauriDriver.on('error', (e) => {
+      console.error('[tauri-driver] falhou ao iniciar:', e)
+    })
+    // tauri-driver sobe o msedgedriver/WebKitWebDriver e só então abre a 4444.
+    // Sem esperar, o wdio conecta cedo demais e falha com "Unable to connect
+    // to 127.0.0.1:4444" — derrubando todas as specs.
+    await waitForPort(4444, '127.0.0.1', 30_000)
   },
 
   afterSession: async () => {
