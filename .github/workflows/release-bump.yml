@@ -6,9 +6,9 @@ name: Release Bump
 #   - fix: / perf: → patch bump
 #   - BREAKING CHANGE: → major bump
 #   - só chore: / refactor: / docs: → nada (workflow encerra limpo)
-# Após bumpar e tagear, dispara o workflow Release explicitamente —
-# necessário porque push de tag feito com GITHUB_TOKEN não dispara
-# outros workflows (regra anti-loop do GitHub).
+# Após bumpar e tagear, o release-it dá push da tag com o PAT (RELEASE_TOKEN).
+# Como o push NÃO é do GITHUB_TOKEN, ele dispara o workflow Release via
+# `on: push: tags` normalmente — sem precisar de dispatch manual.
 #
 # Botão "Run workflow" continua disponível com input de bump pra forçar
 # uma release específica (útil pra reverter, ou pra publicar mesmo sem
@@ -74,13 +74,12 @@ jobs:
         run: pnpm test
 
   bump:
-    name: Bump + dispatch Release
+    name: Bump release
     needs: test
     # Self-hosted Mac — quota Ubuntu hosted esgotou (#73)
     runs-on: [self-hosted, macOS, ARM64, leviticus]
     permissions:
       contents: write
-      actions: write
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -123,24 +122,14 @@ jobs:
             pnpm release --ci
           fi
 
-      - name: Detect created tag
-        id: tag
+      - name: Report created tag
         run: |
-          # Se release-it bumpou, existe uma tag apontando pro HEAD da main.
-          # Sem tag = não tem o que lançar (só commits chore/refactor).
+          # Se release-it bumpou, existe uma tag nova apontando pro HEAD.
+          # O push dessa tag (feito pelo release-it com o PAT) dispara o
+          # workflow Release via `on: push: tags` — nada a fazer aqui.
           TAG=$(git tag --points-at HEAD | sort -V | tail -1)
           if [ -z "$TAG" ]; then
-            echo "Nenhuma tag criada nesse push — provavelmente só commits chore/refactor/docs."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "Nenhuma tag criada — só commits chore/refactor/docs."
           else
-            echo "Tag nova: $TAG"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG criada — workflow Release dispara pelo push da tag."
           fi
-
-      - name: Dispatch Release workflow on the new tag
-        if: steps.tag.outputs.skip == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tag.outputs.tag }}
-        run: gh workflow run release.yml --ref "$TAG"
