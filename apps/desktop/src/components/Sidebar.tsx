@@ -195,6 +195,21 @@ export function Sidebar() {
       )}
 
       <div className="px-2 mt-2 space-y-1">
+        <button
+          onClick={async () => {
+            try {
+              await open(DONATION_URL)
+            } catch (e) {
+              captureException(e, { feature: 'donation', step: 'open-url' })
+              toastError('Não foi possível abrir a página de doação. Tente novamente.')
+            }
+          }}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg w-full text-left text-[13px] font-medium transition-colors text-[#9ca3af] hover:text-[#fca5cf] hover:bg-[#f472b6]/[0.07]"
+        >
+          <Heart size={15} strokeWidth={2} color="#f472b6" />
+          Apoiar o Leviticus
+        </button>
+
         {orgName && (
           <div
             className="flex items-center gap-2"
@@ -221,21 +236,6 @@ export function Sidebar() {
             </span>
           </div>
         )}
-
-        <button
-          onClick={async () => {
-            try {
-              await open(DONATION_URL)
-            } catch (e) {
-              captureException(e, { feature: 'donation', step: 'open-url' })
-              toastError('Não foi possível abrir a página de doação. Tente novamente.')
-            }
-          }}
-          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg w-full text-left text-[13px] font-medium transition-colors text-[#9ca3af] hover:text-[#fca5cf] hover:bg-[#f472b6]/[0.07]"
-        >
-          <Heart size={15} strokeWidth={2} color="#f472b6" />
-          Apoiar o Leviticus
-        </button>
 
         <button
           onClick={() => setLogoutOpen(true)}
