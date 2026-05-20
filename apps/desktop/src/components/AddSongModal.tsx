@@ -642,6 +642,10 @@ export function AddSongModal() {
 
   // step
   const [step, setStep] = useState<Step>(1)
+  // step 4: distingue música do YouTube (foi pra fila de download, ainda
+  // baixando) de música de arquivo (áudio já local, pronta pra tocar).
+  // Issue #71.
+  const [step4Queued, setStep4Queued] = useState(false)
 
   // step 1
   const [url, setUrl] = useState('')
@@ -1328,6 +1332,7 @@ export function AddSongModal() {
       } else {
         toastSuccess('Música adicionada — sem backup (Drive desconectado)')
       }
+      setStep4Queued(false)
       setStep(4)
       setSaving(false)
 
@@ -1439,10 +1444,11 @@ export function AddSongModal() {
     // continua usável. Upload pro Drive é registrado em Layout via
     // subscribeCompleted (acontece quando o download termina, ainda em
     // background).
-    enqueueDownload(song.id, metadata.normalizedUrl)
+    enqueueDownload(song.id, metadata.normalizedUrl, metadata.title)
     await syncOrg(orgId)
     bumpLibrary()
     toastSuccess('Música adicionada — baixando em background')
+    setStep4Queued(true)
     setStep(4)
     setSaving(false)
   }
@@ -1528,7 +1534,7 @@ export function AddSongModal() {
               )}
               {step === 2 && 'Edite se precisar'}
               {step === 3 && 'Não feche esta janela'}
-              {step === 4 && 'Pronta para tocar na biblioteca'}
+              {step === 4 && (step4Queued ? 'Baixando em background' : 'Pronta para tocar na biblioteca')}
             </div>
           </div>
 
@@ -2227,7 +2233,11 @@ export function AddSongModal() {
 
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6' }}>Música adicionada!</div>
-                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>Pronta para tocar na biblioteca</div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
+                  {step4Queued
+                    ? 'Baixando em background — acompanhe o progresso no canto inferior'
+                    : 'Pronta para tocar na biblioteca'}
+                </div>
               </div>
 
               {/* song card */}

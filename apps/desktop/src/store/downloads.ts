@@ -15,6 +15,7 @@ export type DownloadEntry = {
   state: DownloadState
   progress: number
   youtubeUrl: string
+  title?: string // título da música pra exibir no DownloadDock
   error?: string
   errorKind?: 'transient' | 'permanent'
   retryCount: number // 0, 1, 2 (default 0, max 2 antes de virar 'error')
@@ -24,7 +25,7 @@ type DownloadsState = {
   byId: Record<string, DownloadEntry>
   onCompleted: Set<(songId: string) => void>
   onCanceled: Set<(songId: string) => void>
-  enqueue: (songId: string, youtubeUrl: string) => void
+  enqueue: (songId: string, youtubeUrl: string, title?: string) => void
   cancel: (songId: string) => void
   retry: (songId: string) => void
   subscribeCompleted: (cb: (songId: string) => void) => () => void
@@ -133,14 +134,14 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
     byId: {},
     onCompleted: new Set(),
     onCanceled: new Set(),
-    enqueue: (songId, youtubeUrl) => {
+    enqueue: (songId, youtubeUrl, title) => {
       const existing = get().byId[songId]
       // Já em fila/baixando/retrying: ignora. Em erro: reseta pra queued.
       if (existing && existing.state !== 'error') return
       set((s) => ({
         byId: {
           ...s.byId,
-          [songId]: { state: 'queued', progress: 0, youtubeUrl, retryCount: 0 },
+          [songId]: { state: 'queued', progress: 0, youtubeUrl, title, retryCount: 0 },
         },
       }))
       processNext()

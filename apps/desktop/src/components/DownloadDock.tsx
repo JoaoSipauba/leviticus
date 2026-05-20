@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ChevronUp, ChevronDown, Download, AlertCircle, RotateCcw, X } from 'lucide-react'
 import { useDownloadsStore, selectAggregate } from '../store/downloads.js'
 
 // Issue #71: dock global no rodapé exibindo agregado de downloads em
 // background. Renderizado em Layout.tsx, fica sempre acima do PlayerMini.
+
+const DOCK_EXIT_MS = 200 // bate com a duração de .animate-dock-out
 
 export function DownloadDock() {
   const agg = useDownloadsStore(selectAggregate)
@@ -11,7 +13,27 @@ export function DownloadDock() {
 
   // Sem nada na fila E sem erros → some
   const total = agg.downloading + agg.queued + agg.retrying + agg.failed
-  if (total === 0) return null
+
+  // Mantém o dock montado durante a animação de saída: quando total cai
+  // pra 0, marca `closing` e só desmonta após o fade-out terminar.
+  const [mounted, setMounted] = useState(total > 0)
+  const [closing, setClosing] = useState(false)
+  useEffect(() => {
+    if (total > 0) {
+      setMounted(true)
+      setClosing(false)
+      return
+    }
+    if (!mounted) return
+    setClosing(true)
+    const t = setTimeout(() => {
+      setMounted(false)
+      setClosing(false)
+    }, DOCK_EXIT_MS)
+    return () => clearTimeout(t)
+  }, [total, mounted])
+
+  if (!mounted) return null
 
   const hasErrors = agg.failed > 0
 
@@ -19,6 +41,7 @@ export function DownloadDock() {
     <div
       role="region"
       aria-label="Downloads em andamento"
+      className={closing ? 'animate-dock-out' : 'animate-dock-in'}
       style={{
         position: 'fixed',
         bottom: 88, // acima do PlayerMini (~72px) + folga
@@ -51,7 +74,11 @@ export function DownloadDock() {
           color: '#e5e7eb',
         }}
       >
-        <Download size={13} style={{ color: hasErrors ? '#f87171' : '#60a5fa', flexShrink: 0 }} />
+        <Download
+          size={13}
+          className={agg.downloading > 0 ? 'animate-pulse-light' : undefined}
+          style={{ color: hasErrors ? '#f87171' : '#60a5fa', flexShrink: 0 }}
+        />
         <span style={{ flex: 1, textAlign: 'left' }} aria-live="polite">
           {agg.downloading > 0 && <strong style={{ color: '#fff' }}>{agg.downloading} baixando</strong>}
           {agg.downloading > 0 && (agg.queued > 0 || agg.retrying > 0) && ' · '}
@@ -84,7 +111,8 @@ export function DownloadDock() {
                 width: `${Math.round(agg.totalProgress * 100)}%`,
                 height: '100%',
                 background: '#60a5fa',
-                transition: 'width 0.3s ease',
+                borderRadius: 2,
+                transition: 'width 0.35s cubic-bezier(0.4,0,0.2,1)',
               }}
             />
           </span>
@@ -94,7 +122,10 @@ export function DownloadDock() {
 
       {/* Lista expandida */}
       {expanded && (
-        <div style={{ borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 240, overflowY: 'auto' }}>
+        <div
+          className="animate-dock-list-in"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 240, overflowY: 'auto' }}
+        >
           {agg.entries.map((e) => (
             <DockItem key={e.songId} entry={e} />
           ))}
@@ -109,44 +140,65 @@ function DockItem({ entry }: { entry: ReturnType<typeof selectAggregate>['entrie
   const retry = useDownloadsStore((s) => s.retry)
   return (
     <div
+      className="animate-dock-item-in"
       style={{
         padding: '8px 12px',
         display: 'flex',
-        alignItems: 'center',
-        gap: 8,
+        flexDirection: 'column',
+        gap: 4,
         fontSize: 11.5,
         color: '#d1d5db',
         borderBottom: '1px solid rgba(255,255,255,0.04)',
       }}
     >
-      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        <span style={{ color: '#9ca3af', marginRight: 6 }}>♪</span>
-        {entry.songId.slice(0, 8)}…
-      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <span
+          style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          title={entry.title ?? entry.songId}
+        >
+          <span style={{ color: '#9ca3af', marginRight: 6 }}>♪</span>
+          {entry.title ?? `${entry.songId.slice(0, 8)}…`}
+        </span>
 
-      {entry.state === 'downloading' && (
-        <span style={{ color: '#60a5fa' }}>{Math.round(entry.progress * 100)}%</span>
-      )}
-      {entry.state === 'queued' && <span style={{ color: '#fbbf24' }}>na fila</span>}
-      {entry.state === 'retrying' && <span style={{ color: '#fbbf24' }}>retry {entry.retryCount}/3</span>}
-      {entry.state === 'error' && (
+        {entry.state === 'downloading' && (
+          <span style={{ color: '#60a5fa' }}>{Math.round(entry.progress * 100)}%</span>
+        )}
+        {entry.state === 'queued' && <span style={{ color: '#fbbf24' }}>na fila</span>}
+        {entry.state === 'retrying' && <span style={{ color: '#fbbf24' }}>retry {entry.retryCount}/3</span>}
+        {entry.state === 'error' && (
+          <button
+            type="button"
+            onClick={() => retry(entry.songId)}
+            title="Tentar de novo"
+            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
+          >
+            <RotateCcw size={12} />
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => retry(entry.songId)}
-          title="Tentar de novo"
-          style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
+          onClick={() => cancel(entry.songId)}
+          title="Cancelar"
+          style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 2 }}
         >
-          <RotateCcw size={12} />
+          <X size={12} />
         </button>
+      </div>
+
+      {(entry.state === 'error' || entry.state === 'retrying') && entry.error && (
+        <div
+          style={{
+            fontSize: 10.5,
+            color: entry.state === 'error' ? '#fca5a5' : '#fcd34d',
+            paddingLeft: 16,
+            wordBreak: 'break-word',
+            lineHeight: 1.35,
+          }}
+          title={entry.error}
+        >
+          {entry.error}
+        </div>
       )}
-      <button
-        type="button"
-        onClick={() => cancel(entry.songId)}
-        title="Cancelar"
-        style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 2 }}
-      >
-        <X size={12} />
-      </button>
     </div>
   )
 }

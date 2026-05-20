@@ -198,7 +198,7 @@ export function PlaylistDetail() {
       if (missingDownloads.has(ps.song_id)) {
         const status = downloadsById[ps.song_id]
         if (!status || status.state === 'error') {
-          enqueueDownload(ps.song_id, ps.song.youtube_url)
+          enqueueDownload(ps.song_id, ps.song.youtube_url, ps.song.title)
         }
       }
     }
