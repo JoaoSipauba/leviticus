@@ -197,4 +197,31 @@ describe('PlaylistFormModal', () => {
     expect(onClose).toHaveBeenCalled()
     expect(rpcMock).not.toHaveBeenCalled()
   })
+
+  // ─── Issue #91: política unificada de fechamento ────────────────────────
+
+  it('apertar Escape fecha o modal (chama onClose)', async () => {
+    const { onClose } = renderModal()
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('clique no backdrop: NÃO fecha com form preenchido, fecha com form vazio', async () => {
+    const { onClose } = renderModal()
+    // O backdrop é o overlay fixed inset-0 — ancestor mais externo do modal.
+    const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement
+    expect(backdrop).toBeTruthy()
+
+    // Form preenchido → clique-fora não descarta.
+    const nameInput = screen.getByPlaceholderText(/domingo manhã/i)
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Culto com nome')
+    await userEvent.click(backdrop)
+    expect(onClose).not.toHaveBeenCalled()
+
+    // Form vazio (nome limpo) → clique-fora descarta.
+    await userEvent.clear(nameInput)
+    await userEvent.click(backdrop)
+    expect(onClose).toHaveBeenCalled()
+  })
 })

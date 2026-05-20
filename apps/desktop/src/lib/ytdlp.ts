@@ -7,18 +7,13 @@ import { captureException } from './observability.js'
 
 // Idempotente: garante que $APPLOCALDATA/bin/yt-dlp(.exe) existe. No
 // primeiro boot baixa do GitHub releases do yt-dlp; depois disso é
-// O(1) (só um stat no Rust). Tem que rodar ANTES de qualquer Command
-// que chame "yt-dlp" porque a capability aponta pra esse path.
-let ensurePromise: Promise<string> | null = null
+// O(1) no caminho feliz (só um stat no Rust). Tem que rodar ANTES de
+// qualquer Command que chame "yt-dlp" porque a capability aponta pra
+// esse path. Sem cache JS: o Rust já tem fast-path próprio, e cachear
+// aqui mascara casos onde o binário sumiu por baixo do app (cleanup
+// manual, antivírus, etc).
 function ensureYtDlp(): Promise<string> {
-  if (!ensurePromise) {
-    ensurePromise = invoke<string>('ensure_yt_dlp').catch((e) => {
-      // Reset cache em erro pra próxima tentativa rebaixar
-      ensurePromise = null
-      throw e
-    })
-  }
-  return ensurePromise
+  return invoke<string>('ensure_yt_dlp')
 }
 
 export const DOWNLOAD_CANCELED = 'canceled'
@@ -396,9 +391,14 @@ const OEMBED_TIMEOUT_MS = 5_000
 async function fetchMetadataViaOembed(videoId: string, normalizedUrl: string): Promise<YoutubeMetadata> {
   const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), OEMBED_TIMEOUT_MS)
+  // Só aborta enquanto o request ainda está pendente. Abortar um fetch que
+  // já terminou faz o plugin-http rejeitar um invoke interno com
+  // "resource id N is invalid" (unhandled rejection).
+  let settled = false
+  const timer = setTimeout(() => { if (!settled) controller.abort() }, OEMBED_TIMEOUT_MS)
   try {
     const res = await tauriFetch(oembedUrl, { signal: controller.signal })
+    settled = true
     if (!res.ok) throw new Error(`oEmbed HTTP ${res.status}`)
     const data = await res.json() as { title?: string; author_name?: string }
     if (!data.title) throw new Error('oEmbed payload sem title')
@@ -410,6 +410,7 @@ async function fetchMetadataViaOembed(videoId: string, normalizedUrl: string): P
       normalizedUrl,
     }
   } finally {
+    settled = true
     clearTimeout(timer)
   }
 }
@@ -546,7 +547,11 @@ function extractYtInitialData(html: string): string | null {
 
 async function searchViaScrape(query: string): Promise<YTSearchResult[]> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), INNERTUBE_TIMEOUT_MS)
+  // Só aborta enquanto o request ainda está pendente. Abortar um fetch que
+  // já terminou faz o plugin-http rejeitar um invoke interno com
+  // "resource id N is invalid" (unhandled rejection).
+  let settled = false
+  const timer = setTimeout(() => { if (!settled) controller.abort() }, INNERTUBE_TIMEOUT_MS)
   try {
     const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&sp=${SP_VIDEOS_ONLY}`
     const res = await tauriFetch(url, {
@@ -557,6 +562,7 @@ async function searchViaScrape(query: string): Promise<YTSearchResult[]> {
       },
       signal: controller.signal,
     })
+    settled = true
     if (!res.ok) throw new Error(`Scrape HTTP ${res.status}`)
     const html = await res.text()
 
@@ -587,6 +593,7 @@ async function searchViaScrape(query: string): Promise<YTSearchResult[]> {
     }
     return parsed
   } finally {
+    settled = true
     clearTimeout(timer)
   }
 }

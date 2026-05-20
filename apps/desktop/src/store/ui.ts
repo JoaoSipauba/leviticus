@@ -1,9 +1,20 @@
 import { create } from 'zustand'
 import type { Song } from '@leviticus/core'
 
+// Contexto opcional quando o AddSongModal é aberto de dentro de uma seção
+// de culto. Quando presente, a música criada é vinculada à seção ao final.
+export type AddSongPlaylistContext = {
+  playlistId: string
+  sectionId: string | null
+  groupId: string | null
+  sectionLabel: string | null
+}
+
 type UIState = {
   showAddSong: boolean
-  openAddSong: () => void
+  /** Setado quando AddSongModal é aberto a partir de uma seção de culto. */
+  addSongContext: AddSongPlaylistContext | null
+  openAddSong: (context?: AddSongPlaylistContext) => void
   closeAddSong: () => void
 
   /** Incremented every time a song is added/edited/deleted — Library watches this to re-fetch. */
@@ -18,8 +29,9 @@ type UIState = {
 
 export const useUIStore = create<UIState>((set) => ({
   showAddSong: false,
-  openAddSong: () => set({ showAddSong: true }),
-  closeAddSong: () => set({ showAddSong: false }),
+  addSongContext: null,
+  openAddSong: (context) => set({ showAddSong: true, addSongContext: context ?? null }),
+  closeAddSong: () => set({ showAddSong: false, addSongContext: null }),
 
   librarySeed: 0,
   bumpLibrary: () => set((s) => ({ librarySeed: s.librarySeed + 1 })),

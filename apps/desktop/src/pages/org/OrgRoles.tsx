@@ -58,6 +58,28 @@ export function OrgRoles({ orgId }: { orgId: string }) {
        FROM roles r WHERE r.org_id = ? ORDER BY CASE WHEN r.name = 'Dono' THEN 1 ELSE 0 END, r.name`,
       [orgId]
     )
+
+    // Issue #85: se SQLite local está vazio (ex: trigger seed_owner_role não
+    // rodou pra essa org, ou sync inicial perdeu o INSERT), chamar RPC
+    // idempotente ensure_owner_role pra criar/recuperar o papel "Dono" no
+    // Supabase, daí re-sync + re-query. Cobre H1+H2+H3 da issue de uma vez.
+    if (r.length === 0) {
+      const { error: rpcErr } = await supabase.rpc('ensure_owner_role', { p_org_id: orgId })
+      if (rpcErr) {
+        captureException(rpcErr, { feature: 'org-roles', step: 'ensure-owner-role' })
+      } else {
+        // Re-pull do Supabase pro SQLite local
+        await syncOrg(orgId)
+        const r2 = await db.select<{ id: string; name: string; member_count: number }[]>(
+          `SELECT r.id, r.name,
+            (SELECT COUNT(*) FROM user_role_assignments a WHERE a.role_id = r.id AND a.group_id IS NULL) as member_count
+           FROM roles r WHERE r.org_id = ? ORDER BY CASE WHEN r.name = 'Dono' THEN 1 ELSE 0 END, r.name`,
+          [orgId]
+        )
+        r.push(...r2)
+      }
+    }
+
     const display = r.map((x) => ({ id: x.id, name: x.name, memberCount: x.member_count }))
     setRoles(display)
     if (!selectedId && display.length > 0) setSelectedId(display[0]!.id)

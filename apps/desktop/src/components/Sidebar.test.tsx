@@ -7,7 +7,8 @@ import { mockIPC, clearMocks } from '@tauri-apps/api/mocks'
 const mocks = vi.hoisted(() => {
   const signOutFn = vi.fn()
   const fromMock = vi.fn()
-  return { signOutFn, fromMock }
+  const openFn = vi.fn().mockResolvedValue(undefined)
+  return { signOutFn, fromMock, openFn }
 })
 
 // ── module mocks ──────────────────────────────────────────────────────────────
@@ -52,6 +53,14 @@ vi.mock('react-router-dom', () => ({
 
 vi.mock('@tauri-apps/api/app', () => ({
   getVersion: vi.fn().mockResolvedValue('1.2.3'),
+}))
+
+vi.mock('@tauri-apps/plugin-shell', () => ({
+  open: mocks.openFn,
+}))
+
+vi.mock('../lib/observability.js', () => ({
+  captureException: vi.fn(),
 }))
 
 import { Sidebar } from './Sidebar.js'
@@ -154,6 +163,15 @@ describe('Sidebar', () => {
     await userEvent.click(signOutInModal)
 
     expect(mocks.signOutFn).toHaveBeenCalledOnce()
+  })
+
+  it('link "Apoiar o Leviticus" abre a página de doação no navegador', async () => {
+    render(<Sidebar />)
+
+    const donateBtn = screen.getByRole('button', { name: /apoiar o leviticus/i })
+    await userEvent.click(donateBtn)
+
+    expect(mocks.openFn).toHaveBeenCalledWith('https://leviticus.app.br/#doacao')
   })
 
   it('exibe versão do app após carregamento', async () => {

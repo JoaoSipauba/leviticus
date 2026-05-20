@@ -16,23 +16,28 @@ if (typeof Blob !== 'undefined' && !Blob.prototype.arrayBuffer) {
 
 // ─── hoisted mock variables ────────────────────────────────────────────────
 
-const { insertMock, singleMock, selectIdMock, songGroupsInsertMock, detectFromBytesMock } = vi.hoisted(() => {
+const { insertMock, singleMock, selectIdMock, songGroupsInsertMock, detectFromBytesMock, rpcMock, uiState } = vi.hoisted(() => {
   const singleMock = vi.fn().mockResolvedValue({ data: { id: 'song-1' }, error: null })
   const selectIdMock = vi.fn().mockReturnValue({ single: singleMock })
   const songGroupsInsertMock = vi.fn().mockResolvedValue({ error: null })
   const insertMock = vi.fn().mockReturnValue({ select: selectIdMock })
   const detectFromBytesMock = vi.fn().mockResolvedValue({ ext: 'mp3', kind: 'lossy' })
-  return { insertMock, singleMock, selectIdMock, songGroupsInsertMock, detectFromBytesMock }
+  const rpcMock = vi.fn().mockResolvedValue({ data: { ok: true }, error: null })
+  const uiState = {
+    showAddSong: true,
+    closeAddSong: vi.fn(),
+    bumpLibrary: vi.fn(),
+    addSongContext: null as null | {
+      playlistId: string; sectionId: string | null; groupId: string | null; sectionLabel: string | null
+    },
+  }
+  return { insertMock, singleMock, selectIdMock, songGroupsInsertMock, detectFromBytesMock, rpcMock, uiState }
 })
 
 // ─── module mocks ──────────────────────────────────────────────────────────
 
 vi.mock('../store/ui.js', () => ({
-  useUIStore: () => ({
-    showAddSong: true,
-    closeAddSong: vi.fn(),
-    bumpLibrary: vi.fn(),
-  }),
+  useUIStore: () => uiState,
 }))
 
 vi.mock('../store/player.js', () => {
@@ -66,6 +71,7 @@ vi.mock('../lib/supabase.js', () => ({
       }
       return { insert: vi.fn().mockResolvedValue({ error: null }) }
     }),
+    rpc: rpcMock,
   },
 }))
 
@@ -162,6 +168,8 @@ describe('AddSongModal — fluxo Arquivo / orgId', () => {
     singleMock.mockResolvedValue({ data: { id: 'song-1' }, error: null })
     selectIdMock.mockReturnValue({ single: singleMock })
     insertMock.mockReturnValue({ select: selectIdMock })
+    rpcMock.mockResolvedValue({ data: { ok: true }, error: null })
+    uiState.addSongContext = null
   })
 
   afterEach(() => {
@@ -204,5 +212,67 @@ describe('AddSongModal — fluxo Arquivo / orgId', () => {
     await screen.findByText(/Sem organização selecionada/i)
 
     expect(insertMock).not.toHaveBeenCalled()
+  })
+
+  it('sem contexto-de-culto: NÃO chama add_song_to_playlist (regressão zero)', async () => {
+    localStorage.setItem('leviticus_org_id', 'org-1')
+    uiState.addSongContext = null
+
+    const { container } = render(<AddSongModal />)
+    await selectFileInModal(container)
+    await userEvent.click(screen.getByRole('button', { name: /Continuar/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Baixar música/i }))
+
+    await waitFor(() => {
+      expect(insertMock).toHaveBeenCalled()
+    }, { timeout: 5000 })
+    expect(rpcMock).not.toHaveBeenCalled()
+  })
+
+  it('contexto-de-culto: vincula a música à seção via add_song_to_playlist', async () => {
+    localStorage.setItem('leviticus_org_id', 'org-1')
+    uiState.addSongContext = {
+      playlistId: 'pl-1',
+      sectionId: 'sec-1',
+      groupId: 'g-1',
+      sectionLabel: 'Abertura',
+    }
+
+    const { container } = render(<AddSongModal />)
+    await selectFileInModal(container)
+    await userEvent.click(screen.getByRole('button', { name: /Continuar/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Baixar música/i }))
+
+    await waitFor(() => {
+      expect(rpcMock).toHaveBeenCalledWith('add_song_to_playlist', {
+        p_playlist_id: 'pl-1',
+        p_song_id: 'song-1',
+        p_section_id: 'sec-1',
+        p_group_id: 'g-1',
+        p_section_label: 'Abertura',
+      })
+    }, { timeout: 5000 })
+
+    // Tela final em contexto-de-culto: "Concluído", sem "Ver biblioteca".
+    expect(await screen.findByText('Música adicionada ao culto!')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Concluído/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Ver biblioteca/i })).not.toBeInTheDocument()
+  })
+
+  it('contexto-de-culto: vínculo falha → mostra aviso, música não se perde', async () => {
+    localStorage.setItem('leviticus_org_id', 'org-1')
+    uiState.addSongContext = {
+      playlistId: 'pl-1', sectionId: 'sec-1', groupId: null, sectionLabel: null,
+    }
+    rpcMock.mockResolvedValue({ data: { ok: false, error: 'forbidden' }, error: null })
+
+    const { container } = render(<AddSongModal />)
+    await selectFileInModal(container)
+    await userEvent.click(screen.getByRole('button', { name: /Continuar/i }))
+    await userEvent.click(screen.getByRole('button', { name: /Baixar música/i }))
+
+    expect(await screen.findByText(/não foi possível adicionar ao culto/i)).toBeInTheDocument()
+    // A música ainda foi inserida na biblioteca.
+    expect(insertMock).toHaveBeenCalled()
   })
 })

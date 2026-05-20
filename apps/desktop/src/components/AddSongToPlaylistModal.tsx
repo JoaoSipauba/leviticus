@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X, Music, Loader2, Check } from 'lucide-react'
+import { Search, X, Music, Loader2, Check, Library, Download } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
+import { hasPermission } from '../lib/permissions.js'
+import { useUIStore } from '../store/ui.js'
 
 type Props = {
   open: boolean
@@ -32,15 +35,32 @@ export function AddSongToPlaylistModal({
   const [filterToGroup, setFilterToGroup] = useState(true)
   const [adding, setAdding] = useState<string | null>(null)
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set())
+  // Issue #67 pt.2: músicas que JÁ estavam na seção antes de abrir o modal —
+  // aparecem com check + desabilitadas pra evitar duplicata silenciosa.
+  const [alreadyInSection, setAlreadyInSection] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
+  // Issue: aba "Baixar nova" só aparece pra quem pode adicionar músicas.
+  const [canAddNew, setCanAddNew] = useState(false)
   const online = useOnlineStatus()
+  const openAddSong = useUIStore((s) => s.openAddSong)
 
   useEffect(() => {
     if (!open) return
     setQuery(''); setError(null); setAddedIds(new Set())
     setFilterToGroup(Boolean(groupId))
     void load()
+    const orgId = localStorage.getItem('leviticus_org_id') ?? ''
+    if (orgId) {
+      void hasPermission('add_songs', orgId).then(setCanAddNew)
+    }
   }, [open, playlistId])
+
+  // "Baixar nova": fecha o seletor e abre o AddSongModal com o contexto
+  // desta seção — a música baixada é vinculada à seção ao final.
+  function handleAddNew() {
+    onClose()
+    openAddSong({ playlistId, sectionId, groupId, sectionLabel })
+  }
 
   async function load() {
     const orgId = localStorage.getItem('leviticus_org_id') ?? ''
@@ -60,6 +80,18 @@ export function AddSongToPlaylistModal({
       groupsBySong.set(l.song_id, arr)
     }
     setAllSongs(songs.map((s) => ({ ...s, group_ids: groupsBySong.get(s.id) ?? [] })))
+
+    // Músicas já vinculadas a esta seção do culto. Seção avulsa ainda não
+    // materializada (sectionId null) → nenhuma música, set vazio.
+    if (sectionId) {
+      const inSection = await db.select<{ song_id: string }[]>(
+        'SELECT song_id FROM playlist_songs WHERE playlist_id = ? AND section_id = ?',
+        [playlistId, sectionId]
+      )
+      setAlreadyInSection(new Set(inSection.map((r) => r.song_id)))
+    } else {
+      setAlreadyInSection(new Set())
+    }
   }
 
   const filtered = useMemo(() => {
@@ -110,10 +142,14 @@ export function AddSongToPlaylistModal({
     }
   }
 
+  // Issue #91: clique-fora só descarta sem busca digitada e sem adição em curso.
+  const canDismissOutside = query.trim() === '' && adding === null
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: adding !== null, enabled: open })
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
       <div
         className="animate-modal-in w-full max-w-lg rounded-2xl flex flex-col"
         style={{
@@ -127,8 +163,34 @@ export function AddSongToPlaylistModal({
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Adicionar música</h2>
-          <button onClick={onClose} className="text-body hover:text-heading"><X size={18} /></button>
+          <button onClick={onClose} className="text-body hover:text-heading transition-colors"><X size={18} /></button>
         </div>
+
+        {/* Segmented control: escolher entre a biblioteca existente ou
+            baixar uma música nova direto na seção. A aba "Baixar nova" só
+            aparece pra quem tem permissão de adicionar músicas. */}
+        {canAddNew && (
+          <div className="px-5 pb-3">
+            <div
+              className="flex gap-1 p-1 rounded-lg"
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <div
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold"
+                style={{ background: 'rgba(124,58,237,0.22)', color: '#c4b5fd' }}
+              >
+                <Library size={13} /> Da biblioteca
+              </div>
+              <button
+                onClick={handleAddNew}
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold cursor-pointer transition-colors text-muted hover:text-heading hover:bg-white/[0.06]"
+                style={{ background: 'transparent', border: 'none' }}
+              >
+                <Download size={13} /> Baixar nova
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="px-5 pb-3">
           <div className="relative">
@@ -161,16 +223,26 @@ export function AddSongToPlaylistModal({
             </div>
           ) : (
             filtered.map((s) => {
-              const added = addedIds.has(s.id)
+              // "added" = adicionada agora neste modal; "inSection" = já
+              // estava na seção quando o modal abriu (#67 pt.2). Ambos →
+              // check verde + desabilitada (sem reclique = sem duplicata).
+              const justAdded = addedIds.has(s.id)
+              const inSection = alreadyInSection.has(s.id)
+              const done = justAdded || inSection
               return (
                 <button
                   key={s.id}
-                  onClick={() => !added && online && handleAdd(s)}
-                  disabled={added || adding !== null || !online}
-                  title={!online ? 'Sem conexão' : undefined}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left ${
+                  onClick={() => !done && online && handleAdd(s)}
+                  disabled={done || adding !== null || !online}
+                  title={
+                    inSection ? 'Já está nesta seção'
+                    : !online ? 'Sem conexão'
+                    : undefined
+                  }
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
                     online ? 'hover:bg-white/[0.04] cursor-pointer disabled:cursor-default' : 'cursor-not-allowed opacity-50'
                   }`}
+                  style={inSection ? { opacity: 0.55 } : undefined}
                 >
                   <div className="w-10 h-10 rounded-md flex-shrink-0 bg-white/[0.05] flex items-center justify-center overflow-hidden">
                     {s.thumbnail_url ? (
@@ -185,7 +257,11 @@ export function AddSongToPlaylistModal({
                   </div>
                   {adding === s.id ? (
                     <Loader2 size={16} className="animate-spin-smooth text-brand" />
-                  ) : added ? (
+                  ) : inSection ? (
+                    <span className="flex items-center gap-1 text-green-500 text-xs font-semibold">
+                      <Check size={15} /> Na seção
+                    </span>
+                  ) : justAdded ? (
                     <Check size={16} className="text-green-500" />
                   ) : (
                     <span className="text-brand text-sm font-semibold">+</span>

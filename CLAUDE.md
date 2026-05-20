@@ -123,6 +123,29 @@ Two locations — they must stay in sync:
 - **Always use icons from lucide-react** (already installed) for visual representations. Example: `<Check size={16} />` instead of "✓", `<Music size={20} />` instead of any music emoji.
 - Import icons with named imports: `import { Check, Music, Plus } from 'lucide-react'`.
 
+### Animações e hovers — obrigatórios em UI nova
+
+Toda tela/componente novo, e todo ajuste de UI existente, **deve** ter
+animações e estados de hover sempre que fizer sentido. Interface estática
+parece quebrada ou barata. Regras:
+
+- **Hovers**: todo elemento interativo (botão, card, linha de lista, ícone
+  clicável, aba) precisa de feedback de hover — mudança de cor/fundo/opacidade.
+  Use `transition-colors` ou `transition` curtas (ver "Perceived performance").
+- **Entrada/saída**: modais, dropdowns, toasts, banners e itens que aparecem
+  dinamicamente entram (e idealmente saem) com animação.
+- **Reuse o vocabulário do projeto.** As animações vivem em
+  [src/index.css](apps/desktop/src/index.css) como `@keyframes` + classes
+  `.animate-*` (`animate-modal-in`, `animate-modal-out`, `animate-fade-slide-in`,
+  `animate-pop-in`, `animate-dock-in`, `animate-pulse-light`, etc.). **Sempre
+  prefira uma classe existente** a inventar uma animação nova. Se precisar de
+  algo novo, adicione um `@keyframes` + classe no mesmo arquivo, no mesmo estilo
+  (durações curtas, easing `cubic-bezier` consistente com as demais).
+- **Não invente estética divergente**: durações, easings e intensidade devem
+  bater com o que o resto do app já faz. Animação chamativa/lenta destoa.
+- Respeite a régra de "Perceived performance" abaixo: animações nunca podem
+  atrasar o feedback de uma ação do usuário.
+
 ## Funcionalidades core — padrões da indústria
 
 Pra funcionalidades **CORE** do app — áudio, player, drag-and-drop, formulários complexos, autenticação, upload de arquivos, sync offline-first — siga os padrões consolidados da indústria. Não invente sua versão a menos que tenha razão muito específica (e a razão precisa ser commitada no código + CLAUDE.md).

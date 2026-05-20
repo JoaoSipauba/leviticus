@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useRef } from 'react'
 import { LogOut, Home } from 'lucide-react'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 
 type Props = {
   open: boolean
@@ -22,30 +23,18 @@ type Props = {
 export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  // Fecha com Esc + click fora.
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  // Esc + clique-fora unificados via useModalDismiss (#91). Sem formulário,
+  // então clique-fora é sempre seguro.
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, enabled: open })
 
   if (!open) return null
 
   return (
-    // Overlay decorativo — fecha em click fora. Tecla Escape já cuidada
-    // pelo listener global no useEffect acima; aqui só duplicamos pra que
-    // jsx-a11y aceite o click handler (regra typescript:S1082).
+    // Overlay decorativo — fecha em click fora. Tecla Escape cuidada pelo
+    // useModalDismiss; aqui só mantemos o onClick pro backdrop.
     <div
       role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape' && e.target === e.currentTarget) onClose()
-      }}
+      onClick={onBackdropClick}
       style={{
         position: 'fixed',
         inset: 0,
@@ -64,6 +53,7 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
         role="dialog"
         aria-modal="true"
         aria-labelledby="logout-modal-title"
+        onClick={(e) => e.stopPropagation()}
         style={{
           maxWidth: 420,
           width: '100%',

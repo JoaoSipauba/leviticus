@@ -3,26 +3,21 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 
 // ─── hoisted refs ──────────────────────────────────────────────────────────
 
-const { dbSelectMock, countPendingMock, uiStoreState, integrationsStoreState } = vi.hoisted(() => {
+const { dbSelectMock, uiStoreState, integrationsStoreState } = vi.hoisted(() => {
   const dbSelectMock = vi.fn()
-  const countPendingMock = vi.fn().mockResolvedValue(0)
   const uiStoreState = {
     openAddSong: vi.fn(),
     openEditSong: vi.fn(),
     librarySeed: 0,
   }
   const integrationsStoreState = { status: 'disconnected' as string }
-  return { dbSelectMock, countPendingMock, uiStoreState, integrationsStoreState }
+  return { dbSelectMock, uiStoreState, integrationsStoreState }
 })
 
 // ─── module mocks ──────────────────────────────────────────────────────────
 
 vi.mock('../lib/db.js', () => ({
   getDb: vi.fn().mockResolvedValue({ select: dbSelectMock }),
-}))
-
-vi.mock('../lib/cloud-storage/pending-queue.js', () => ({
-  countPendingBackup: countPendingMock,
 }))
 
 vi.mock('../store/ui.js', () => ({
@@ -47,8 +42,10 @@ vi.mock('../components/SongCard.js', () => ({
 }))
 
 vi.mock('../components/library/LibraryBackupBanner.js', () => ({
-  LibraryBackupBanner: ({ pendingCount }: any) =>
-    pendingCount > 0 ? <div data-testid="banner">banner</div> : null,
+  LibraryBackupBanner: ({ failedCount, hasLocalOnlySongs, status }: any) =>
+    failedCount > 0 || (status === 'disconnected' && hasLocalOnlySongs)
+      ? <div data-testid="banner">banner</div>
+      : null,
 }))
 
 vi.mock('../components/library/BackupFilterChip.js', () => ({
@@ -106,7 +103,6 @@ describe('Library', () => {
     localStorage.setItem('leviticus_org_id', 'org-1')
     integrationsStoreState.status = 'disconnected'
     uiStoreState.librarySeed = 0
-    countPendingMock.mockResolvedValue(0)
   })
 
   afterEach(() => {
@@ -223,29 +219,31 @@ describe('Library', () => {
     expect(screen.queryByText('Quão Grande é Deus')).not.toBeInTheDocument()
   })
 
-  it('chip BackupFilterChip ativo filtra músicas não-uploaded', async () => {
+  it('chip BackupFilterChip ativo filtra músicas com upload falhado', async () => {
     setupDbSelect([
       makeSong({ id: 'song-1', title: 'Enviada', backup_status: 'uploaded' }),
-      makeSong({ id: 'song-2', title: 'Pendente', backup_status: 'pending' }),
+      makeSong({ id: 'song-2', title: 'Falhou', backup_status: 'failed' }),
+      makeSong({ id: 'song-3', title: 'Baixando', backup_status: 'pending' }),
     ])
 
     render(<Library />)
 
     await waitFor(() => {
-      expect(screen.getAllByTestId('song-card')).toHaveLength(2)
+      expect(screen.getAllByTestId('song-card')).toHaveLength(3)
     })
 
     const chip = screen.getByTestId('backup-chip')
     fireEvent.click(chip)
 
+    // Só a música 'failed' aparece — 'pending' (na fila) não é "sem backup".
     expect(screen.getAllByTestId('song-card')).toHaveLength(1)
-    expect(screen.getByText('Pendente')).toBeInTheDocument()
+    expect(screen.getByText('Falhou')).toBeInTheDocument()
     expect(screen.queryByText('Enviada')).not.toBeInTheDocument()
+    expect(screen.queryByText('Baixando')).not.toBeInTheDocument()
   })
 
-  it('banner LibraryBackupBanner aparece quando pendingCount > 0', async () => {
-    setupDbSelect([makeSong()])
-    countPendingMock.mockResolvedValue(3)
+  it('banner aparece quando há upload falhado (failedCount > 0)', async () => {
+    setupDbSelect([makeSong({ backup_status: 'failed' })])
 
     render(<Library />)
 
@@ -254,9 +252,21 @@ describe('Library', () => {
     })
   })
 
-  it('banner não aparece quando pendingCount é 0', async () => {
-    setupDbSelect([makeSong()])
-    countPendingMock.mockResolvedValue(0)
+  it('banner NÃO aparece pra música nova na fila (pending) com Drive conectado', async () => {
+    integrationsStoreState.status = 'connected'
+    setupDbSelect([makeSong({ backup_status: 'pending' })])
+
+    render(<Library />)
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('song-card')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('banner')).not.toBeInTheDocument()
+  })
+
+  it('banner não aparece quando todas as músicas estão com backup', async () => {
+    integrationsStoreState.status = 'connected'
+    setupDbSelect([makeSong({ backup_status: 'uploaded' })])
 
     render(<Library />)
 

@@ -1,13 +1,84 @@
 import { useEffect, type ReactNode } from 'react'
 import { WifiOff } from 'lucide-react'
 import { Sidebar } from './Sidebar.js'
+import { DonationBanner } from './DonationBanner.js'
 import { PlayerMini } from './PlayerMini.js'
+import { DownloadDock } from './DownloadDock.js'
 import { AddSongModal } from './AddSongModal.js'
 import { EditSongModal } from './EditSongModal.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { useDownloadsStore } from '../store/downloads.js'
+import { useIntegrationsStore } from '../store/integrations.js'
+import { backfillDurationFromFile } from '../lib/audio-meta.js'
+import { uploadSongToDrive } from '../lib/cloud-storage/upload-song.js'
+import { supabase } from '../lib/supabase.js'
+import { captureException } from '../lib/observability.js'
+import { useUIStore } from '../store/ui.js'
+import { syncOrg } from '../lib/sync.js'
 
 export function Layout({ children }: { children: ReactNode }) {
   const online = useOnlineStatus()
+  const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
+  const cloudStatus = useIntegrationsStore((s) => s.status)
+  const bumpLibrary = useUIStore((s) => s.bumpLibrary)
+
+  // Issue #71: após download em background completar (YouTube via dock),
+  // executa side effects que antes ficavam dentro do AddSongModal:
+  // 1. backfill duration_seconds (#27)
+  // 2. grava original_format real (yt-dlp baixa m4a/webm)
+  // 3. upload pro Drive se conectado
+  // 4. sync + bumpLibrary
+  useEffect(() => {
+    const orgId = localStorage.getItem('leviticus_org_id')
+    if (!orgId) return undefined
+    // Callback síncrono: o store invoca subscribers sem await, então um
+    // callback async solto vazaria unhandled rejections. Encapsula o
+    // trabalho async numa IIFE com .catch.
+    return subscribeCompleted((songId) => { void (async () => {
+      // 1. duration backfill
+      backfillDurationFromFile(songId).catch((e) =>
+        captureException(e, { feature: 'downloads', step: 'duration-backfill' }))
+
+      // 2. original_format real (yt-dlp pode cair m4a → webm)
+      try {
+        const { findSongFile } = await import('../lib/ytdlp.js')
+        const localPath = await findSongFile(songId)
+        if (localPath) {
+          const realExt = localPath.split('.').pop()?.toLowerCase()
+          if (realExt) {
+            await supabase.from('songs').update({ original_format: realExt }).eq('id', songId)
+          }
+        }
+      } catch (e) {
+        console.warn('[downloads] original_format detection failed:', e)
+      }
+
+      // 3. sync + UI
+      try {
+        await syncOrg(orgId)
+        bumpLibrary()
+      } catch (e) {
+        captureException(e, { feature: 'downloads', step: 'post-download-sync' })
+      }
+
+      // 4. upload pro Drive em background (se conectado)
+      if (cloudStatus === 'connected') {
+        try {
+          const { findSongFile } = await import('../lib/ytdlp.js')
+          const localFilePath = await findSongFile(songId)
+          if (!localFilePath) return
+          const ext = localFilePath.split('.').pop()?.toLowerCase() ?? 'm4a'
+          const kind = (ext === 'wav' || ext === 'flac' || ext === 'aiff' || ext === 'aif')
+            ? 'lossless' as const
+            : 'lossy' as const
+          await uploadSongToDrive({ orgId, songId, filePath: localFilePath, ext, kind })
+        } catch (uploadErr) {
+          captureException(uploadErr, { feature: 'downloads', step: 'upload-after-download', extras: { songId } })
+        }
+      }
+    })().catch((e) => captureException(e, { feature: 'downloads', step: 'post-download' })) })
+  }, [subscribeCompleted, cloudStatus, bumpLibrary])
+
   // Scrollbar custom: WebKit não anima ::-webkit-scrollbar, então criamos um thumb
   // <div> real para cada .styled-scroll. Usa MutationObserver para pegar containers
   // que aparecem dinamicamente (ex: AddSongModal abrindo).
@@ -197,11 +268,15 @@ export function Layout({ children }: { children: ReactNode }) {
     <div className="flex h-screen bg-bg-app text-heading overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
+        <DonationBanner />
         <main className="flex-1 overflow-y-auto styled-scroll">{children}</main>
         <PlayerMini />
       </div>
       <AddSongModal />
       <EditSongModal />
+      {/* Issue #71: dock global de downloads em background. Self-hides quando
+          não há nada em fila/erro. */}
+      <DownloadDock />
       {!online && (
         <div
           style={{

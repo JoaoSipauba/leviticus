@@ -669,7 +669,7 @@ export function SongCard({
                   setDrivePct(null)
                 }
               } else {
-                enqueueDownload(song.id, song.youtube_url)
+                enqueueDownload(song.id, song.youtube_url, song.title)
               }
             }}
           />

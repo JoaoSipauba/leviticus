@@ -60,6 +60,11 @@ export function initObservability(): void {
       // hooks signature diferente. Não acontece em prod.
       'Rendered more hooks than during the previous render',
       'Rendered fewer hooks than expected',
+      // Race benigna do plugin-http: abortar um fetch que já terminou faz
+      // o invoke interno de cancelamento rejeitar com "resource id N is
+      // invalid". Inofensivo (o request já concluiu) e não capturável do
+      // nosso lado — a promise que rejeita é interna ao plugin.
+      /resource id \d+ is invalid/,
     ],
   })
   initialized = true

@@ -236,7 +236,7 @@ describe('SongCard', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Baixar pro dispositivo/i }))
 
-    expect(downloadsState.enqueue).toHaveBeenCalledWith('song-1', baseSong.youtube_url)
+    expect(downloadsState.enqueue).toHaveBeenCalledWith('song-1', baseSong.youtube_url, baseSong.title)
     expect(playSongMock).not.toHaveBeenCalled()
   })
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { X, Mic } from 'lucide-react'
 import { getDb } from '../lib/db.js'
 import { getGroupColor, type GroupRef } from '../lib/playlist.js'
+import { useModalDismiss } from '../lib/useModalDismiss.js'
 
 type Props = {
   open: boolean
@@ -51,10 +52,15 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
     onClose()
   }
 
+  // Issue #91: clique-fora descarta na aba Ministério (nenhum dado digitado)
+  // ou na aba Avulso quando o label está vazio.
+  const canDismissOutside = tab === 'group' || avulsoLabel.trim() === ''
+  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, enabled: open })
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
       <div
         className="animate-modal-in w-full max-w-md rounded-2xl"
         style={{

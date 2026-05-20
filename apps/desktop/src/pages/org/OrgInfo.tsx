@@ -7,6 +7,7 @@ import { hasPermission } from '../../lib/permissions.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
+import { TimezoneCombobox } from '../../components/TimezoneCombobox.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -144,12 +145,12 @@ export function OrgInfo({ orgId }: { orgId: string }) {
           </div>
           <div style={{ flex: 1 }}>
             <label className="block text-[11px] font-semibold uppercase mb-[6px]" style={{ color: '#9ca3af', letterSpacing: '0.04em' }}>Fuso horário</label>
-            <input
+            {/* Issue #86: combobox filtrável com IANA timezones em vez de
+                input texto livre. */}
+            <TimezoneCombobox
               value={form.timezone}
-              onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
+              onChange={(zone) => setForm((f) => ({ ...f, timezone: zone }))}
               disabled={!canEdit}
-              className="w-full"
-              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '9px 12px', fontSize: 13.5, color: '#f3f4f6', outline: 'none', opacity: canEdit ? 1 : 0.6 }}
             />
           </div>
         </div>

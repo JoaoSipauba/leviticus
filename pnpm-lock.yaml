@@ -125,6 +125,9 @@ importers:
 
   apps/desktop/e2e:
     devDependencies:
+      '@crabnebula/tauri-driver':
+        specifier: ^2.0.9
+        version: 2.0.9
       '@supabase/supabase-js':
         specifier: ^2.43.0
         version: 2.105.3
@@ -359,6 +362,36 @@ packages:
         optional: true
       conventional-commits-parser:
         optional: true
+
+  '@crabnebula/tauri-driver-darwin-arm64@2.0.9':
+    resolution: {integrity: sha512-VvO7OC6UkuEP3eU3klyl+Ka/jgWFc3yIUeCw6e8BtibQWDXSwQ/r2tzqvC0d+5psF/mWYiCqNAKMlg4v5+muvg==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@crabnebula/tauri-driver-darwin-x64@2.0.9':
+    resolution: {integrity: sha512-AWm3CY+YjKRLxaaucYdBG9cA7sTPviBpuVjJW6rNsPHGIFlxiA3C7fOv0Eekf2L7ps6v9HRCgldjPjTLH0DvNQ==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@crabnebula/tauri-driver-linux-x64-gnu@2.0.9':
+    resolution: {integrity: sha512-+H2HQtjKQrVJ+A9C5x4LaTl/6oX1QpEBlfRJxA4WqCdbJEE2NsmLgODGSQNueav+9QV7MOgjppRMl9fiW7IIqg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@crabnebula/tauri-driver-win32-x64-msvc@2.0.9':
+    resolution: {integrity: sha512-/xqSl8dmGy7u9FXXjtuxAe38PJuQ4g1yT6Txgft5SwRwicAVkcEvmtdLkHJ6wUqEcg64UBEsoja8Z0EbNqTIcg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@crabnebula/tauri-driver@2.0.9':
+    resolution: {integrity: sha512-W+fOUkQnP0MOSu9jMykG7HSstYysTQLMnL2+b3IpenbyqPfBiBI/9uSoNC1nXjh0aYm46nPgwKC6RbiWsWa0XQ==}
+    engines: {node: '>= 10'}
+    hasBin: true
 
   '@csstools/color-helpers@5.1.0':
     resolution: {integrity: sha512-S11EXWJyy0Mz5SYvRmY8nJYTFFd1LCNV+7cXyAgQtOOuzb4EsgfqDufL+9esx72/eLhsRdGZwaldu/h+E4t4BA==}
@@ -4943,6 +4976,25 @@ snapshots:
     optionalDependencies:
       conventional-commits-filter: 5.0.0
       conventional-commits-parser: 6.4.0
+
+  '@crabnebula/tauri-driver-darwin-arm64@2.0.9':
+    optional: true
+
+  '@crabnebula/tauri-driver-darwin-x64@2.0.9':
+    optional: true
+
+  '@crabnebula/tauri-driver-linux-x64-gnu@2.0.9':
+    optional: true
+
+  '@crabnebula/tauri-driver-win32-x64-msvc@2.0.9':
+    optional: true
+
+  '@crabnebula/tauri-driver@2.0.9':
+    optionalDependencies:
+      '@crabnebula/tauri-driver-darwin-arm64': 2.0.9
+      '@crabnebula/tauri-driver-darwin-x64': 2.0.9
+      '@crabnebula/tauri-driver-linux-x64-gnu': 2.0.9
+      '@crabnebula/tauri-driver-win32-x64-msvc': 2.0.9
 
   '@csstools/color-helpers@5.1.0': {}
 

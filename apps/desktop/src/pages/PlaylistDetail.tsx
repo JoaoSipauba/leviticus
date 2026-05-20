@@ -26,6 +26,7 @@ import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useDownloadsStore } from '../store/downloads.js'
+import { useUIStore } from '../store/ui.js'
 
 type DraftSection = {
   sectionId: string
@@ -71,6 +72,10 @@ export function PlaylistDetail() {
   const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
   const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
   const downloadsById = useDownloadsStore((s) => s.byId)
+  // Bump global de biblioteca — sobe quando uma música é adicionada via
+  // AddSongModal (inclui o fluxo "baixar nova direto no culto"). Dispara
+  // reload pra a música nova aparecer na seção.
+  const librarySeed = useUIStore((s) => s.librarySeed)
   // IDs das músicas do culto que NÃO têm áudio local. Recalculado quando
   // a lista muda ou quando um download conclui/cancela (via subscribers).
   const [missingDownloads, setMissingDownloads] = useState<Set<string>>(new Set())
@@ -149,6 +154,14 @@ export function PlaylistDetail() {
     load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
   }, [load])
 
+  // Recarrega quando uma música é adicionada à biblioteca (ex.: download
+  // direto no culto via AddSongModal, que vincula a música a uma seção).
+  useEffect(() => {
+    if (librarySeed === 0) return
+    load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [librarySeed])
+
   // Lista flat ordenada — concluídas primeiro (na ordem original entre elas),
   // depois as que faltam executar (também na ordem original). Usada pra
   // calcular position/indexInList de cada song no SongCard (a fila do culto
@@ -198,7 +211,7 @@ export function PlaylistDetail() {
       if (missingDownloads.has(ps.song_id)) {
         const status = downloadsById[ps.song_id]
         if (!status || status.state === 'error') {
-          enqueueDownload(ps.song_id, ps.song.youtube_url)
+          enqueueDownload(ps.song_id, ps.song.youtube_url, ps.song.title)
         }
       }
     }
