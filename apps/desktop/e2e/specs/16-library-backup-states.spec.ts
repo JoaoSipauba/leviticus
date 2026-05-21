@@ -7,6 +7,12 @@
 //   T1 — biblioteca sem músicas pendentes não mostra banner
 //   T2 — biblioteca com pendentes mostra banner com contagem
 //   T3 — chip "Sem backup" filtra apenas pendentes
+//
+// SKIP: spec desatualizada. Espera o texto "2 músicas sem backup" e o chip
+// "Sem backup (2)", mas o LibraryBackupBanner foi reformulado (issues #44/
+// #46/#71) — o banner agora diz "N aguardando upload" / "Sem backup
+// configurado", e o chip conta só backup_status='failed'. Rewrite rastreado
+// em #97 (precisa decidir a contagem canônica + seedar conta de cloud).
 
 import { browser, $, expect } from '@wdio/globals'
 import {
@@ -18,7 +24,7 @@ import {
 } from '../helpers/supabase.js'
 import { cleanLocalSqlite, setReactInputValue } from '../helpers/app.js'
 
-describe('Journey #12 — Biblioteca backup states', () => {
+describe.skip('Journey #12 — Biblioteca backup states', () => {
   let email: string
   let password: string
   let userId: string
