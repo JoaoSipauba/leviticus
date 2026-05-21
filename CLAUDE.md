@@ -376,6 +376,22 @@ Toda alteração de schema no Supabase precisa ser **retrocompatível com a vers
 - [ ] Algum `.select()`/`.insert()`/`.update()` no app vai quebrar? (`grep` pelo nome da coluna que mudou)
 - [ ] App da versão atual em produção continua funcionando contra o schema novo? (testar manualmente: rodar binário antigo contra Supabase com migration aplicada)
 
+## Git workflow — toda alteração via branch + PR
+
+**Nunca commitar nem dar push direto em `main` ou `dev`.** Todo trabalho — feature, fix, ci, docs, por menor que seja — segue o fluxo:
+
+1. **Branch a partir de `dev`**, com nome prefixado: `feat/`, `fix/`, `ci/`, `test/`, `docs/`, `chore/`.
+2. **PR pra `dev`** — mergeia quando o trabalho está pronto e verde.
+3. **PR de `dev` → `main`** — é o *release PR*. Exige `CI passed` verde, conversas de review resolvidas e a branch atualizada com a `main`.
+4. Merge na `main` dispara o `release-bump` → versionamento e build (ver "Releasing").
+
+Regras:
+- **`main` é protegida**: só recebe alteração via PR (push direto bloqueado), exige `CI passed` + resolução de conversas. Nunca contornar com `--admin`, `--no-verify` ou force-push.
+- **`dev` também é só via branch + PR** — não dar push direto, mesmo pra mudança trivial.
+- **Feature branch sempre abre PR pra `dev`** — nunca PR direto de feature pra `main`. O único PR que mira `main` é o `dev → main`.
+- **Commits convencionais** (`feat:`, `fix:`, `perf:`, `chore:`, `ci:`, `docs:`, `test:`) — o `release-it` infere o bump de versão a partir deles (ver "Releasing").
+- **CI roda só em PRs com base `main`** ([ci.yml](.github/workflows/ci.yml)). Antes de abrir o PR `dev → main`: `pnpm test` + `pnpm typecheck` local, e perguntar sobre E2E (ver "Testing strategy").
+
 ## Releasing
 
 Releases são publicadas no GitHub a partir de tags `v*`. O workflow [.github/workflows/release.yml](.github/workflows/release.yml) builda nos **self-hosted runners** (Mac M1 + Windows JOAO-PC), gera `.dmg` + `.exe` + bundle assinado pra updater, e cria a GitHub Release automaticamente.
