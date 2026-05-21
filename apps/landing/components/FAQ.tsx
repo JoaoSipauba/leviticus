@@ -9,7 +9,7 @@ export default function FAQ() {
         <div className="faq-list">
           <details className="faq-item">
             <summary>O Leviticus é pago?</summary>
-            <div className="faq-body"><p>Durante o beta, o uso é livre. No futuro, pretendemos ter um plano simbólico de manutenção pra sustentar o projeto a longo prazo — com preço acessível pra que qualquer igreja, principalmente as menores, consiga usar.</p></div>
+            <div className="faq-body"><p>Não. O Leviticus é <strong style={{ color: 'var(--text)' }}>100% gratuito</strong> — sem planos pagos, sem assinatura e sem recurso trancado atrás de pagamento. O projeto se sustenta apenas pelas doações voluntárias de quem quiser apoiar a obra. Se o app estiver abençoando sua equipe e você puder semear, há um PIX na seção <a href="#doacao">Contribua com a obra</a>.</p></div>
           </details>
           <details className="faq-item">
             <summary>O que exatamente o Leviticus faz?</summary>

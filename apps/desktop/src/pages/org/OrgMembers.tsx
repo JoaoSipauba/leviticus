@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Search, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -20,7 +21,7 @@ type RawRow = {
   ministries: string | null
 }
 
-export function OrgMembers({ orgId }: { orgId: string }) {
+export function OrgMembers({ orgId, active = false }: { orgId: string; active?: boolean }) {
   // Issue #65: loading explícito pra exibir skeleton em vez de área vazia
   // enquanto o load() resolve. Sem isso, tab abre como se estivesse vazio
   // e o conteúdo "pula" pro lugar uns ms depois.
@@ -120,6 +121,9 @@ export function OrgMembers({ orgId }: { orgId: string }) {
   }
 
   useEffect(() => { void load() }, [orgId])
+  // Aba reaparece → revalida em silêncio (loading não volta a true, o dado
+  // atual fica na tela até o novo chegar).
+  useRefetchOnActive(active, () => void load())
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -163,7 +167,13 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     return (
       <div>
         <div className="flex items-center gap-3 mb-[14px]">
-          <Skeleton h={36} w="100%" rounded="lg" />
+          {/* O 1º skeleton ocupa o espaço restante via flex-1 — espelha o
+              `<div className="flex-1">` da busca real. Antes era w="100%"
+              que, somado aos dois de 140px (flex-shrink:0), estourava a
+              largura e mostrava scrollbar horizontal. */}
+          <div className="flex-1">
+            <Skeleton h={36} w="100%" rounded="lg" />
+          </div>
           <Skeleton h={36} w={140} rounded="lg" />
           <Skeleton h={36} w={140} rounded="lg" />
         </div>

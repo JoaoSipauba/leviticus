@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { getDb } from '../../lib/db.js'
 import { supabase } from '../../lib/supabase.js'
 import { isOwner } from '../../lib/permissions.js'
@@ -7,7 +8,7 @@ import { TransferOwnershipModal } from '../../components/org/TransferOwnershipMo
 import { DeleteOrgModal } from '../../components/org/DeleteOrgModal.js'
 import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
 
-export function OrgDanger({ orgId }: { orgId: string }) {
+export function OrgDanger({ orgId, active = false }: { orgId: string; active?: boolean }) {
   const navigate = useNavigate()
   const [owner, setOwner] = useState(false)
   const [orgName, setOrgName] = useState('')
@@ -26,6 +27,8 @@ export function OrgDanger({ orgId }: { orgId: string }) {
   }
 
   useEffect(() => { void load() }, [orgId])
+  // Aba reaparece → revalida em silêncio (stale-while-revalidate).
+  useRefetchOnActive(active, () => void load())
 
   function handleLeaveDone() {
     localStorage.removeItem('leviticus_org_id')

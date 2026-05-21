@@ -1,16 +1,12 @@
 name: CI
 
-# O CI roda em todo PR (base `dev` ou `main`) e em push direto na `main`.
-# NÃO roda em push pra `dev`: quando `dev` tem um PR aberto pra `main`, um
-# commit em `dev` dispararia o workflow DUAS vezes — evento `push` (branch
-# dev) + evento `pull_request` (sincronização do PR dev→main), pro mesmo
-# commit. Com os triggers abaixo, cada commit roda o CI uma vez só, e todo
-# PR (feature→dev e dev→main) continua coberto pelo check `CI passed`.
+# O CI roda APENAS em PRs com base `main` — é o portão de qualidade antes
+# de qualquer mudança entrar na main. A main só recebe alteração via PR e o
+# PR já valida o código; rodar CI de novo no push pra main seria redundante
+# (o release-bump roda os testes de novo antes de versionar).
 on:
-  push:
-    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 # Cancela runs antigos do MESMO PR quando você dá push novo (economiza
 # minutos de CI). Em push direto na main NÃO cancela — não queremos

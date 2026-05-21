@@ -1,6 +1,7 @@
 // apps/desktop/src/pages/org/OrgRoles.tsx
 import { useEffect, useRef, useState } from 'react'
 import { Plus, Lock, Pencil, Trash2 } from 'lucide-react'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import type { Permission } from '@leviticus/core'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -37,7 +38,7 @@ const PERM_GROUPS: PermGroup[] = [
   },
 ]
 
-export function OrgRoles({ orgId }: { orgId: string }) {
+export function OrgRoles({ orgId, active = false }: { orgId: string; active?: boolean }) {
   // Issue #65: skeleton enquanto load() resolve. Sem isso, aba abre vazia.
   const [loading, setLoading] = useState(true)
   const [roles, setRoles] = useState<Role[]>([])
@@ -96,6 +97,9 @@ export function OrgRoles({ orgId }: { orgId: string }) {
 
   useEffect(() => { void load() }, [orgId])
   useEffect(() => { if (selectedId) void loadPerms(selectedId) }, [selectedId])
+  // Aba reaparece → revalida em silêncio. load() não mexe em selectedId já
+  // definido nem no estado de edição inline, então não atrapalha o usuário.
+  useRefetchOnActive(active, () => void load())
 
   const selected = roles.find((r) => r.id === selectedId) ?? null
   const isDono = selected?.name === 'Dono'

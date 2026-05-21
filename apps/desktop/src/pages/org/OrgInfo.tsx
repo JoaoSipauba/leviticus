@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Users, LayoutGrid, CalendarDays, Home } from 'lucide-react'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
@@ -12,7 +13,7 @@ import { TimezoneCombobox } from '../../components/TimezoneCombobox.js'
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
 
-export function OrgInfo({ orgId }: { orgId: string }) {
+export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boolean }) {
   // Issue #65: skeleton enquanto load() resolve.
   const [loading, setLoading] = useState(true)
   const [stats, setStats] = useState<Stats>({ members: 0, ministries: 0, playlists: 0 })
@@ -22,7 +23,7 @@ export function OrgInfo({ orgId }: { orgId: string }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function load() {
+  async function load(opts?: { silent?: boolean }) {
     const db = await getDb()
     const [orgRows, m, g, p, canEditNow] = await Promise.all([
       db.select<{ name: string; city: string | null; timezone: string }[]>(
@@ -34,7 +35,13 @@ export function OrgInfo({ orgId }: { orgId: string }) {
       hasPermission('manage_members', orgId),
     ])
     setStats({ members: m[0]?.cnt ?? 0, ministries: g[0]?.cnt ?? 0, playlists: p[0]?.cnt ?? 0 })
-    if (orgRows[0]) {
+    // Refetch silencioso NÃO sobrescreve o form se há edição não salva —
+    // senão a digitação do usuário no nome/cidade/fuso seria perdida.
+    const dirty =
+      form.name !== original.name ||
+      form.city !== original.city ||
+      form.timezone !== original.timezone
+    if (orgRows[0] && !(opts?.silent && dirty)) {
       const f: Form = {
         name: orgRows[0].name,
         city: orgRows[0].city ?? '',
@@ -47,6 +54,8 @@ export function OrgInfo({ orgId }: { orgId: string }) {
   }
 
   useEffect(() => { void load() }, [orgId])
+  // Aba reaparece → revalida em silêncio (stale-while-revalidate).
+  useRefetchOnActive(active, () => void load({ silent: true }))
 
   const dirty = form.name !== original.name || form.city !== original.city || form.timezone !== original.timezone
 

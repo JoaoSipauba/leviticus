@@ -99,11 +99,12 @@ describe('OrgManage', () => {
 
     render(<OrgManage />)
 
-    // OrgInfo stub must be visible, not OrgMembers
+    // Todas as abas montam de uma vez; só a ativa fica visível, as outras
+    // ficam `hidden`. Aba ativa = info → OrgInfo visível, OrgMembers oculto.
     await waitFor(() => {
-      expect(screen.getByText('OrgInfo')).toBeInTheDocument()
+      expect(screen.getByText('OrgInfo')).toBeVisible()
     })
-    expect(screen.queryByText('OrgMembers')).not.toBeInTheDocument()
+    expect(screen.getByText('OrgMembers')).not.toBeVisible()
   })
 
   // ------------------------------------------------------------------
@@ -114,14 +115,17 @@ describe('OrgManage', () => {
     render(<OrgManage />)
 
     await waitFor(() => {
-      expect(screen.getByText('OrgMembers')).toBeInTheDocument()
+      expect(screen.getByText('OrgMembers')).toBeVisible()
     })
 
     await user.click(screen.getByRole('button', { name: /informações/i }))
 
+    // Trocar de aba alterna a visibilidade — OrgInfo aparece, OrgMembers
+    // continua montado mas oculto.
     await waitFor(() => {
-      expect(screen.getByText('OrgInfo')).toBeInTheDocument()
+      expect(screen.getByText('OrgInfo')).toBeVisible()
     })
+    expect(screen.getByText('OrgMembers')).not.toBeVisible()
     expect(setSearchParams).toHaveBeenCalledWith({ tab: 'info' }, { replace: true })
   })
 
