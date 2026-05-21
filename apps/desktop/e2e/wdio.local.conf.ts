@@ -13,13 +13,33 @@
 import fs from 'node:fs/promises'
 import { homedir } from 'node:os'
 import path from 'node:path'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { config as baseConfig } from './wdio.conf.js'
 import { appBinaryPath } from './helpers/env.js'
 import { takeScreenshot } from './helpers/app.js'
 
 let tauriWd: ChildProcess | null = null
+
+/**
+ * Mata processos órfãos do app e do tauri-wd por nome.
+ *
+ * O tauri-wd lança o binário do app FORA do seu próprio process group, então
+ * matar só o grupo do tauri-wd (`kill(-pid)`) deixa a janela do app viva — e
+ * elas se acumulam a cada spec ao longo da suíte. `pkill` por nome é a rede
+ * de segurança. Também cobre o caso de `afterSession` não rodar (falha ao
+ * abrir a sessão, ou o processo do wdio ser interrompido). Idempotente.
+ */
+function killStrayProcesses(): void {
+  // Padrões fixos (sem input externo). execFileSync — sem shell.
+  for (const pattern of ['leviticus-desktop', 'tauri-wd']) {
+    try {
+      execFileSync('pkill', ['-9', '-f', pattern], { stdio: 'ignore' })
+    } catch {
+      /* exit != 0 = nenhum processo casou — ok */
+    }
+  }
+}
 
 export const config: WebdriverIO.Config = {
   ...baseConfig,
@@ -55,14 +75,27 @@ export const config: WebdriverIO.Config = {
     await sleep(1500)
   },
 
+  // Antes de tudo: varre processos órfãos de um run anterior interrompido,
+  // pra a suíte não começar com janelas/portas presas.
+  onPrepare: () => {
+    killStrayProcesses()
+  },
+
   afterSession: () => {
     if (tauriWd?.pid) {
-      // Negative pid kills the whole process group (detached above), so the
-      // launched Tauri app process dies too. Otherwise it can linger and
-      // keep port 4444 alive across runs.
+      // Negative pid kills the whole process group (detached above).
       try { process.kill(-tauriWd.pid, 'SIGKILL') } catch { /* already dead */ }
     }
     tauriWd = null
+    // O kill do grupo acima não alcança a janela do app (tauri-wd a lança
+    // fora do grupo). Sem este pkill por nome, as janelas acumulam a cada
+    // spec ao longo da suíte.
+    killStrayProcesses()
+  },
+
+  // Rede de segurança final: garante que nada sobrou após a suíte inteira.
+  onComplete: () => {
+    killStrayProcesses()
   },
 
   // Re-define afterTest because object spread doesn't merge nested functions —

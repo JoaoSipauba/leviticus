@@ -112,6 +112,29 @@ describe('syncOrg', () => {
     )
   })
 
+  it('grava last_sync com o timestamp do INÍCIO do sync, não do fim', async () => {
+    // Uma row criada DURANTE a execução do sync (que as queries podem não ter
+    // pego) ficaria órfã se o last_sync fosse o tempo do fim. Gravar o início
+    // garante que o próximo sync re-cobre a janela inteira.
+    vi.useFakeTimers()
+    try {
+      const startedAt = '2026-01-01T00:00:00.000Z'
+      vi.setSystemTime(new Date(startedAt))
+      const { supabase } = await import('./supabase.js')
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        // Simula tempo passando durante o sync (queries + writes).
+        vi.setSystemTime(new Date('2026-01-01T00:05:00.000Z'))
+        if (table === 'cloud_storage_accounts_public') return makeNullChain()
+        return makeChain()
+      })
+      await syncOrg('org-1')
+      const { setLastSync } = await import('./db.js')
+      expect(vi.mocked(setLastSync)).toHaveBeenCalledWith('org-1', startedAt)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('throws when supabase returns an error', async () => {
     const { supabase } = await import('./supabase.js')
     // First call (songs) returns an error; subsequent calls return success

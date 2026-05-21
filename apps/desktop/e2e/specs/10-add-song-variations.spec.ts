@@ -40,12 +40,14 @@ describe('Journey B — Add song variations', () => {
     // Espera o modal renderizar — tab "Colar URL" precisa existir antes do
     // click. Sem waitForExist, em builds mais lentos o test prosseguia sem
     // trocar de tab e o input do youtube nem estava no DOM.
+    // Timeout folgado (15s): sob a suíte completa o app abre mais devagar
+    // e 5s estourava de forma intermitente (issue #100).
     const pasteTab = $('button=Colar URL')
-    await pasteTab.waitForExist({ timeout: 5_000, timeoutMsg: 'AddSongModal não abriu (Colar URL tab missing)' })
+    await pasteTab.waitForExist({ timeout: 15_000, timeoutMsg: 'AddSongModal não abriu (Colar URL tab missing)' })
     await pasteTab.click()
     // Garante que o input está visível antes do helper a chamar.
     await $('input[placeholder*="youtube.com"]').waitForExist({
-      timeout: 5_000,
+      timeout: 10_000,
       timeoutMsg: 'Input do YouTube não apareceu após clicar Colar URL',
     })
   }

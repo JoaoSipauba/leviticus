@@ -4,6 +4,13 @@ import { getDb, getLastSync, setLastSync } from './db.js'
 export async function syncOrg(orgId: string): Promise<void> {
   const db = await getDb()
   const since = (await getLastSync(orgId)) ?? '1970-01-01T00:00:00Z'
+  // Marca de tempo capturada ANTES das queries. É ela que vira o próximo
+  // `last_sync` — não `Date.now()` no fim. Senão, uma row criada DURANTE a
+  // execução do sync (que as queries `.gte('updated_at', since)` podem não
+  // ter pego) ficaria com `updated_at` < o `last_sync` do fim e seria pulada
+  // pra sempre. Usar o início garante que o próximo sync re-cobre toda a
+  // janela de execução; a sobreposição é inofensiva (INSERT OR REPLACE).
+  const syncStartedAt = new Date().toISOString()
 
   // Listar colunas explicitamente (não usar '*'). Ver "Migrations checklist"
   // em CLAUDE.md — o contrato fica visível e colunas novas no Supabase não
@@ -176,5 +183,5 @@ export async function syncOrg(orgId: string): Promise<void> {
     await db.execute(`DELETE FROM cloud_storage_accounts WHERE org_id = ?`, [orgId])
   }
 
-  await setLastSync(orgId, new Date().toISOString())
+  await setLastSync(orgId, syncStartedAt)
 }
