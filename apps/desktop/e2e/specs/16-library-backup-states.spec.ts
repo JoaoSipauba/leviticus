@@ -1,14 +1,19 @@
 // apps/desktop/e2e/specs/16-library-backup-states.spec.ts
 //
-// Journey #12 — Biblioteca backup status (banner + badge + filter chip).
+// Journey #12 — Biblioteca backup status (banner + filter chip).
 //
-// Pré-seedando songs com diferentes backup_status via service-role client
-// + invoke direto no SQLite local (mesmo pattern do spec 15). Cobre:
-//   T1 — biblioteca sem músicas pendentes não mostra banner
-//   T2 — biblioteca com pendentes mostra banner com contagem
-//   T3 — chip "Sem backup" filtra apenas pendentes
+// Seed: 3 músicas com backup_status uploaded/pending/failed, sem conta de
+// cloud (Drive desconectado). Cobre a integração "songs seedadas → Library
+// liga contagem/status no banner + chip + filtro":
+//   T1 — banner "Sem backup configurado" (Drive desconectado + locais)
+//   T2 — chip "Sem backup (1)" — conta só backup_status='failed'
+//   T3 — clicar no chip filtra a biblioteca pras músicas com falha
+//
+// Os ramos do LibraryBackupBanner (incl. "N aguardando upload" com Drive
+// conectado) têm cobertura unitária em LibraryBackupBanner.test.tsx; os
+// estados de Drive conectado em E2E ficam na spec 15.
 
-import { browser, $, expect } from '@wdio/globals'
+import { browser, $ } from '@wdio/globals'
 import {
   makeAdminClient,
   createTestUser,
@@ -19,82 +24,79 @@ import {
 import { cleanLocalSqlite, setReactInputValue } from '../helpers/app.js'
 
 describe('Journey #12 — Biblioteca backup states', () => {
-  let email: string
-  let password: string
-  let userId: string
-  let orgId: string
   let orgName: string
-  let songIds: string[] = []
 
   before(async () => {
-    email = `lib-backup+${Date.now()}@leviticus.test`
-    password = E2E_FIXTURE_PASSWORD
+    const email = `lib-backup+${Date.now()}@leviticus.test`
     orgName = `Lib Igreja ${Date.now()}`
     await cleanLocalSqlite()
 
     const admin = makeAdminClient()
-    const user = await createTestUser(admin, { email, password })
-    userId = user.id
-    const org = await createOrgWithOwner(admin, userId, orgName)
-    orgId = org.id
+    const user = await createTestUser(admin, { email, password: E2E_FIXTURE_PASSWORD })
+    const org = await createOrgWithOwner(admin, user.id, orgName)
 
-    // Seed 3 músicas com backup_status diferentes
-    const s1 = await createSongForOrg(admin, orgId, userId, 'Música Uploaded', 'Artista A')
-    const s2 = await createSongForOrg(admin, orgId, userId, 'Música Pending', 'Artista B')
-    const s3 = await createSongForOrg(admin, orgId, userId, 'Música Failed', 'Artista C')
-    songIds = [s1, s2, s3]
-
-    // Marca cada uma com seu status
+    // Seed 3 músicas, uma de cada backup_status.
+    const s1 = await createSongForOrg(admin, org.id, user.id, 'Música Uploaded', 'Artista A')
+    const s2 = await createSongForOrg(admin, org.id, user.id, 'Música Pending', 'Artista B')
+    const s3 = await createSongForOrg(admin, org.id, user.id, 'Música Failed', 'Artista C')
     await admin.from('songs').update({ backup_status: 'uploaded' }).eq('id', s1)
     await admin.from('songs').update({ backup_status: 'pending' }).eq('id', s2)
     await admin.from('songs').update({ backup_status: 'failed' }).eq('id', s3)
 
-    // Login
+    // Login + seleção de org → Biblioteca.
     await browser.waitUntil(
       async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
-      { timeout: 30_000 }
+      { timeout: 30_000 },
     )
     await $('input[type=email]').waitForExist({ timeout: 30_000 })
     await setReactInputValue('input#email', email)
-    await setReactInputValue('input#password', password)
+    await setReactInputValue('input#password', E2E_FIXTURE_PASSWORD)
     await $('button[type=submit]').click()
     await browser.waitUntil(
       async () => /\/org$/.test(await browser.getUrl()),
-      { timeout: 30_000 }
+      { timeout: 30_000 },
     )
     const orgBtn = $(`button*=${orgName}`)
     await orgBtn.waitForExist({ timeout: 10_000 })
     await orgBtn.click()
     await browser.waitUntil(
       async () => /\/library/.test(await browser.getUrl()),
-      { timeout: 90_000 }
+      { timeout: 90_000 },
     )
   })
 
-  it('T1 — banner mostra contagem de pendentes (2)', async () => {
-    // 1 uploaded + 1 pending + 1 failed = 2 não-uploaded
-    const banner = $('div*=2 músicas sem backup')
-    await banner.waitForExist({ timeout: 10_000, timeoutMsg: 'Banner did not render with count' })
+  it('T1 — banner "Sem backup configurado" aparece (Drive desconectado)', async () => {
+    // Sem conta de cloud seedada, o status resolve pra 'disconnected'. Com
+    // músicas que não estão no Drive, o banner informativo aparece.
+    const banner = $('div*=Sem backup configurado')
+    await banner.waitForExist({
+      timeout: 15_000,
+      timeoutMsg: 'Banner "Sem backup configurado" não renderizou',
+    })
   })
 
-  it('T2 — chip "Sem backup (2)" aparece', async () => {
-    const chip = $('button*=Sem backup (2)')
-    await chip.waitForExist({ timeout: 5_000, timeoutMsg: 'Chip did not render' })
+  it('T2 — chip "Sem backup (1)" aparece', async () => {
+    // failedCount conta só backup_status='failed' (1 música). O chip some
+    // quando a contagem é 0, então a presença já confirma a contagem.
+    const chip = $('button*=Sem backup (1)')
+    await chip.waitForExist({
+      timeout: 10_000,
+      timeoutMsg: 'Chip "Sem backup (1)" não renderizou',
+    })
   })
 
-  it('T3 — clicar no chip filtra só pendentes', async () => {
-    const chip = $('button*=Sem backup (2)')
+  it('T3 — clicar no chip filtra só as músicas com falha', async () => {
+    const chip = $('button*=Sem backup (1)')
     await chip.click()
 
-    // Após filtrar, "Música Uploaded" não deve aparecer
-    const uploadedSong = $('p*=Música Uploaded')
-    await browser.waitUntil(
-      async () => !(await uploadedSong.isExisting()),
-      { timeout: 5_000, timeoutMsg: '"Música Uploaded" ainda visível após filtrar' }
-    )
-
-    // Mas "Música Pending" e "Música Failed" devem aparecer
-    await $('p*=Música Pending').waitForExist({ timeout: 5_000 })
+    // Filtrado: só "Música Failed" aparece; uploaded e pending somem.
     await $('p*=Música Failed').waitForExist({ timeout: 5_000 })
+    for (const hidden of ['Música Uploaded', 'Música Pending']) {
+      const el = $(`p*=${hidden}`)
+      await browser.waitUntil(
+        async () => !(await el.isExisting()),
+        { timeout: 5_000, timeoutMsg: `"${hidden}" ainda visível após filtrar` },
+      )
+    }
   })
 })

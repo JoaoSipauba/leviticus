@@ -213,3 +213,47 @@ export async function signupAndCreateOrg(opts: {
 
   return { userId: org.owner_id, orgId: org.id, email }
 }
+
+/**
+ * Navega pra tela de detalhe de um culto e garante que ela carregou COM o
+ * boot inteiro concluído.
+ *
+ * Dois problemas que esta função resolve (issue #100):
+ *
+ * 1. `PlaylistDetail` redireciona pra /services quando a playlist ainda não
+ *    está no SQLite local — comum logo após criar a playlist via admin,
+ *    antes do syncOrg do boot a commitar. Esperar um tempo fixo era flaky;
+ *    consultar o SQLite via `plugin:sql|select` também não serve (a conexão
+ *    é compartilhada, o SELECT enxerga rows dentro da transação ainda não
+ *    commitada do syncOrg). Solução: cada `browser.url` é um boot novo que
+ *    roda o syncOrg até o commit — re-navega até o detalhe ficar de pé.
+ *
+ * 2. O `#boot-splash` só some quando auth + syncOrg completam (App.tsx
+ *    dispara `leviticus-ready` depois disso). Esperar o splash sumir garante
+ *    que TODO o dado sincronizado (songs, ministérios) já está disponível —
+ *    sem isso, um modal aberto logo após pode listar dados vazios.
+ */
+export async function gotoPlaylistDetail(playlistId: string): Promise<void> {
+  const detailPath = `tauri://localhost/services/${playlistId}`
+  const deadline = Date.now() + 150_000
+  while (Date.now() < deadline) {
+    await browser.url(detailPath)
+    // Espera o boot terminar de verdade: o splash some só após syncOrg.
+    await browser.waitUntil(
+      async () => !(await $('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Splash de boot não sumiu — syncOrg não completou' },
+    )
+    // Boot concluído: ou PlaylistDetail carregou (botão "Adicionar seção"),
+    // ou redirecionou pra lista de cultos. waitForExist curto pra tolerar o
+    // load() async do PlaylistDetail logo após o splash sumir.
+    try {
+      await $('button*=Adicionar seção').waitForExist({ timeout: 10_000 })
+      return
+    } catch {
+      // Redirecionou → playlist ainda não commitada. O syncOrg deste boot
+      // já a puxou; a próxima tentativa acha. Folga e re-tenta.
+      await new Promise((r) => setTimeout(r, 1_500))
+    }
+  }
+  throw new Error(`PlaylistDetail de ${playlistId} nunca carregou (playlist não sincronizou)`)
+}

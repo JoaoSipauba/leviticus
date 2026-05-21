@@ -133,7 +133,7 @@ describe('Journey #2 — Add song via paste URL', () => {
     expect(song).toBeNull()
   })
 
-  it('Test 4 — download falha: row inserted then rolled back, error shown', async () => {
+  it('Test 4 — download falha: erro aparece no DownloadDock, song row persiste', async () => {
     await setYtDlpMockMode('fail-download')
     const supabase = makeAdminClient()
     const videoId = 't4dnerror00'  // 11 chars, valid YT video ID format
@@ -149,32 +149,22 @@ describe('Journey #2 — Add song via paste URL', () => {
     await submitBtn.waitForEnabled({ timeout: 5_000 })
     await submitBtn.click()
 
-    // App inserts song row, then download mock fails. Catch block rolls back
-    // via DELETE and returns to step 2 with error.
-    const alert = $('p[role=alert]')
-    await alert.waitForExist({ timeout: 30_000, timeoutMsg: 'Expected error alert on download failure' })
+    // Issue #71: o download roda em background no DownloadDock — o modal
+    // pula pro passo de sucesso e não mostra mais o erro. O mock
+    // fail-download emite um erro transient ("Read timed out"), então o
+    // download tenta de novo 2x (backoff 2s+8s) antes de virar 'error'.
+    const dock = $('div[role=region][aria-label="Downloads em andamento"]')
+    await dock.waitForExist({ timeout: 15_000, timeoutMsg: 'DownloadDock não apareceu após iniciar o download' })
+
+    // Espera o download esgotar os retries e o dock mostrar "falhou".
     await browser.waitUntil(
-      async () => {
-        const txt = await alert.getText()
-        return txt.includes('Falha ao baixar o áudio')
-      },
-      { timeout: 10_000, timeoutMsg: 'Did not see the download-failure message in alert' }
+      async () => (await dock.getText()).includes('falhou'),
+      { timeout: 30_000, timeoutMsg: 'DownloadDock não chegou no estado de falha' }
     )
 
-    // The rollback DELETEs the song row — poll for ABSENCE over 5s.
-    const deadline = Date.now() + 5_000
-    let stillThere = true
-    while (Date.now() < deadline) {
-      const { data } = await supabase
-        .from('songs')
-        .select('id')
-        .eq('org_id', orgId)
-        .eq('youtube_url', url)
-      if (!data || data.length === 0) { stillThere = false; break }
-      await new Promise((r) => setTimeout(r, 300))
-    }
-    if (stillThere) {
-      throw new Error(`Song row for ${url} was not rolled back after download failure`)
-    }
+    // Diferente do fluxo antigo: a song row NÃO é revertida. Ela persiste
+    // em estado de erro pra o usuário poder re-tentar pelo dock.
+    const song = await findSongByYoutubeUrl(supabase, orgId, url, 5_000)
+    expect(song).not.toBeNull()
   })
 })

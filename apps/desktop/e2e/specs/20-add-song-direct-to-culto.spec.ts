@@ -17,6 +17,7 @@ import {
   signupAndCreateOrg,
   installYtDlpMock,
   setYtDlpMockMode,
+  gotoPlaylistDetail,
 } from '../helpers/app.js'
 import {
   makeAdminClient,
@@ -49,29 +50,9 @@ describe('Journey #20 — Adicionar música nova direto no culto', () => {
       admin, orgId, userId, `Culto Add 20 ${Date.now()}`, new Date()
     )
 
-    // Reload em /library pra o syncOrg do boot puxar a playlist pro SQLite.
-    await browser.url('tauri://localhost/library')
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 15_000 }
-    )
-    await browser.execute(() => { window.location.reload() })
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload' }
-    )
-    await new Promise((r) => setTimeout(r, 8_000))
-
-    // Navega pro detalhe do culto
-    await browser.url(`tauri://localhost/services/${playlist.id}`)
-    await browser.waitUntil(
-      async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
-      { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail' }
-    )
-    await browser.waitUntil(
-      async () => !/\/services$/.test(await browser.getUrl()),
-      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services' }
-    )
+    // Navega pro detalhe do culto — re-tenta até PlaylistDetail carregar,
+    // sem depender do timing do syncOrg do boot (ver gotoPlaylistDetail, #100).
+    await gotoPlaylistDetail(playlist.id)
 
     // ── Cria uma seção avulso ───────────────────────────────────────────────
     const addSectionBtn = $('button*=Adicionar seção')

@@ -8,7 +8,8 @@ import { Toasts } from './components/Toasts.js'
 import { syncOrg } from './lib/sync.js'
 import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
 import { startNetworkMonitor, stopNetworkMonitor } from './lib/network.js'
-import { setUserContext } from './lib/observability.js'
+import { setUserContext, captureException } from './lib/observability.js'
+import { checkUpdateOnBoot, installUpdateOnBoot } from './lib/boot-update.js'
 import * as Sentry from '@sentry/react'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
@@ -58,6 +59,10 @@ export function App() {
   // isso pra evitar que a Library abra com '--:--' visível e troque pra
   // valor real depois. Issue #27.
   const [bootBackfillDone, setBootBackfillDone] = useState(false)
+  // check de update no boot resolveu (sem update, ou falhou/timeout). Se
+  // houver update, este gate NÃO é liberado: o splash fica em "Instalando
+  // atualização" até o app reiniciar na versão nova.
+  const [updateCheckDone, setUpdateCheckDone] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -141,13 +146,45 @@ export function App() {
     }
   }, [navigate, setSession])
 
-  // Avisa o splash do index.html quando o boot terminar: auth resolvida
-  // E backfill retroativo de duração feito (ou estourou timeout). Idempotente.
-  // Issue #27 — sem isso, Library abre mostrando '--:--' que troca pra
-  // valor real ~1s depois, parecendo glitch visual.
+  // Check de update durante o splash. Roda em paralelo ao auth/backfill —
+  // não soma latência ao boot porque tem timeout próprio (≤ auth) e o
+  // splash já espera o auth. Se houver update, o splash mostra "Instalando
+  // atualização", instala e o app reinicia na versão nova; sem update (ou
+  // offline/falha), o boot segue normal.
   useEffect(() => {
-    if (!loading && bootBackfillDone) window.dispatchEvent(new Event('leviticus-ready'))
-  }, [loading, bootBackfillDone])
+    let cancelled = false
+    checkUpdateOnBoot().then((update) => {
+      if (cancelled) return
+      if (update) {
+        window.dispatchEvent(
+          new CustomEvent('leviticus-updating', {
+            detail: { version: update.version },
+          }),
+        )
+        installUpdateOnBoot(update).catch((e) => {
+          captureException(e, { feature: 'update-notification', step: 'boot-install-falhou' })
+          // Falha de download/instalação → libera o boot normal. O usuário
+          // entra na versão atual e o check periódico reoferece o update.
+          if (!cancelled) setUpdateCheckDone(true)
+        })
+      } else {
+        setUpdateCheckDone(true)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Avisa o splash do index.html quando o boot terminar: auth resolvida,
+  // backfill retroativo de duração feito (ou estourou timeout) E check de
+  // update resolvido. Idempotente. Issue #27 — sem isso, Library abre
+  // mostrando '--:--' que troca pra valor real ~1s depois, parecendo glitch.
+  useEffect(() => {
+    if (!loading && bootBackfillDone && updateCheckDone) {
+      window.dispatchEvent(new Event('leviticus-ready'))
+    }
+  }, [loading, bootBackfillDone, updateCheckDone])
 
   // Registra listener pra deep-links (OAuth callback leviticus://oauth-success?org_id=...).
   // Quando o callback chega, refresh do store de integrações se o orgId bater.

@@ -4,7 +4,7 @@ import { render, screen, act } from '@testing-library/react'
 // ── hoisted mocks ──────────────────────────────────────────────────────────────
 const { mockCheck, mockDownload, mockInstall, mockRelaunch, mockGetState } =
   vi.hoisted(() => {
-    const mockDownload = vi.fn()
+    const mockDownload = vi.fn().mockResolvedValue(undefined)
     const mockInstall = vi.fn().mockResolvedValue(undefined)
     const mockRelaunch = vi.fn().mockResolvedValue(undefined)
     const mockGetState = vi.fn().mockReturnValue({ isPlaying: false })
@@ -20,17 +20,14 @@ vi.mock('../store/player.js', () => ({
 
 import { UpdateNotification } from './UpdateNotification.js'
 
+// Espelham as constantes do componente.
+const CHECK_INTERVAL_MS = 60 * 60 * 1000
+const AUTO_APPLY_MS = 2 * 60 * 60 * 1000
+const SNOOZE_MS = 60 * 60 * 1000
+const PLAYBACK_HOLD_MS = 60 * 1000
+
 function makeUpdate() {
   return { version: '1.2.3', download: mockDownload, install: mockInstall }
-}
-
-/** Simulate a complete download: Started → Progress → Finished */
-function resolveDownload() {
-  mockDownload.mockImplementation(async (cb: (e: unknown) => void) => {
-    cb({ event: 'Started', data: { contentLength: 1024 } })
-    cb({ event: 'Progress', data: { chunkLength: 512 } })
-    cb({ event: 'Finished' })
-  })
 }
 
 /** Advance fake timers by ms and flush all pending microtasks/promises. */
@@ -44,9 +41,9 @@ describe('UpdateNotification', () => {
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: false })
     mockCheck.mockClear()
-    mockDownload.mockClear()
-    mockInstall.mockClear()
-    mockRelaunch.mockClear()
+    mockDownload.mockClear().mockResolvedValue(undefined)
+    mockInstall.mockClear().mockResolvedValue(undefined)
+    mockRelaunch.mockClear().mockResolvedValue(undefined)
     mockGetState.mockReturnValue({ isPlaying: false })
     mockCheck.mockResolvedValue(makeUpdate())
   })
@@ -57,67 +54,50 @@ describe('UpdateNotification', () => {
   })
 
   // ── 1 ─────────────────────────────────────────────────────────────────────
-  it('não renderiza toast quando check retorna null (sem update)', async () => {
+  it('não renderiza nada quando não há update', async () => {
     mockCheck.mockResolvedValue(null)
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
     expect(mockCheck).toHaveBeenCalledTimes(1)
-    expect(screen.queryByText(/Nova versão/i)).toBeNull()
-    expect(screen.queryByText(/Atualizar agora/i)).toBeNull()
+    expect(screen.queryByText(/nova atualização/i)).toBeNull()
   })
 
   // ── 2 ─────────────────────────────────────────────────────────────────────
-  it('mostra toast com botões quando há update disponível', async () => {
+  it('baixa em background e mostra o toast quando o download conclui', async () => {
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
-    expect(screen.getByText(/Nova versão 1\.2\.3 disponível/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Atualizar agora/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Mais tarde/i })).toBeInTheDocument()
+    expect(mockDownload).toHaveBeenCalledTimes(1)
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Reiniciar agora/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Pular/i })).toBeInTheDocument()
   })
 
   // ── 3 ─────────────────────────────────────────────────────────────────────
-  it('clicar "Mais tarde" esconde o toast', async () => {
+  it('não mostra o toast enquanto o download está em andamento', async () => {
+    let finishDownload: () => void = () => {}
+    mockDownload.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishDownload = resolve
+      }),
+    )
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
-    expect(screen.getByText(/Nova versão 1\.2\.3 disponível/i)).toBeInTheDocument()
+    // Download pendente — nada renderizado ainda.
+    expect(screen.queryByText(/nova atualização/i)).toBeNull()
 
     await act(async () => {
-      screen.getByRole('button', { name: /Mais tarde/i }).click()
+      finishDownload()
     })
-
-    expect(screen.queryByText(/Nova versão/i)).toBeNull()
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
   })
 
   // ── 4 ─────────────────────────────────────────────────────────────────────
-  it('clicar "Atualizar agora" inicia download e mostra estado "Pronto pra atualizar"', async () => {
-    resolveDownload()
+  it('"Reiniciar agora" instala e reinicia o app', async () => {
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
-
-    expect(screen.getByRole('button', { name: /Atualizar agora/i })).toBeInTheDocument()
-
-    await act(async () => {
-      screen.getByRole('button', { name: /Atualizar agora/i }).click()
-    })
-
-    expect(mockDownload).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/Pronto pra atualizar/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Reiniciar agora/i })).toBeInTheDocument()
-  })
-
-  // ── 5 ─────────────────────────────────────────────────────────────────────
-  it('clicar "Reiniciar agora" chama install() e relaunch()', async () => {
-    resolveDownload()
-    render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
-
-    await act(async () => {
-      screen.getByRole('button', { name: /Atualizar agora/i }).click()
-    })
-    expect(screen.getByRole('button', { name: /Reiniciar agora/i })).toBeInTheDocument()
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
     await act(async () => {
       screen.getByRole('button', { name: /Reiniciar agora/i }).click()
@@ -127,46 +107,61 @@ describe('UpdateNotification', () => {
     expect(mockRelaunch).toHaveBeenCalledTimes(1)
   })
 
-  // ── 6 ─────────────────────────────────────────────────────────────────────
-  it('durante playback (isPlaying=true), check não é chamado no boot delay', async () => {
-    mockGetState.mockReturnValue({ isPlaying: true })
+  // ── 5 ─────────────────────────────────────────────────────────────────────
+  it('"Pular" esconde o toast e ele reaparece após 1h', async () => {
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
 
-    expect(mockCheck).not.toHaveBeenCalled()
-    expect(screen.queryByText(/Nova versão/i)).toBeNull()
+    await act(async () => {
+      screen.getByRole('button', { name: /Pular/i }).click()
+    })
+    expect(screen.queryByText(/nova atualização/i)).toBeNull()
+
+    await advanceAndFlush(SNOOZE_MS)
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
+  })
+
+  // ── 6 ─────────────────────────────────────────────────────────────────────
+  it('aplica automaticamente se o toast for ignorado por 2h', async () => {
+    render(<UpdateNotification />)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
+
+    await advanceAndFlush(AUTO_APPLY_MS)
+
+    expect(mockInstall).toHaveBeenCalledTimes(1)
+    expect(mockRelaunch).toHaveBeenCalledTimes(1)
   })
 
   // ── 7 ─────────────────────────────────────────────────────────────────────
-  it('após playback terminar, check roda no retry delay (5min)', async () => {
-    mockGetState.mockReturnValue({ isPlaying: true })
+  it('auto-apply nunca interrompe culto: segura até a reprodução parar', async () => {
     render(<UpdateNotification />)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
-    // Boot delay → runCheck → isPlaying=true → agenda PLAYBACK_RETRY_MS
-    await advanceAndFlush(5_000)
-    expect(mockCheck).not.toHaveBeenCalled()
+    // Culto começa antes do auto-apply disparar.
+    mockGetState.mockReturnValue({ isPlaying: true })
+    await advanceAndFlush(AUTO_APPLY_MS)
 
-    // Playback termina antes do retry
+    // 2h se passaram, mas estava tocando → não instalou.
+    expect(mockInstall).not.toHaveBeenCalled()
+    expect(screen.getByText(/Há uma nova atualização disponível/i)).toBeInTheDocument()
+
+    // Culto termina → aplica no próximo retry.
     mockGetState.mockReturnValue({ isPlaying: false })
+    await advanceAndFlush(PLAYBACK_HOLD_MS)
 
-    // Avança o retry delay (5min)
-    await advanceAndFlush(5 * 60 * 1000)
-
-    expect(mockCheck).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/Nova versão 1\.2\.3 disponível/i)).toBeInTheDocument()
+    expect(mockInstall).toHaveBeenCalledTimes(1)
+    expect(mockRelaunch).toHaveBeenCalledTimes(1)
   })
 
   // ── 8 ─────────────────────────────────────────────────────────────────────
-  it('botão X (aria-label Fechar) também fecha o toast', async () => {
+  it('não busca update durante reprodução (isPlaying=true)', async () => {
+    mockGetState.mockReturnValue({ isPlaying: true })
     render(<UpdateNotification />)
-    await advanceAndFlush(5_000)
+    await advanceAndFlush(CHECK_INTERVAL_MS)
 
-    expect(screen.getByText(/Nova versão 1\.2\.3 disponível/i)).toBeInTheDocument()
-
-    await act(async () => {
-      screen.getByRole('button', { name: /Fechar/i }).click()
-    })
-
-    expect(screen.queryByText(/Nova versão/i)).toBeNull()
+    expect(mockCheck).not.toHaveBeenCalled()
+    expect(screen.queryByText(/nova atualização/i)).toBeNull()
   })
 })

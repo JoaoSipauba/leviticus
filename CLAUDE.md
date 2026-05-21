@@ -253,6 +253,15 @@ Toda feature nova **e** todo ajuste em feature existente exige uma passada expl�
 
 Não bypassar essa checagem porque "a mudança é pequena" ou "o usuário só pediu o ajuste". Pequenas mudanças sem teste viram regressões silenciosas. Quando a cobertura realmente não fizer sentido (puro CSS, refactor sem mudança de comportamento, etc.), declare isso explicitamente no PR/handoff em vez de pular em silêncio.
 
+### Regra: teste verde isolado E na suíte
+
+Um teste só conta como verde se passa **rodado sozinho E rodado junto com os outros**. Antes de marcar qualquer trabalho de teste como pronto, rode as duas formas:
+
+- **Isolado** — o arquivo sozinho (`pnpm vitest run <arquivo>`, ou `--spec ./specs/<arquivo>` no E2E).
+- **Na suíte completa** — `pnpm test` e, se a mudança toca jornadas E2E, `pnpm test:e2e:local`.
+
+Se um teste passa isolado mas falha na suíte (ou vice-versa), isso é um **defeito do teste** — vazamento de estado entre testes, race de timing, ou dependência de ordem de execução. Não é "reroda que passa": corrija a causa (isolar estado, ancorar esperas no estado real em vez de `sleep` fixo, dar timeout coerente com a lentidão sob carga) antes de fechar. Flakiness não rastreada mascara regressão real — se não der pra corrigir na hora, abra issue `type:dx` e referencie no handoff.
+
 ### Stack
 
 | Ferramenta | Versão | Onde mora |
@@ -427,13 +436,21 @@ A partir daí, toda release lança bundle assinado e os apps em campo se atualiz
 
 ### UX do updater
 
-[UpdateNotification.tsx](apps/desktop/src/components/UpdateNotification.tsx) mostra um toast no canto inferior direito quando há nova versão. Comportamento:
+O updater tem dois caminhos, por momento:
 
-- Check inicial 5s após boot, depois a cada 6h.
-- **Nunca atualiza durante reprodução**: se `usePlayerStore.getState().isPlaying === true`, o check é adiado por 5 minutos. Evita interromper culto.
-- Botões: **Atualizar agora** (download + instala em background) ou **Mais tarde** (silencia até a próxima versão).
-- Após instalar, modal pede pra reiniciar — usuário pode adiar e o update aplica no próximo restart natural.
-- Falhas no check (offline, pubkey inválida, endpoint fora do ar) são silenciosas — não incomodam o usuário.
+**1. Check no boot (splash).** [boot-update.ts](apps/desktop/src/lib/boot-update.ts) → `checkUpdateOnBoot()` roda durante o splash, em paralelo ao auth (gate `updateCheckDone` no [App.tsx](apps/desktop/src/App.tsx)). Tem timeout de 3s — offline ou endpoint fora do ar não seguram o splash. Se acha update, o splash mostra "Instalando atualização" (evento `leviticus-updating` → [index.html](apps/desktop/index.html)), baixa, instala e reinicia o app na versão nova — estilo Discord. Sem update / falha / timeout: boot segue normal. Não interrompe culto porque nada está tocando no boot.
+
+**2. Check periódico (app aberto).** [UpdateNotification.tsx](apps/desktop/src/components/UpdateNotification.tsx) cobre updates que saem com o app já aberto. Segue o padrão de mercado (Chrome/VS Code/Slack): download silencioso, notifica só quando está pronto. Comportamento:
+
+- Primeiro check após 1h (o boot já foi coberto pelo splash), depois a cada 1h.
+- **Nunca busca update durante reprodução**: se `usePlayerStore.getState().isPlaying === true`, o check é adiado por 5 minutos.
+- Update encontrado → **download silencioso em background**, sem UI nenhuma.
+- Download concluído → toast no canto inferior direito: "Há uma nova atualização disponível", botões **Reiniciar agora** (instala + reinicia) e **Pular**.
+- **Pular** esconde o toast e reaparece em 1h (não some de vez, senão um app sempre-aberto nunca atualizaria).
+- **Auto-apply**: se o toast for ignorado (nem Reiniciar nem Pular) por 2h, a atualização é aplicada sozinha. **Nunca durante culto** — se `isPlaying`, segura e re-tenta a cada 1min, aplicando assim que o louvor termina. É o "active hours" do Windows Update aplicado ao louvor.
+- Falhas (offline, pubkey inválida, endpoint fora do ar, download interrompido) são silenciosas — não incomodam o usuário.
+
+**Windows:** `plugins.updater.windows.installMode` é `"quiet"` ([tauri.conf.json](apps/desktop/src-tauri/tauri.conf.json)) — sem isso o NSIS abre uma janela passiva de progresso, redundante com o splash. `quiet` funciona porque o instalador é per-user (não precisa de UAC).
 
 ## Key constraints
 
