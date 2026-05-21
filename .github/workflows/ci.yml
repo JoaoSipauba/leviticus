@@ -1,13 +1,16 @@
 name: CI
 
-# Trigger amplo de propósito: o workflow precisa rodar em todo push/PR
-# pra que o agregador `CI passed` apareça como check obrigatório na
-# branch protection. O filtro fino acontece dentro dos jobs.
+# O CI roda em todo PR (base `dev` ou `main`) e em push direto na `main`.
+# NÃO roda em push pra `dev`: quando `dev` tem um PR aberto pra `main`, um
+# commit em `dev` dispararia o workflow DUAS vezes — evento `push` (branch
+# dev) + evento `pull_request` (sincronização do PR dev→main), pro mesmo
+# commit. Com os triggers abaixo, cada commit roda o CI uma vez só, e todo
+# PR (feature→dev e dev→main) continua coberto pelo check `CI passed`.
 on:
   push:
-    branches: [main, dev]
-  pull_request:
     branches: [main]
+  pull_request:
+    branches: [main, dev]
 
 # Cancela runs antigos do MESMO PR quando você dá push novo (economiza
 # minutos de CI). Em push direto na main NÃO cancela — não queremos
