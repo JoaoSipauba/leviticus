@@ -31,10 +31,12 @@ let tauriWd: ChildProcess | null = null
  * abrir a sessão, ou o processo do wdio ser interrompido). Idempotente.
  */
 function killStrayProcesses(): void {
-  // Padrões fixos (sem input externo). execFileSync — sem shell.
+  // Padrões fixos (sem input externo). execFileSync — sem shell. Caminho
+  // absoluto do pkill: este config é macOS-only e não depende do PATH
+  // (que poderia conter um diretório gravável — hotspot do SonarCloud).
   for (const pattern of ['leviticus-desktop', 'tauri-wd']) {
     try {
-      execFileSync('pkill', ['-9', '-f', pattern], { stdio: 'ignore' })
+      execFileSync('/usr/bin/pkill', ['-9', '-f', pattern], { stdio: 'ignore' })
     } catch {
       /* exit != 0 = nenhum processo casou — ok */
     }
