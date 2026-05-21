@@ -86,10 +86,12 @@ export function App() {
               .then(() => {
                 // Re-checa o status de cloud agora que o syncOrg populou
                 // cloud_storage_accounts no SQLite. Sem isso, o refreshAccount
-                // do boot (rodado antes do sync, App.tsx:215) deixa o store
+                // do boot (rodado antes do sync) deixa o store
                 // preso em 'unknown' num device já configurado, e o banner
                 // falso "Sem backup configurado" aparece. Issue #121.
-                void useIntegrationsStore.getState().refreshAccount(orgId)
+                void useIntegrationsStore.getState().refreshAccount(orgId).catch(
+                  (e) => console.warn('[boot] refreshAccount pós-sync falhou:', e)
+                )
               })
               .then(() => cleanupAudioOrphans())
               .then(() => {
