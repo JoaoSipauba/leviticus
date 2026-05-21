@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { open as openExternal } from '@tauri-apps/plugin-shell'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { useIntegrationsStore } from '../../store/integrations.js'
 import { hasPermission } from '../../lib/permissions.js'
 import * as cs from '../../lib/cloud-storage/client.js'
@@ -18,9 +19,9 @@ import { AdminsList } from '../../components/integrations/AdminsList.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton } from '../../components/Skeleton.js'
 
-type Props = { orgId: string }
+type Props = { orgId: string; active?: boolean }
 
-export function OrgIntegrations({ orgId }: Props) {
+export function OrgIntegrations({ orgId, active = false }: Props) {
   const account = useIntegrationsStore((s) => s.account)
   const quota = useIntegrationsStore((s) => s.quota)
   const status = useIntegrationsStore((s) => s.status)
@@ -41,6 +42,10 @@ export function OrgIntegrations({ orgId }: Props) {
     void hasPermission('manage_integrations', orgId).then(setCanManage)
     void refreshAccount(orgId)
   }, [orgId, refreshAccount])
+
+  // Aba reaparece → revalida em silêncio. refreshAccount só troca os dados
+  // no fim (não reseta o status durante o fetch), então não pisca.
+  useRefetchOnActive(active, () => void refreshAccount(orgId))
 
   // Periodic quota refresh (when connected)
   useEffect(() => {

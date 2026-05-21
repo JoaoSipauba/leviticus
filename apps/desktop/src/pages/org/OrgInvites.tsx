@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Plus, Copy } from 'lucide-react'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -26,7 +27,7 @@ function expiryLabel(r: Row): string {
   return days <= 1 ? 'expira em menos de 24h' : `expira em ${days} dias`
 }
 
-export function OrgInvites({ orgId }: { orgId: string }) {
+export function OrgInvites({ orgId, active = false }: { orgId: string; active?: boolean }) {
   // Issue #65: skeleton enquanto load() resolve.
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<DisplayRow[]>([])
@@ -57,6 +58,8 @@ export function OrgInvites({ orgId }: { orgId: string }) {
   }
 
   useEffect(() => { void load() }, [orgId])
+  // Aba reaparece → revalida em silêncio (stale-while-revalidate).
+  useRefetchOnActive(active, () => void load())
 
   async function handleCopy(code: string) {
     await navigator.clipboard.writeText(code)
