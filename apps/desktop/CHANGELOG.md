@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.11.0](https://github.com/JoaoSipauba/leviticus/compare/v0.10.0...v0.11.0) (2026-05-21)
+
+### Funcionalidades
+
+* **updater:** check no splash e download em background com auto-apply ([95580e4](https://github.com/JoaoSipauba/leviticus/commit/95580e481b54c3d2f1cfc76a28a6fdd11da17a56))
+
+### Correções
+
+* **sync:** grava last_sync com o início do sync, não o fim ([a59779a](https://github.com/JoaoSipauba/leviticus/commit/a59779a2c405af2dc4a397b478360b3ed14302f2))
+* **updater:** timeout no download/check pra não travar splash nem checker ([8cb98bb](https://github.com/JoaoSipauba/leviticus/commit/8cb98bb492159c0e356a8c12db57e86dbf4af31f)), closes [#101](https://github.com/JoaoSipauba/leviticus/issues/101)
+
 ## [0.10.0](https://github.com/JoaoSipauba/leviticus/compare/v0.9.1...v0.10.0) (2026-05-20)
 
 ### Funcionalidades
