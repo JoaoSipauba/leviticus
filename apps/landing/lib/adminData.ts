@@ -377,23 +377,60 @@ async function getSaude(period: Period): Promise<SaudeData> {
 //  PRODUTO  (Supabase)
 // ════════════════════════════════════════════════════════════════════════════
 
+type AdminUser = { id: string; email?: string; created_at: string }
+
+/** Pagina o listUsers até esgotar — `perPage` sozinho trunca em 1000. */
+async function listAllUsers(): Promise<AdminUser[]> {
+  const all: AdminUser[] = []
+  for (let page = 1; page <= 100; page++) {
+    const { data } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 1000 })
+    const batch = (data?.users ?? []) as AdminUser[]
+    all.push(...batch)
+    if (batch.length < 1000) break
+  }
+  return all
+}
+
+/** Para cada dia (YYYY-MM-DD), quantos timestamps são <= o fim daquele dia.
+ *  Ordena uma vez e caminha com ponteiro — O(N log N + dias) em vez de O(dias·N). */
+function cumulativeByDay(timestamps: string[], days: string[]): number[] {
+  const sorted = timestamps
+    .map((t) => Date.parse(t))
+    .filter((n) => Number.isFinite(n))
+    .sort((a, b) => a - b)
+  const out: number[] = []
+  let ptr = 0
+  for (const day of days) {
+    const dayEnd = Date.parse(`${day}T23:59:59.999Z`)
+    while (ptr < sorted.length && sorted[ptr] <= dayEnd) ptr++
+    out.push(ptr)
+  }
+  return out
+}
+
 async function getProduto(period: Period): Promise<ProdutoData> {
-  const [usersRes, orgsRes, songsRes, cultosRes, membersRes] = await Promise.all([
-    supabaseAdmin.auth.admin.listUsers({ perPage: 1000 }),
+  const [users, orgsRes, songsRes, cultosRes, membersRes] = await Promise.all([
+    listAllUsers(),
     supabaseAdmin.from('organizations').select('id, name, created_at'),
     supabaseAdmin.from('songs').select('id, title, org_id, created_at, updated_at').order('created_at', { ascending: true }),
     supabaseAdmin.from('playlists').select('id, name, org_id, created_at, updated_at').order('created_at', { ascending: true }),
     supabaseAdmin.from('organization_members').select('org_id, user_id'),
   ])
 
-  const users = usersRes.data?.users ?? []
   const orgs = (orgsRes.data ?? []) as Array<{ id: string; name: string; created_at: string }>
   const songs = (songsRes.data ?? []) as Array<{ id: string; title: string; org_id: string; created_at: string; updated_at: string }>
   const cultos = (cultosRes.data ?? []) as Array<{ id: string; name: string; org_id: string; created_at: string; updated_at: string }>
   const members = (membersRes.data ?? []) as Array<{ org_id: string; user_id: string }>
 
-  const { from, to } = period
-  const inPeriod = (iso: string | null | undefined) => !!iso && iso >= from && iso <= to
+  // Compara por timestamp numérico — comparação lexicográfica de ISO quebra
+  // quando o Supabase devolve `+00:00` e o período usa `Z`, ou milissegundos.
+  const fromMs = Date.parse(period.from)
+  const toMs = Date.parse(period.to)
+  const inPeriod = (iso: string | null | undefined): boolean => {
+    if (!iso) return false
+    const t = Date.parse(iso)
+    return Number.isFinite(t) && t >= fromMs && t <= toMs
+  }
 
   // ── Snapshot ──────────────────────────────────────────────────────────────
   const totalUsers = users.length
@@ -419,18 +456,19 @@ async function getProduto(period: Period): Promise<ProdutoData> {
   const activeOrgs = activeOrgIds.size
 
   // ── Crescimento acumulado (90d, period-independent) ───────────────────────
-  const growth: DayPoint[] = []
+  const growthDays: string[] = []
   for (let i = 89; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000)
-    const dayStr = d.toISOString().slice(0, 10)
-    const dayEnd = `${dayStr}T23:59:59.999Z`
-    growth.push({
-      day: dayStr,
-      totalUsers: users.filter((u) => u.created_at <= dayEnd).length,
-      totalSongs: songs.filter((s) => s.created_at <= dayEnd).length,
-      totalCultos: cultos.filter((c) => c.created_at <= dayEnd).length,
-    })
+    growthDays.push(new Date(Date.now() - i * 86400000).toISOString().slice(0, 10))
   }
+  const usersCum = cumulativeByDay(users.map((u) => u.created_at), growthDays)
+  const songsCum = cumulativeByDay(songs.map((s) => s.created_at), growthDays)
+  const cultosCum = cumulativeByDay(cultos.map((c) => c.created_at), growthDays)
+  const growth: DayPoint[] = growthDays.map((day, i) => ({
+    day,
+    totalUsers: usersCum[i],
+    totalSongs: songsCum[i],
+    totalCultos: cultosCum[i],
+  }))
 
   // ── Atividade diária (dentro do período) ──────────────────────────────────
   const buckets = dayBuckets(period)
@@ -456,13 +494,22 @@ async function getProduto(period: Period): Promise<ProdutoData> {
   }
 
   // ── Top orgs (all-time) ───────────────────────────────────────────────────
+  // Agrega numa passada por tabela (Map orgId->count) em vez de filtrar
+  // todos os arrays por org — evita O(orgs · (songs+cultos+members)).
+  const songsByOrg = new Map<string, number>()
+  for (const s of songs) songsByOrg.set(s.org_id, (songsByOrg.get(s.org_id) ?? 0) + 1)
+  const cultosByOrg = new Map<string, number>()
+  for (const c of cultos) cultosByOrg.set(c.org_id, (cultosByOrg.get(c.org_id) ?? 0) + 1)
+  const membersByOrg = new Map<string, number>()
+  for (const m of members) membersByOrg.set(m.org_id, (membersByOrg.get(m.org_id) ?? 0) + 1)
+
   const topOrgs: OrgRow[] = orgs
     .map((o) => ({
       id: o.id,
       name: o.name,
-      songs: songs.filter((s) => s.org_id === o.id).length,
-      cultos: cultos.filter((c) => c.org_id === o.id).length,
-      members: members.filter((m) => m.org_id === o.id).length,
+      songs: songsByOrg.get(o.id) ?? 0,
+      cultos: cultosByOrg.get(o.id) ?? 0,
+      members: membersByOrg.get(o.id) ?? 0,
       createdAt: o.created_at,
     }))
     .sort((a, b) => b.songs - a.songs)
