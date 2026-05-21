@@ -163,7 +163,13 @@ export function OrgMembers({ orgId }: { orgId: string }) {
     return (
       <div>
         <div className="flex items-center gap-3 mb-[14px]">
-          <Skeleton h={36} w="100%" rounded="lg" />
+          {/* O 1º skeleton ocupa o espaço restante via flex-1 — espelha o
+              `<div className="flex-1">` da busca real. Antes era w="100%"
+              que, somado aos dois de 140px (flex-shrink:0), estourava a
+              largura e mostrava scrollbar horizontal. */}
+          <div className="flex-1">
+            <Skeleton h={36} w="100%" rounded="lg" />
+          </div>
           <Skeleton h={36} w={140} rounded="lg" />
           <Skeleton h={36} w={140} rounded="lg" />
         </div>
