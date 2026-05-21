@@ -82,4 +82,29 @@ describe('uploadSongToDrive', () => {
     })).rejects.toThrow('boom')
     expect(setBackupStatus).toHaveBeenCalledWith('song-3', 'failed')
   })
+
+  it('guard in-flight: segunda chamada concorrente pro mesmo songId é no-op', async () => {
+    const opts = {
+      orgId: 'o1', songId: 'song-dup', filePath: '/local/song-dup.mp3',
+      ext: 'mp3', kind: 'lossy' as const,
+    }
+    // Chamadas concorrentes: a primeira fica em voo (pausada no primeiro
+    // await) enquanto a segunda é disparada.
+    const first = uploadSongToDrive(opts)
+    const second = uploadSongToDrive(opts)
+    await Promise.all([first, second])
+    // A segunda virou no-op — createUploadSession só foi chamada uma vez.
+    expect(createUploadSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('guard in-flight: libera o songId após concluir', async () => {
+    const opts = {
+      orgId: 'o1', songId: 'song-seq', filePath: '/local/song-seq.mp3',
+      ext: 'mp3', kind: 'lossy' as const,
+    }
+    await uploadSongToDrive(opts)
+    await uploadSongToDrive(opts)
+    // Sequencial (não concorrente): o segundo upload roda normalmente.
+    expect(createUploadSession).toHaveBeenCalledTimes(2)
+  })
 })

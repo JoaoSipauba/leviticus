@@ -5,6 +5,11 @@ import { uploadResumable } from './upload.js'
 import { setBackupStatus } from './status.js'
 import type { AudioCategory } from './format-detection.js'
 
+// Guard in-flight: impede dois callers concorrentes (sync-worker runPass,
+// startInitialSync, AddSongModal) de subir a MESMA música ao mesmo tempo —
+// o que criava arquivos duplicados no Drive. Issue #122.
+const inFlightUploads = new Set<string>()
+
 export type UploadSongOpts = {
   orgId: string
   songId: string
@@ -41,6 +46,13 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
   if (opts.kind === 'unsupported') {
     throw new Error(`Formato não suportado: ${opts.ext}`)
   }
+
+  if (inFlightUploads.has(opts.songId)) {
+    // Outro caller já está subindo essa música nesta sessão. No-op: o
+    // backup (e o backup_status) será concluído por aquele caller. #122
+    return
+  }
+  inFlightUploads.add(opts.songId)
 
   let uploadPath = opts.filePath
   let uploadExt = opts.ext
@@ -92,5 +104,7 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
       // sem-op deliberado
     }
     throw err
+  } finally {
+    inFlightUploads.delete(opts.songId)
   }
 }
