@@ -124,13 +124,22 @@ export function OrgManage() {
         })}
       </div>
 
+      {/* Todas as abas permitidas são montadas de uma vez quando a tela de
+          Organização abre — cada uma carrega seus dados só nesse momento. As
+          inativas ficam com `hidden` (display:none); trocar de aba é só
+          alternar visibilidade, sem desmontar/recarregar. Antes, cada troca
+          remontava o componente e refazia o fetch (skeleton piscando). */}
       <div className="flex-1 overflow-y-auto px-8 py-7 max-w-[1100px]">
-        {effectiveTab === 'info' && <OrgInfo orgId={orgId} />}
-        {effectiveTab === 'members' && <OrgMembers orgId={orgId} />}
-        {effectiveTab === 'invites' && <OrgInvites orgId={orgId} />}
-        {effectiveTab === 'roles' && <OrgRoles orgId={orgId} />}
-        {effectiveTab === 'integrations' && <OrgIntegrations orgId={orgId} />}
-        {effectiveTab === 'danger' && <OrgDanger orgId={orgId} />}
+        {visibleTabs.map(({ key }) => (
+          <div key={key} hidden={effectiveTab !== key}>
+            {key === 'info' && <OrgInfo orgId={orgId} />}
+            {key === 'members' && <OrgMembers orgId={orgId} />}
+            {key === 'invites' && <OrgInvites orgId={orgId} />}
+            {key === 'roles' && <OrgRoles orgId={orgId} />}
+            {key === 'integrations' && <OrgIntegrations orgId={orgId} />}
+            {key === 'danger' && <OrgDanger orgId={orgId} />}
+          </div>
+        ))}
       </div>
     </div>
   )
