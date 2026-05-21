@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
-import '../globals.css'
+
+// globals.css já é importado no root layout (app/layout.tsx) — aplica
+// a todas as rotas, inclusive /admin. Não reimportar aqui.
 
 export const metadata: Metadata = {
   title: 'Admin — Leviticus',
