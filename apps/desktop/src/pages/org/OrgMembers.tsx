@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Search, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -20,7 +21,7 @@ type RawRow = {
   ministries: string | null
 }
 
-export function OrgMembers({ orgId }: { orgId: string }) {
+export function OrgMembers({ orgId, active = false }: { orgId: string; active?: boolean }) {
   // Issue #65: loading explícito pra exibir skeleton em vez de área vazia
   // enquanto o load() resolve. Sem isso, tab abre como se estivesse vazio
   // e o conteúdo "pula" pro lugar uns ms depois.
@@ -120,6 +121,9 @@ export function OrgMembers({ orgId }: { orgId: string }) {
   }
 
   useEffect(() => { void load() }, [orgId])
+  // Aba reaparece → revalida em silêncio (loading não volta a true, o dado
+  // atual fica na tela até o novo chegar).
+  useRefetchOnActive(active, () => void load())
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
