@@ -1,22 +1,31 @@
 import { useEffect, useRef } from 'react'
+import { useUIStore } from '../store/ui.js'
 
 /**
- * Dispara `refetch` toda vez que a aba/seção passa a ficar ATIVA — exceto na
- * primeira renderização (a carga inicial fica por conta do mount).
+ * Revalida o dado de uma aba — silenciosamente — em dois gatilhos:
  *
- * Pra um refetch SILENCIOSO (stale-while-revalidate): o componente deve
- * manter o dado atual na tela e não voltar o estado de `loading` pra `true`
- * no refetch. Assim o usuário vê o dado antigo enquanto o novo chega — sem
- * skeleton piscando.
+ *  1. **Troca de aba**: `active` passa de false → true.
+ *  2. **Realtime**: o sync reativo (Realtime do Supabase, ou refocus da
+ *     janela) atualizou o SQLite local. O `data-sync` incrementa
+ *     `librarySeed` no `useUIStore` a cada passada reativa — este hook
+ *     escuta esse tick e revalida a aba ATIVA na hora.
  *
- * Usado na tela de Organização: todas as abas ficam montadas e trocar de aba
- * só alterna visibilidade; este hook revalida o dado da aba que reaparece.
+ * Pula a 1ª renderização (a carga inicial fica por conta do mount). Pra ser
+ * silencioso, o `refetch`/`load` do componente não deve voltar o estado de
+ * loading pra `true` — o dado atual fica na tela até o novo chegar.
+ *
+ * Abas inativas não refazem fetch num tick de Realtime — elas revalidam
+ * quando o usuário voltar pra elas (gatilho 1).
  */
 export function useRefetchOnActive(active: boolean, refetch: () => void): void {
   // Ref pra sempre chamar a versão mais recente de `refetch` sem precisar
   // colocá-la nas deps do effect (ela é recriada a cada render).
   const refetchRef = useRef(refetch)
   refetchRef.current = refetch
+
+  // Tick global de "dado sincronizado" — bumpado pelo data-sync após cada
+  // passada reativa (Realtime / refocus). Mudou = revalida a aba ativa.
+  const dataVersion = useUIStore((s) => s.librarySeed)
 
   const firstRender = useRef(true)
   useEffect(() => {
@@ -25,5 +34,5 @@ export function useRefetchOnActive(active: boolean, refetch: () => void): void {
       return
     }
     if (active) refetchRef.current()
-  }, [active])
+  }, [active, dataVersion])
 }

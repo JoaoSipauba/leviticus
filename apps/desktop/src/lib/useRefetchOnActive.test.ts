@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { renderHook } from '@testing-library/react'
+import { renderHook, act } from '@testing-library/react'
 import { useRefetchOnActive } from './useRefetchOnActive.js'
+import { useUIStore } from '../store/ui.js'
 
 describe('useRefetchOnActive', () => {
   it('não chama refetch na primeira renderização', () => {
@@ -42,5 +43,20 @@ describe('useRefetchOnActive', () => {
     rerender({ active: true, refetch: second })
     expect(first).not.toHaveBeenCalled()
     expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('revalida quando o sync reativo ticka (librarySeed) e a aba está ativa', () => {
+    const refetch = vi.fn()
+    renderHook(() => useRefetchOnActive(true, refetch))
+    expect(refetch).not.toHaveBeenCalled()
+    act(() => useUIStore.getState().bumpLibrary())
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('NÃO revalida num tick de sync se a aba está inativa', () => {
+    const refetch = vi.fn()
+    renderHook(() => useRefetchOnActive(false, refetch))
+    act(() => useUIStore.getState().bumpLibrary())
+    expect(refetch).not.toHaveBeenCalled()
   })
 })
