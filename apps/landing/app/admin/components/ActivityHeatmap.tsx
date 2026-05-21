@@ -1,5 +1,6 @@
 'use client'
 
+import { Fragment } from 'react'
 import type { HeatCell } from '@/lib/adminData'
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -39,8 +40,8 @@ export default function ActivityHeatmap({ data }: Props) {
           ))}
           {/* Rows */}
           {DAYS.map((dayName, dow) => (
-            <>
-              <div key={`dow-${dow}`} className="heatmap-dow-label">{dayName}</div>
+            <Fragment key={`dow-${dow}`}>
+              <div className="heatmap-dow-label">{dayName}</div>
               {Array.from({ length: 24 }, (_, h) => {
                 const cell = getCell(dow, h)
                 return (
@@ -52,7 +53,7 @@ export default function ActivityHeatmap({ data }: Props) {
                   />
                 )
               })}
-            </>
+            </Fragment>
           ))}
         </div>
         <div className="heatmap-legend">

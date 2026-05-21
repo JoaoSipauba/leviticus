@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Logo from '@/components/Logo'
 
 export default function AdminLogin() {
   const router = useRouter()
@@ -38,10 +39,7 @@ export default function AdminLogin() {
     <div className="admin-login-wrap">
       <div className="admin-login-card">
         <div className="admin-login-logo">
-          <div className="logo-mark">
-            <span /><span /><span /><span /><span /><span />
-          </div>
-          <span>Leviticus Admin</span>
+          <Logo size={22} />
         </div>
         <form onSubmit={handleSubmit} className="admin-login-form">
           <input

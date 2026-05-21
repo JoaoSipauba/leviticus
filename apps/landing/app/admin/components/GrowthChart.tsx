@@ -1,6 +1,5 @@
 'use client'
 
-import { useState } from 'react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
@@ -15,44 +14,21 @@ const SERIES = [
   { key: 'totalCultos', label: 'Cultos',    color: '#10b981' },
 ] as const
 
-const RANGE_OPTIONS = [
-  { label: '30d', days: 30 },
-  { label: '60d', days: 60 },
-  { label: '90d', days: 90 },
-]
+function fmt(d: string) {
+  const s = String(d ?? '')
+  const [, m, day] = s.split('-')
+  return m && day ? `${day}/${m}` : s
+}
 
 export default function GrowthChart({ data }: Props) {
-  const [range, setRange] = useState(30)
-  const slice = data.slice(-range)
-
-  function formatDate(d: string) {
-    const s = String(d ?? '')
-    const [, m, day] = s.split('-')
-    return m && day ? `${day}/${m}` : s
-  }
-
-  function formatLabel(label: unknown) {
-    return formatDate(String(label ?? ''))
-  }
-
   return (
     <div className="admin-chart-card">
       <div className="admin-chart-header">
         <h3>Crescimento acumulado</h3>
-        <div className="admin-range-pills">
-          {RANGE_OPTIONS.map((o) => (
-            <button
-              key={o.days}
-              className={`admin-range-pill${range === o.days ? ' active' : ''}`}
-              onClick={() => setRange(o.days)}
-            >
-              {o.label}
-            </button>
-          ))}
-        </div>
+        <span className="admin-chart-sub">Últimos 90 dias · trajetória total</span>
       </div>
       <ResponsiveContainer width="100%" height={240}>
-        <AreaChart data={slice} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <defs>
             {SERIES.map((s) => (
               <linearGradient key={s.key} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
@@ -62,11 +38,11 @@ export default function GrowthChart({ data }: Props) {
             ))}
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="day" tickFormatter={formatDate} tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} interval={Math.floor(range / 6)} />
+          <XAxis dataKey="day" tickFormatter={fmt} tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} interval={14} />
           <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
           <Tooltip
             contentStyle={{ background: '#13131f', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
-            labelFormatter={formatLabel}
+            labelFormatter={(l) => fmt(String(l ?? ''))}
             labelStyle={{ color: '#9ca3af' }}
           />
           <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
