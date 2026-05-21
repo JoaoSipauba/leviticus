@@ -178,7 +178,9 @@ export const googleDriveProvider: CloudStorageProvider = {
     // Idempotência de upload: checa se já existe um arquivo com esse nome na
     // pasta de backup. Usado pra não criar duplicata quando outro device (ou
     // uma sessão anterior) já subiu a mesma música. Issue #122.
-    const escaped = filename.replace(/'/g, "\\'")
+    // Escapa backslash primeiro, depois aspas simples — ordem importa, senão
+    // o backslash injetado pelo segundo replace seria re-escapado. #122
+    const escaped = filename.replace(/\\/g, '\\\\').replace(/'/g, "\\'")
     const query = encodeURIComponent(
       `name = '${escaped}' and '${folderId}' in parents and trashed = false`
     )
@@ -191,6 +193,8 @@ export const googleDriveProvider: CloudStorageProvider = {
     const data = await res.json() as { files: Array<{ id: string; size?: string }> }
     if (data.files.length === 0) return null
     const f = data.files[0]
+    // size sempre presente pra arquivos de áudio (MP3/Opus); o fallback '0'
+    // só cobriria tipos Google-native, que nunca entram na pasta de backup.
     return { id: f.id, size: parseInt(f.size ?? '0', 10) }
   },
 

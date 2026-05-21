@@ -80,14 +80,23 @@ Deno.test('deleteFile — chama DELETE no endpoint correto', async () => {
 
 Deno.test('findFileInFolder — retorna match quando arquivo existe', async () => {
   const originalFetch = globalThis.fetch
-  globalThis.fetch = async () => new Response(JSON.stringify({
-    files: [{ id: 'gd-existing', size: '5000' }],
-  }), { status: 200 })
+  let calledUrl = ''
+  globalThis.fetch = async (input: string | URL | Request) => {
+    calledUrl = typeof input === 'string' ? input : input.toString()
+    return new Response(JSON.stringify({
+      files: [{ id: 'gd-existing', size: '5000' }],
+    }), { status: 200 })
+  }
   try {
     const found = await googleDriveProvider.findFileInFolder('tok', 'folder-1', 'song-1.opus')
     assertExists(found)
     assertEquals(found.id, 'gd-existing')
     assertEquals(found.size, 5000)
+    // A query precisa filtrar pela pasta e pelo nome do arquivo.
+    if (!calledUrl.includes('folder-1')) throw new Error('URL deve referenciar o folderId')
+    if (!calledUrl.includes(encodeURIComponent("song-1.opus"))) {
+      throw new Error('URL deve referenciar o filename')
+    }
   } finally {
     globalThis.fetch = originalFetch
   }
