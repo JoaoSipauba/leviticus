@@ -4,6 +4,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import { usePlayerStore } from '../store/player.js'
 import { captureException } from '../lib/observability.js'
+import { withTimeout } from '../lib/boot-update.js'
 
 type Status =
   | { kind: 'idle' }
@@ -15,6 +16,7 @@ const PLAYBACK_RETRY_MS = 5 * 60 * 1000    // 5min — culto tocando, adia o che
 const AUTO_APPLY_MS = 2 * 60 * 60 * 1000   // 2h — toast ignorado → aplica sozinho
 const SNOOZE_MS = 60 * 60 * 1000           // 1h — "Pular" → toast reaparece
 const PLAYBACK_HOLD_MS = 60 * 1000         // 1min — auto-apply espera o culto acabar
+const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000  // 5min — download travado vira falha
 
 export function UpdateNotification() {
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -105,7 +107,9 @@ export function UpdateNotification() {
         if (cancelled) return
         if (update) {
           // Download silencioso em background — nenhuma UI até concluir.
-          await update.download()
+          // Timeout: se a rede pendurar o download, o await nunca voltaria,
+          // `checking` ficaria preso em true e o checker pararia de rodar.
+          await withTimeout(update.download(), DOWNLOAD_TIMEOUT_MS, 'download do update')
           if (cancelled) return
           showReady(update)
         } else {
