@@ -98,6 +98,21 @@ describe('uploadSongToDrive', () => {
     expect(createUploadSession).toHaveBeenCalledTimes(1)
   })
 
+  it('idempotência: createUploadSession devolve alreadyExists → reconcilia sem upload', async () => {
+    ;(createUploadSession as any).mockResolvedValueOnce({
+      alreadyExists: true, fileId: 'gd-existing', size: 2048,
+    })
+    await uploadSongToDrive({
+      orgId: 'o1', songId: 'song-already', filePath: '/local/song-already.mp3',
+      ext: 'mp3', kind: 'lossy',
+    })
+    expect(uploadResumable).not.toHaveBeenCalled()
+    expect(setBackupStatus).toHaveBeenCalledWith('song-already', 'uploaded', expect.objectContaining({
+      cloud_file_id: 'gd-existing',
+      cloud_file_size: 2048,
+    }))
+  })
+
   it('guard in-flight: libera o songId após concluir', async () => {
     const opts = {
       orgId: 'o1', songId: 'song-seq', filePath: '/local/song-seq.mp3',

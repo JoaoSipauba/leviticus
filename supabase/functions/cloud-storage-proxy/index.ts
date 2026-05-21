@@ -290,16 +290,7 @@ async function handleQuota(ctx: any): Promise<Response> {
 
 async function handleUploadSession(ctx: any, body: any): Promise<Response> {
   const { provider, accessToken, appFolderId } = await ensureFreshAccessToken(ctx.serviceClient, ctx.orgId)
-  const p = getProvider(provider as ProviderId)
-  // Idempotência: se já existe um arquivo com esse nome na pasta de backup,
-  // não cria uma sessão nova — devolve o fileId existente pro client
-  // reconciliar o backup_status sem re-upload. Evita duplicatas no Drive
-  // quando outro device ou uma sessão anterior já subiu a mesma música. #122
-  const existing = await p.findFileInFolder(accessToken, appFolderId, body.filename)
-  if (existing) {
-    return jsonResponse({ alreadyExists: true, fileId: existing.id, size: existing.size })
-  }
-  const session = await p.createUploadSession(accessToken, {
+  const session = await getProvider(provider as ProviderId).createUploadSession(accessToken, {
     folderId: appFolderId,
     filename: body.filename,
     size: body.size,

@@ -83,6 +83,18 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
       mimeType,
     })
 
+    // Idempotência server-side: se o arquivo já existe no Drive (outro
+    // device ou sessão anterior já subiu), o servidor devolve o fileId em vez
+    // de uma sessão. Reconcilia o estado local sem re-upload. Issue #122.
+    if ('alreadyExists' in session) {
+      await setBackupStatus(opts.songId, 'uploaded', {
+        cloud_file_id: session.fileId,
+        cloud_file_size: session.size,
+        cloud_file_hash: hash,
+      })
+      return
+    }
+
     // 4. Upload chunked — a resposta final do PUT já contém o file
     // resource do Drive (id, size, mimeType). Antes chamávamos
     // `getFileInfo(orgId, sessionId)` mas o sessionId é o `upload_id`,
