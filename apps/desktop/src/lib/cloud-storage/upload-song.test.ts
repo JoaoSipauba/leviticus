@@ -88,8 +88,9 @@ describe('uploadSongToDrive', () => {
       orgId: 'o1', songId: 'song-dup', filePath: '/local/song-dup.mp3',
       ext: 'mp3', kind: 'lossy' as const,
     }
-    // Chamadas concorrentes: a primeira fica em voo (pausada no primeiro
-    // await) enquanto a segunda é disparada.
+    // Chamadas concorrentes: inFlightUploads.add() é síncrono — roda antes
+    // de qualquer await — então a segunda chamada encontra a guarda antes
+    // que a primeira resolva qualquer await.
     const first = uploadSongToDrive(opts)
     const second = uploadSongToDrive(opts)
     await Promise.all([first, second])

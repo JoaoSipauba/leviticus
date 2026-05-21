@@ -41,6 +41,10 @@ const MIME_BY_EXT: Record<string, string> = {
  * 6. Atualiza songs.backup_status='uploaded'
  *
  * Se qualquer passo falhar, marca backup_status='failed' e propaga.
+ *
+ * Um retorno sem erro NÃO garante que ESTE caller subiu o arquivo: se outro
+ * caller já está subindo a mesma música (guard in-flight), a função retorna
+ * no-op e o outro caller conclui o backup e seta o backup_status. Issue #122.
  */
 export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
   if (opts.kind === 'unsupported') {
