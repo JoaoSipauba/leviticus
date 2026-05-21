@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.10.0](https://github.com/JoaoSipauba/leviticus/compare/v0.9.1...v0.10.0) (2026-05-20)
+
+### Funcionalidades
+
+* **culto:** adicionar música nova direto numa seção do culto ([1e4e858](https://github.com/JoaoSipauba/leviticus/commit/1e4e8583d7be99c476712ab6a26b52247a4d77b8))
+* **culto:** indicador de músicas já na seção ([#67](https://github.com/JoaoSipauba/leviticus/issues/67) pt.2) ([65de6e4](https://github.com/JoaoSipauba/leviticus/commit/65de6e40a5380c7855e31e580fefef0b29940aa6))
+* **doacao:** banner mensal de doação + link na sidebar ([f8b51dc](https://github.com/JoaoSipauba/leviticus/commit/f8b51dcac541842ebbc094aa179f51975ed799cd))
+* **doacao:** move tab da igreja para abaixo do link de doação ([7c98329](https://github.com/JoaoSipauba/leviticus/commit/7c9832970e03b0c99f59dff5cdd449b0b6203312))
+* **downloads:** AddSongModal enfileira em background (refs [#71](https://github.com/JoaoSipauba/leviticus/issues/71)) ([2a4e684](https://github.com/JoaoSipauba/leviticus/commit/2a4e684db608539c95eb8cf648f26c2cb822167a))
+* **downloads:** DownloadDock com título, erro e animações ([4a77928](https://github.com/JoaoSipauba/leviticus/commit/4a7792895208f61cf244097190a60234f4cd923e))
+* **downloads:** foundation pra background queue com retry + UI dock (refs [#71](https://github.com/JoaoSipauba/leviticus/issues/71)) ([8452802](https://github.com/JoaoSipauba/leviticus/commit/8452802d45e0c50b634a69438ca7bd78d3779c8f))
+* **library:** banner de backup só sinaliza falha real de upload ([4eab27e](https://github.com/JoaoSipauba/leviticus/commit/4eab27ea0fb22896436c6baa57a24a50dd09ea0b))
+* **org-info:** combobox filtrável de fuso horário (Closes [#86](https://github.com/JoaoSipauba/leviticus/issues/86)) ([2537389](https://github.com/JoaoSipauba/leviticus/commit/253738949c7abc187ec4f58d0a2bfea4a85bd070))
+* **ux:** padroniza fechamento dos modais ([#91](https://github.com/JoaoSipauba/leviticus/issues/91)) ([a61a4d0](https://github.com/JoaoSipauba/leviticus/commit/a61a4d093b1944a0b6f26ea86684b8e903d4a72f))
+
+### Correções
+
+* **ci:** release-bump precisa de VITE_SUPABASE_URL/ANON_KEY no step Tests ([2b2b589](https://github.com/JoaoSipauba/leviticus/commit/2b2b58944a98e5de200dfffc637f4e62bd145094)), closes [#72](https://github.com/JoaoSipauba/leviticus/issues/72)
+* **ci:** release.yml Tests step precisa VITE_SUPABASE_URL/ANON_KEY ([8e5a0c3](https://github.com/JoaoSipauba/leviticus/commit/8e5a0c3addb410dac1c8e44b9894d550d21497c2))
+* **ci:** split Tauri build em 2 steps (macOS/Windows) — matrix invalid no shell field ([fddaca0](https://github.com/JoaoSipauba/leviticus/commit/fddaca0ce42e6f2a84b85ee45930a6f4b918a3c9))
+* **downloads:** remove cache JS do ensureYtDlp ([b24e33c](https://github.com/JoaoSipauba/leviticus/commit/b24e33ca590a2b2f6e1b9cb47ef929666b81913a))
+* **e2e:** espera tauri-driver abrir a porta 4444 antes da sessão ([ecd86c1](https://github.com/JoaoSipauba/leviticus/commit/ecd86c1a96e043688a7395a6f851822180fcaafb))
+* **e2e:** spawn tauri-driver via node cli.js com caminho absoluto ([30f18f2](https://github.com/JoaoSipauba/leviticus/commit/30f18f2f540b7b2e57eee0499bcdf6cff24121bd))
+* **ensure-owner-role:** bypass de service_role no RPC ([e6a6a01](https://github.com/JoaoSipauba/leviticus/commit/e6a6a013dd007751ad29212f7bf99b54cee28053))
+* **integrations:** desabilita verify_jwt no cloud-storage-proxy pra renderizar HTML do callback OAuth ([43fbcd2](https://github.com/JoaoSipauba/leviticus/commit/43fbcd20c844bdeca21cf664f17b4fab55b1ab0b))
+* **org-roles:** RPC ensure_owner_role idempotente + auto-recovery (Closes [#85](https://github.com/JoaoSipauba/leviticus/issues/85)) ([0f75d74](https://github.com/JoaoSipauba/leviticus/commit/0f75d74ea03fbce8dfc846610a0ee01629136f63))
+* **release:** inline PLATFORM no script — env vars não chegam ao bash Windows self-hosted ([62e9129](https://github.com/JoaoSipauba/leviticus/commit/62e9129d5ccd64497b4bcff6adeb2b5dfa28108e))
+* **review:** resolve comentários do Copilot no PR [#92](https://github.com/JoaoSipauba/leviticus/issues/92) ([1471315](https://github.com/JoaoSipauba/leviticus/commit/14713150d84d9678fb73725a8b255f250f745dc2))
+* **yt-dlp:** evita unhandled rejection ao abortar fetch já concluído ([a5e5083](https://github.com/JoaoSipauba/leviticus/commit/a5e50838895737ff3a0e2667eec2bed08265f836))
+
 ## [0.8.0](https://github.com/JoaoSipauba/leviticus/compare/v0.7.3...v0.8.0) (2026-05-15)
 
 ### Funcionalidades
