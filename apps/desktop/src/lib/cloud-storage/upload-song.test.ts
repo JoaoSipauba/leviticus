@@ -110,6 +110,7 @@ describe('uploadSongToDrive', () => {
     expect(setBackupStatus).toHaveBeenCalledWith('song-already', 'uploaded', expect.objectContaining({
       cloud_file_id: 'gd-existing',
       cloud_file_size: 2048,
+      cloud_file_hash: 'hash-abc',
     }))
   })
 
