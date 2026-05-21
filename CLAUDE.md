@@ -253,6 +253,15 @@ Toda feature nova **e** todo ajuste em feature existente exige uma passada expl�
 
 Não bypassar essa checagem porque "a mudança é pequena" ou "o usuário só pediu o ajuste". Pequenas mudanças sem teste viram regressões silenciosas. Quando a cobertura realmente não fizer sentido (puro CSS, refactor sem mudança de comportamento, etc.), declare isso explicitamente no PR/handoff em vez de pular em silêncio.
 
+### Regra: teste verde isolado E na suíte
+
+Um teste só conta como verde se passa **rodado sozinho E rodado junto com os outros**. Antes de marcar qualquer trabalho de teste como pronto, rode as duas formas:
+
+- **Isolado** — o arquivo sozinho (`pnpm vitest run <arquivo>`, ou `--spec ./specs/<arquivo>` no E2E).
+- **Na suíte completa** — `pnpm test` e, se a mudança toca jornadas E2E, `pnpm test:e2e:local`.
+
+Se um teste passa isolado mas falha na suíte (ou vice-versa), isso é um **defeito do teste** — vazamento de estado entre testes, race de timing, ou dependência de ordem de execução. Não é "reroda que passa": corrija a causa (isolar estado, ancorar esperas no estado real em vez de `sleep` fixo, dar timeout coerente com a lentidão sob carga) antes de fechar. Flakiness não rastreada mascara regressão real — se não der pra corrigir na hora, abra issue `type:dx` e referencie no handoff.
+
 ### Stack
 
 | Ferramenta | Versão | Onde mora |

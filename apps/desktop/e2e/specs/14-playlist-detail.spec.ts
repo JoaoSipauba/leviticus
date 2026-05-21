@@ -18,6 +18,7 @@ import {
   cleanLocalSqlite,
   setReactInputValue,
   signupAndCreateOrg,
+  gotoPlaylistDetail,
 } from '../helpers/app.js'
 import {
   makeAdminClient,
@@ -56,35 +57,9 @@ describe('Journey F — PlaylistDetail flows', () => {
       admin, orgId, userId, `Culto F T1 ${Date.now()}`, new Date()
     )
 
-    // Reload at /library to retrigger App.tsx boot syncOrg — only this pulls the
-    // admin-created playlist into SQLite (navigation alone does NOT resync).
-    await browser.url('tauri://localhost/library')
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 15_000 }
-    )
-    await browser.execute(() => { window.location.reload() })
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T1)' }
-    )
-    // 8s pra dar tempo de syncOrg + monitores de boot resolverem antes
-    // de navegar pra detail. Sem isso, PlaylistDetail redireciona pra
-    // /services porque a playlist ainda não está no SQLite.
-    await new Promise((r) => setTimeout(r, 8_000))
-
-    // Now navigate to the detail page (playlist row is in SQLite)
-    await browser.url(`tauri://localhost/services/${playlist.id}`)
-    await browser.waitUntil(
-      async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
-      { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail' }
-    )
-    // Confere que NÃO redirecionou pra /services list (PlaylistDetail
-    // navega pra /services se a playlist não está no SQLite).
-    await browser.waitUntil(
-      async () => !/\/services$/.test(await browser.getUrl()),
-      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services (T1)' }
-    )
+    // Navega pro detalhe do culto — re-tenta até PlaylistDetail carregar,
+    // sem depender do timing do syncOrg do boot (ver gotoPlaylistDetail, #100).
+    await gotoPlaylistDetail(playlist.id)
 
     // Click "Adicionar seção"
     const addSectionBtn = $('button*=Adicionar seção')
@@ -132,39 +107,9 @@ describe('Journey F — PlaylistDetail flows', () => {
       admin, orgId, userId, `Culto F T2 ${Date.now()}`, new Date()
     )
 
-    // Reload at /library to retrigger syncOrg (pulls new playlist into SQLite).
-    // PlaylistDetail redirects to /services if the row isn't in SQLite, so we
-    // navigate to detail until URL sticks (waitUntil cobre delay variável).
-    // Mesma sequência do T1 (sem loop com sleep fixo): reload em /library
-    // pra puxar a playlist criada via admin, depois navega pro detail.
-    // Sleep fixo curto (1.5s) era flaky em dev builds debug.
-    await browser.url('tauri://localhost/library')
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 15_000 }
-    )
-    await browser.execute(() => { window.location.reload() })
-    await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 30_000, timeoutMsg: 'App did not boot to /library after reload (T2)' }
-    )
-    // Espera mais (~8s) pra syncOrg do boot puxar a playlist criada via
-    // admin pro SQLite. Sem isso, PlaylistDetail navega de volta pra
-    // /services porque a row não existe local. Tempos novos somam com
-    // os monitors de rede/sync que entraram em #16/#31.
-    await new Promise((r) => setTimeout(r, 8_000))
-
-    await browser.url(`tauri://localhost/services/${playlist.id}`)
-    await browser.waitUntil(
-      async () => (await browser.getUrl()).includes(`/services/${playlist.id}`),
-      { timeout: 15_000, timeoutMsg: 'Did not land on PlaylistDetail (T2)' }
-    )
-    // Garante que NÃO voltou pra /services list. Se PlaylistDetail
-    // renderizou, o botão "Adicionar seção" aparece em <15s.
-    await browser.waitUntil(
-      async () => !/\/services$/.test(await browser.getUrl()),
-      { timeout: 5_000, timeoutMsg: 'PlaylistDetail redirected back to /services (playlist not synced yet)' }
-    )
+    // Navega pro detalhe do culto — re-tenta até PlaylistDetail carregar,
+    // sem depender do timing do syncOrg do boot (ver gotoPlaylistDetail, #100).
+    await gotoPlaylistDetail(playlist.id)
 
     // ─── Step 1: Create a section ──────────────────────────────────────────
     const addSectionBtn = $('button*=Adicionar seção')
@@ -194,19 +139,32 @@ describe('Journey F — PlaylistDetail flows', () => {
     )
 
     // ─── Step 2: Add a song to the section ────────────────────────────────
-    // "+ Adicionar música" button is inside the section's SectionRow
+    // ─── Step 2: Add a song to the section ────────────────────────────────
+    // O AddSongToPlaylistModal lê as músicas do SQLite no mount (load()).
+    // Logo após o boot, o syncOrg pode ainda não ter commitado os songs
+    // seedados via admin — o modal abriria sem a música. Re-abre o modal
+    // (cada abertura re-roda o load()) até "Song One F" aparecer. Issue #100.
     const addMusicBtn = $('button*=Adicionar música')
-    await addMusicBtn.waitForExist({ timeout: 10_000, timeoutMsg: '"Adicionar música" button not found' })
-    await addMusicBtn.click()
-
-    // AddSongToPlaylistModal opens with org's songs
-    // Song One F was seeded via admin and pulled by syncOrg on navigation
-    const song1Btn = $('button*=Song One F')
-    await song1Btn.waitForExist({ timeout: 10_000, timeoutMsg: '"Song One F" not found in modal' })
+    const songDeadline = Date.now() + 60_000
+    let song1Btn = $('button*=Song One F')
+    for (;;) {
+      await addMusicBtn.waitForExist({ timeout: 15_000, timeoutMsg: '"Adicionar música" button not found' })
+      await addMusicBtn.click()
+      song1Btn = $('button*=Song One F')
+      const found = await song1Btn
+        .waitForExist({ timeout: 8_000 })
+        .then(() => true, () => false)
+      if (found) break
+      if (Date.now() > songDeadline) {
+        throw new Error('"Song One F" não apareceu no modal — song não sincronizou pro SQLite')
+      }
+      // Fecha o modal e re-tenta — reabrir re-consulta o SQLite.
+      await $('button=Concluído').click()
+      await new Promise((r) => setTimeout(r, 1_500))
+    }
     await song1Btn.click()
 
-    // Song is added immediately (RPC call in handleAdd). Modal stays open for more.
-    // Close modal
+    // Song is added immediately (RPC call in handleAdd). Close modal.
     const concluido = $('button=Concluído')
     await concluido.waitForExist({ timeout: 5_000 })
     await concluido.click()
