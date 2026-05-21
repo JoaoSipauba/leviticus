@@ -77,3 +77,42 @@ Deno.test('deleteFile — chama DELETE no endpoint correto', async () => {
     globalThis.fetch = originalFetch
   }
 })
+
+Deno.test('findFileInFolder — retorna match quando arquivo existe', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    files: [{ id: 'gd-existing', size: '5000' }],
+  }), { status: 200 })
+  try {
+    const found = await googleDriveProvider.findFileInFolder('tok', 'folder-1', 'song-1.opus')
+    assertExists(found)
+    assertEquals(found.id, 'gd-existing')
+    assertEquals(found.size, 5000)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('findFileInFolder — retorna null quando não existe', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response(JSON.stringify({ files: [] }), { status: 200 })
+  try {
+    const found = await googleDriveProvider.findFileInFolder('tok', 'folder-1', 'song-x.opus')
+    assertEquals(found, null)
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})
+
+Deno.test('findFileInFolder — lança ProviderError quando a busca falha', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => new Response('boom', { status: 500 })
+  try {
+    await assertRejects(
+      () => googleDriveProvider.findFileInFolder('tok', 'folder-1', 'song-x.opus'),
+      ProviderError,
+    )
+  } finally {
+    globalThis.fetch = originalFetch
+  }
+})

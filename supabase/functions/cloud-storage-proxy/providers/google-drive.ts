@@ -170,6 +170,30 @@ export const googleDriveProvider: CloudStorageProvider = {
     return { folderId: folder.id }
   },
 
+  async findFileInFolder(
+    accessToken: string,
+    folderId: string,
+    filename: string,
+  ): Promise<{ id: string; size: number } | null> {
+    // Idempotência de upload: checa se já existe um arquivo com esse nome na
+    // pasta de backup. Usado pra não criar duplicata quando outro device (ou
+    // uma sessão anterior) já subiu a mesma música. Issue #122.
+    const escaped = filename.replace(/'/g, "\\'")
+    const query = encodeURIComponent(
+      `name = '${escaped}' and '${folderId}' in parents and trashed = false`
+    )
+    const res = await fetch(`${DRIVE_API}/files?q=${query}&fields=files(id,size)`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!res.ok) {
+      throw new ProviderError('google_drive', 'unknown', `File search failed: ${await res.text()}`)
+    }
+    const data = await res.json() as { files: Array<{ id: string; size?: string }> }
+    if (data.files.length === 0) return null
+    const f = data.files[0]
+    return { id: f.id, size: parseInt(f.size ?? '0', 10) }
+  },
+
   async getQuota(accessToken: string): Promise<QuotaInfo> {
     const res = await fetch(`${DRIVE_API}/about?fields=storageQuota`, {
       headers: { Authorization: `Bearer ${accessToken}` },
