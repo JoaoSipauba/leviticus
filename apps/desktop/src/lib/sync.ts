@@ -3,14 +3,28 @@ import { getDb, getLastSync, setLastSync } from './db.js'
 
 export async function syncOrg(orgId: string): Promise<void> {
   const db = await getDb()
-  const since = (await getLastSync(orgId)) ?? '1970-01-01T00:00:00Z'
-  // Marca de tempo capturada ANTES das queries. É ela que vira o próximo
-  // `last_sync` — não `Date.now()` no fim. Senão, uma row criada DURANTE a
-  // execução do sync (que as queries `.gte('updated_at', since)` podem não
-  // ter pego) ficaria com `updated_at` < o `last_sync` do fim e seria pulada
-  // pra sempre. Usar o início garante que o próximo sync re-cobre toda a
-  // janela de execução; a sobreposição é inofensiva (INSERT OR REPLACE).
-  const syncStartedAt = new Date().toISOString()
+
+  // `last_sync` precisa vir do relógio do SERVIDOR, não do cliente. As linhas
+  // têm `updated_at` gravado pelo Postgres; se o `last_sync` usasse o relógio
+  // local de um device adiantado, ele ficaria "no futuro" e as queries
+  // `.gte('updated_at', since)` pulariam linhas novas pra sempre (#139).
+  // Capturado ANTES das queries: uma row criada DURANTE o sync ficaria com
+  // `updated_at` < um `last_sync` do fim e seria pulada — usar o início
+  // garante que o próximo sync re-cobre a janela (overlap inofensivo, INSERT
+  // OR REPLACE).
+  const serverNow = await supabase.rpc('server_now')
+  if (serverNow.error) throw new Error(`sync server_now failed: ${serverNow.error.message}`)
+  const syncStartedAt = new Date(serverNow.data as string).toISOString()
+
+  const storedLastSync = await getLastSync(orgId)
+  // Recuperação de devices já afetados pelo #139: um `last_sync` gravado no
+  // futuro (por relógio de cliente adiantado, antes deste fix) está corrompido
+  // e nunca seria alcançado por `updated_at`. Detecta e força um resync
+  // completo uma vez, reescrevendo `last_sync` com o relógio do servidor.
+  const lastSyncCorrupt =
+    storedLastSync != null &&
+    new Date(storedLastSync).getTime() > new Date(syncStartedAt).getTime()
+  const since = storedLastSync && !lastSyncCorrupt ? storedLastSync : '1970-01-01T00:00:00Z'
 
   // Listar colunas explicitamente (não usar '*'). Ver "Migrations checklist"
   // em CLAUDE.md — o contrato fica visível e colunas novas no Supabase não
