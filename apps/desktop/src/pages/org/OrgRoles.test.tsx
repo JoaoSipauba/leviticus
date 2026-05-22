@@ -86,7 +86,6 @@ describe('OrgRoles', () => {
     vi.clearAllMocks()
     setupDbSelect()
     setupSupabaseFrom()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
   // ── List ──────────────────────────────────────────────────────────────────
@@ -256,7 +255,7 @@ describe('OrgRoles', () => {
 
   // ── Deletar papel ─────────────────────────────────────────────────────────
 
-  it('deletar papel sem membros chama confirm e supabase.delete, depois exibe toast', async () => {
+  it('deletar papel sem membros abre confirmação e chama supabase.delete, depois exibe toast', async () => {
     setupDbSelect([
       { id: 'dono-1', name: 'Dono', member_count: 1 },
       { id: 'lider-1', name: 'Líder', member_count: 0 },
@@ -270,15 +269,19 @@ describe('OrgRoles', () => {
     await waitFor(() => screen.getByRole('button', { name: /deletar/i }))
     await userEvent.click(screen.getByRole('button', { name: /deletar/i }))
 
+    // modal de confirmação abre → confirma no último botão "Deletar"
+    await screen.findByText('Deletar papel?')
+    const deletarBtns = screen.getAllByRole('button', { name: /deletar/i })
+    await userEvent.click(deletarBtns[deletarBtns.length - 1]!)
+
     await waitFor(() => {
-      expect(window.confirm).toHaveBeenCalled()
       expect(mockFrom).toHaveBeenCalledWith('roles')
       expect(mockDelete).toHaveBeenCalled()
       expect(mockToastSuccess).toHaveBeenCalledWith('Papel deletado')
     })
   })
 
-  it('deletar papel com membros exibe erro inline sem chamar supabase.delete', async () => {
+  it('deletar papel com membros exibe erro inline sem abrir confirmação', async () => {
     // Líder tem 2 membros (default fixture)
     renderRoles()
 
@@ -291,11 +294,10 @@ describe('OrgRoles', () => {
     await waitFor(() => {
       expect(screen.getByText(/ainda tem membros/i)).toBeInTheDocument()
     })
-    expect(window.confirm).not.toHaveBeenCalled()
+    expect(screen.queryByText('Deletar papel?')).not.toBeInTheDocument()
   })
 
   it('cancelar confirmação de delete não chama supabase', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(false)
     setupDbSelect([
       { id: 'dono-1', name: 'Dono', member_count: 1 },
       { id: 'lider-1', name: 'Líder', member_count: 0 },
@@ -309,7 +311,10 @@ describe('OrgRoles', () => {
     await waitFor(() => screen.getByRole('button', { name: /deletar/i }))
     await userEvent.click(screen.getByRole('button', { name: /deletar/i }))
 
-    expect(window.confirm).toHaveBeenCalled()
+    await screen.findByText('Deletar papel?')
+    await userEvent.click(screen.getByRole('button', { name: /cancelar/i }))
+
+    expect(screen.queryByText('Deletar papel?')).not.toBeInTheDocument()
     expect(mockEq).not.toHaveBeenCalled()
     expect(mockToastSuccess).not.toHaveBeenCalled()
   })
@@ -328,6 +333,10 @@ describe('OrgRoles', () => {
 
     await waitFor(() => screen.getByRole('button', { name: /deletar/i }))
     await userEvent.click(screen.getByRole('button', { name: /deletar/i }))
+
+    await screen.findByText('Deletar papel?')
+    const deletarBtns = screen.getAllByRole('button', { name: /deletar/i })
+    await userEvent.click(deletarBtns[deletarBtns.length - 1]!)
 
     await waitFor(() => {
       expect(screen.getByText(/algo deu errado/i)).toBeInTheDocument()

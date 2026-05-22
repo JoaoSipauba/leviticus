@@ -31,8 +31,11 @@ const ALL_TABS: Tab[] = [
 export function OrgManage() {
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const [searchParams, setSearchParams] = useSearchParams()
-  const initial = (searchParams.get('tab') as TabKey) ?? 'members'
-  const [tab, setTab] = useState<TabKey>(initial)
+  // `tab` é derivado da URL — fonte única de verdade. Manter estado local
+  // separado fazia a aba ignorar navegações externas (ex: o botão "Convidar"
+  // em OrgMembers aponta pra ?tab=invites, mas OrgManage já estava montado e
+  // o estado nunca re-sincronizava).
+  const tab = (searchParams.get('tab') as TabKey) ?? 'members'
   const [orgName, setOrgName] = useState<string>('')
   const [allowedKeys, setAllowedKeys] = useState<Set<TabKey>>(new Set(['info', 'members', 'integrations', 'danger']))
   const [memberCount, setMemberCount] = useState<number>(0)
@@ -66,7 +69,6 @@ export function OrgManage() {
   }, [orgId])
 
   function selectTab(k: TabKey) {
-    setTab(k)
     setSearchParams({ tab: k }, { replace: true })
   }
 

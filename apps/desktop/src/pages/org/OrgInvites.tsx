@@ -7,6 +7,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
+import { ConfirmModal } from '../../components/ConfirmModal.js'
 import { captureException } from '../../lib/observability.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
@@ -34,6 +35,8 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
   const [showModal, setShowModal] = useState(false)
   const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [revoking, setRevoking] = useState(false)
 
   async function load() {
     const db = await getDb()
@@ -68,17 +71,22 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
     setTimeout(() => setCopiedCode((c) => (c === code ? null : c)), 1500)
   }
 
-  async function handleRevoke(id: string) {
-    if (!window.confirm('Revogar este código? Ninguém mais consegue entrar com ele.')) return
-    const { data, error: e } = await supabase.rpc('revoke_invite_code', { p_code_id: id })
+  async function handleRevoke() {
+    if (!revokeId) return
+    setRevoking(true)
+    const { data, error: e } = await supabase.rpc('revoke_invite_code', { p_code_id: revokeId })
     if (e || (data as any)?.ok === false) {
       captureException(e ?? data, { feature: 'org-invites' })
       toastError('Algo deu errado', 'Tente novamente.')
       setError('Algo deu errado. Tente novamente.')
+      setRevoking(false)
+      setRevokeId(null)
       return
     }
     await syncOrg(orgId)
     toastSuccess('Código revogado')
+    setRevoking(false)
+    setRevokeId(null)
     await load()
   }
 
@@ -147,7 +155,7 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
 
             <div>
               <button
-                onClick={() => handleRevoke(r.id)}
+                onClick={() => setRevokeId(r.id)}
                 disabled={r.status !== 'active'}
                 style={{ padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: r.status === 'active' ? 'pointer' : 'default', opacity: r.status === 'active' ? 1 : 0.4 }}
               >Revogar</button>
@@ -157,6 +165,16 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
       </div>
 
       <InviteCodeModal open={showModal} orgId={orgId} onClose={() => setShowModal(false)} onCreated={() => { void load() }} />
+
+      <ConfirmModal
+        open={revokeId !== null}
+        title="Revogar código?"
+        body="Ninguém mais consegue entrar na organização com este código."
+        confirmLabel="Revogar"
+        pending={revoking}
+        onConfirm={() => void handleRevoke()}
+        onClose={() => setRevokeId(null)}
+      />
     </div>
   )
 }

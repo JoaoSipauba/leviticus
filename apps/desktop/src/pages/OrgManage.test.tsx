@@ -1,13 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Link } from 'react-router-dom'
 
 // ---- mocks must be hoisted above imports ----
-
-vi.mock('react-router-dom', () => {
-  const actual = { useSearchParams: vi.fn() }
-  return actual
-})
 
 vi.mock('../lib/db.js', () => ({
   getDb: vi.fn(),
@@ -25,7 +21,6 @@ vi.mock('./org/OrgRoles.js', () => ({ OrgRoles: () => <div>OrgRoles</div> }))
 vi.mock('./org/OrgIntegrations.js', () => ({ OrgIntegrations: () => <div>OrgIntegrations</div> }))
 vi.mock('./org/OrgDanger.js', () => ({ OrgDanger: () => <div>OrgDanger</div> }))
 
-import { useSearchParams } from 'react-router-dom'
 import { getDb } from '../lib/db.js'
 import { hasPermission } from '../lib/permissions.js'
 import { OrgManage } from './OrgManage.js'
@@ -45,13 +40,14 @@ function makeDb(overrides?: Partial<{ name: string; memberCnt: number; inviteCnt
   }
 }
 
-function setupSearchParams(tab = 'members') {
-  const setSearchParams = vi.fn()
-  vi.mocked(useSearchParams).mockReturnValue([
-    { get: (k: string) => (k === 'tab' ? tab : null) } as any,
-    setSearchParams,
-  ])
-  return { setSearchParams }
+// `tab` é derivado da URL — o teste usa um router real (MemoryRouter) em vez
+// de mockar `useSearchParams`, pra exercitar a navegação de verdade.
+function renderAt(tab = 'members') {
+  return render(
+    <MemoryRouter initialEntries={[`/manage?tab=${tab}`]}>
+      <OrgManage />
+    </MemoryRouter>
+  )
 }
 
 describe('OrgManage', () => {
@@ -64,9 +60,7 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('renderiza tabs visíveis para usuário sem permissões admin', async () => {
-    setupSearchParams('members')
-
-    render(<OrgManage />)
+    renderAt('members')
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /informações/i })).toBeInTheDocument()
@@ -82,10 +76,9 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('renderiza tabs de admin quando usuário tem manage_members e manage_roles', async () => {
-    setupSearchParams('members')
     vi.mocked(hasPermission).mockResolvedValue(true)
 
-    render(<OrgManage />)
+    renderAt('members')
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /convites/i })).toBeInTheDocument()
@@ -95,9 +88,7 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('tab ativo segue o parâmetro de URL inicial', async () => {
-    setupSearchParams('info')
-
-    render(<OrgManage />)
+    renderAt('info')
 
     // Todas as abas montam de uma vez; só a ativa fica visível, as outras
     // ficam `hidden`. Aba ativa = info → OrgInfo visível, OrgMembers oculto.
@@ -108,11 +99,10 @@ describe('OrgManage', () => {
   })
 
   // ------------------------------------------------------------------
-  it('clicar em tab diferente troca o conteúdo e chama setSearchParams', async () => {
-    const { setSearchParams } = setupSearchParams('members')
+  it('clicar em tab diferente troca o conteúdo', async () => {
     const user = userEvent.setup()
 
-    render(<OrgManage />)
+    renderAt('members')
 
     await waitFor(() => {
       expect(screen.getByText('OrgMembers')).toBeVisible()
@@ -126,15 +116,42 @@ describe('OrgManage', () => {
       expect(screen.getByText('OrgInfo')).toBeVisible()
     })
     expect(screen.getByText('OrgMembers')).not.toBeVisible()
-    expect(setSearchParams).toHaveBeenCalledWith({ tab: 'info' }, { replace: true })
+  })
+
+  // ------------------------------------------------------------------
+  // Regressão #117: o botão "Convidar" em OrgMembers navega pra ?tab=invites.
+  // OrgManage já está montado, então a aba só troca se o estado for derivado
+  // da URL — antes ele era estado local fixado na montagem e ignorava a
+  // navegação externa.
+  it('reage a navegação externa que muda ?tab', async () => {
+    vi.mocked(hasPermission).mockResolvedValue(true)
+    const user = userEvent.setup()
+
+    render(
+      <MemoryRouter initialEntries={['/manage?tab=members']}>
+        <Link to="/manage?tab=invites">ir-para-convites</Link>
+        <OrgManage />
+      </MemoryRouter>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('OrgMembers')).toBeVisible()
+    })
+    expect(screen.getByText('OrgInvites')).not.toBeVisible()
+
+    await user.click(screen.getByText('ir-para-convites'))
+
+    await waitFor(() => {
+      expect(screen.getByText('OrgInvites')).toBeVisible()
+    })
+    expect(screen.getByText('OrgMembers')).not.toBeVisible()
   })
 
   // ------------------------------------------------------------------
   it('exibe o nome da org no subtítulo após carregar', async () => {
-    setupSearchParams('members')
     vi.mocked(getDb).mockResolvedValue(makeDb({ name: 'Igreja Esperança' }) as any)
 
-    render(<OrgManage />)
+    renderAt('members')
 
     await waitFor(() => {
       expect(screen.getByText(/Igreja Esperança/)).toBeInTheDocument()
@@ -143,11 +160,10 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('exibe contadores de membros, convites e papéis nos tabs', async () => {
-    setupSearchParams('members')
     vi.mocked(hasPermission).mockResolvedValue(true)
     vi.mocked(getDb).mockResolvedValue(makeDb({ memberCnt: 5, inviteCnt: 2, roleCnt: 4 }) as any)
 
-    render(<OrgManage />)
+    renderAt('members')
 
     await waitFor(() => {
       // each count badge is rendered inside the button — look for the raw number
