@@ -18,6 +18,7 @@ import {
 } from '../lib/playlist.js'
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { captureException } from '../lib/observability.js'
+import { usePermission } from '../store/permissions.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -45,6 +46,7 @@ export function Playlists() {
   const [showPast, setShowPast] = useState(false)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const online = useOnlineStatus()
+  const canManagePlaylists = usePermission('manage_playlists')
 
   async function loadServices() {
     const db = await getDb()
@@ -131,6 +133,7 @@ export function Playlists() {
           <p className="text-caps text-brand">CULTOS</p>
           <h1 className="text-h1 text-heading">Sua agenda</h1>
         </div>
+        {canManagePlaylists && (
         <button
           onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
           disabled={!online}
@@ -145,6 +148,7 @@ export function Playlists() {
         >
           <Plus size={16} /> Novo culto
         </button>
+        )}
       </div>
 
       {today.length > 0 && (
@@ -153,7 +157,7 @@ export function Playlists() {
           <div className="space-y-3">
             {today.map((s) => (
               <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
             ))}
           </div>
         </section>
@@ -165,14 +169,14 @@ export function Playlists() {
           <div className="space-y-2">
             {upcoming.map((s) => (
               <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
+                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
             ))}
           </div>
         </section>
       )}
 
       {today.length === 0 && upcoming.length === 0 && (
-        <EmptyState onCreate={online ? () => { setEditing(null); setShowModal(true) } : undefined} />
+        <EmptyState onCreate={online && canManagePlaylists ? () => { setEditing(null); setShowModal(true) } : undefined} />
       )}
 
       {past.length > 0 && (
@@ -188,7 +192,7 @@ export function Playlists() {
             <div className="space-y-2" style={{ opacity: 0.55 }}>
               {past.map((s) => (
                 <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} />
+                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
               ))}
             </div>
           )}
@@ -222,12 +226,13 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
   )
 }
 
-function TodayCard({ service, onClick, onEdit, onDelete, online }: {
+function TodayCard({ service, onClick, onEdit, onDelete, online, canManage }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
   onDelete: () => Promise<void>
   online: boolean
+  canManage: boolean
 }) {
   const color = getServiceColor(service.id)
   const status = formatPlaylistStatus(service.scheduled_at, service.scheduled_end)
@@ -262,17 +267,18 @@ function TodayCard({ service, onClick, onEdit, onDelete, online }: {
           )}
         </div>
       </div>
-      <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark online={online} />
+      {canManage && <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark online={online} />}
     </div>
   )
 }
 
-function CompactCard({ service, onClick, onEdit, onDelete, online }: {
+function CompactCard({ service, onClick, onEdit, onDelete, online, canManage }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
   onDelete: () => Promise<void>
   online: boolean
+  canManage: boolean
 }) {
   const color = getServiceColor(service.id)
   return (
@@ -302,7 +308,7 @@ function CompactCard({ service, onClick, onEdit, onDelete, online }: {
           )}
         </div>
       </div>
-      <ActionsMenu onEdit={onEdit} onDelete={onDelete} online={online} />
+      {canManage && <ActionsMenu onEdit={onEdit} onDelete={onDelete} online={online} />}
     </div>
   )
 }

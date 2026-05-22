@@ -118,6 +118,9 @@ vi.mock('../store/ui.js', () => ({
   },
 }))
 
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
+
 vi.mock('../store/downloads.js', () => ({
   useDownloadsStore: (selector?: (s: typeof downloadsState) => unknown) => {
     if (typeof selector === 'function') return selector(downloadsState)
@@ -162,6 +165,7 @@ const baseSong = {
 describe('SongCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    permState.value = true
     playerState.currentSong = null
     playerState.isPlaying = false
     playerState.volume = 1
@@ -177,6 +181,17 @@ describe('SongCard', () => {
 
   afterEach(() => {
     localStorage.clear()
+  })
+
+  it('esconde Editar e Excluir da biblioteca sem manage_songs', async () => {
+    permState.value = false
+    render(<SongCard song={baseSong} onEdit={vi.fn()} />)
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mais ações/i })).toBeInTheDocument()
+    })
+    await userEvent.click(screen.getByRole('button', { name: /Mais ações/i }))
+    expect(screen.queryByRole('menuitem', { name: /Editar/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('menuitem', { name: /Excluir da biblioteca/i })).not.toBeInTheDocument()
   })
 
   it('regressão #27: duration_seconds presente exibe formatado; ausente exibe "--:--"', async () => {

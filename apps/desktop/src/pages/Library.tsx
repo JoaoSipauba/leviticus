@@ -11,6 +11,7 @@ import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.j
 import { startInitialSync } from '../lib/cloud-storage/sync-worker.js'
 import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
 import { useIntegrationsStore } from '../store/integrations.js'
+import { usePermission } from '../store/permissions.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
 
 
@@ -24,6 +25,7 @@ export function Library() {
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const { openAddSong, librarySeed, openEditSong } = useUIStore()
   const online = useOnlineStatus()
+  const canAddSongs = usePermission('add_songs')
   const listRef = useRef<HTMLDivElement>(null)
   // hasLoadedRef: true após o primeiro load completar com sucesso. Usado pra
   // diferenciar "boot" (mostra skeleton) de "refresh em background" (não
@@ -165,7 +167,7 @@ export function Library() {
         </div>
         {/* Adicionar só aparece no header quando há músicas — em biblioteca
             vazia a CTA grande é o caminho principal (não competir com ela). */}
-        {!isLibraryEmpty && (
+        {!isLibraryEmpty && canAddSongs && (
           <button
             onClick={online ? () => openAddSong() : undefined}
             disabled={!online}
@@ -278,23 +280,25 @@ export function Library() {
             <p className="text-body mb-6" style={{ fontSize: 13.5, lineHeight: 1.55 }}>
               Adicione suas músicas para organizar setlists, ministérios e cultos da igreja.
             </p>
-            <button
-              onClick={online ? () => openAddSong() : undefined}
-              disabled={!online}
-              title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
-              className="inline-flex items-center gap-2 font-semibold text-white transition-colors bg-brand-active hover:bg-brand"
-              style={{
-                borderRadius: 12,
-                padding: '12px 22px', fontSize: 14,
-                border: 'none',
-                boxShadow: online ? '0 12px 32px -10px rgba(37,99,235,0.65)' : 'none',
-                opacity: online ? 1 : 0.4,
-                cursor: online ? 'pointer' : 'not-allowed',
-              }}
-            >
-              <Plus size={16} strokeWidth={2.5} />
-              Adicionar primeira música
-            </button>
+            {canAddSongs && (
+              <button
+                onClick={online ? () => openAddSong() : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
+                className="inline-flex items-center gap-2 font-semibold text-white transition-colors bg-brand-active hover:bg-brand"
+                style={{
+                  borderRadius: 12,
+                  padding: '12px 22px', fontSize: 14,
+                  border: 'none',
+                  boxShadow: online ? '0 12px 32px -10px rgba(37,99,235,0.65)' : 'none',
+                  opacity: online ? 1 : 0.4,
+                  cursor: online ? 'pointer' : 'not-allowed',
+                }}
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                Adicionar primeira música
+              </button>
+            )}
             {!online && (
               <p className="mt-3 text-xs" style={{ color: '#9ca3af' }}>
                 Sem conexão — conecte para adicionar.

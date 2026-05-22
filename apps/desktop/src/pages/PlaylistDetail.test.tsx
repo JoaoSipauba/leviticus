@@ -142,6 +142,9 @@ vi.mock('../components/SongCard.js', () => ({
   SongCard: ({ song }: any) => <div data-testid="song-card">{song.title}</div>,
 }))
 
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
+
 // tauri plugin stubs
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
@@ -207,9 +210,20 @@ describe('PlaylistDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.setItem('leviticus_org_id', 'org-1')
+    permState.value = true
     // Reset stable mocks that vi.clearAllMocks clears
     subscribeCompletedMock.mockReturnValue(() => {})
     subscribeCanceledMock.mockReturnValue(() => {})
+  })
+
+  it('esconde "Adicionar seção" sem manage_playlists', async () => {
+    permState.value = false
+    setupDbSelect()
+    render(<PlaylistDetail />)
+    await waitFor(() => {
+      expect(screen.getByText('Culto de Domingo')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Adicionar seção')).not.toBeInTheDocument()
   })
 
   afterEach(() => {

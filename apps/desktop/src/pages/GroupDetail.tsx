@@ -10,6 +10,7 @@ import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
+import { usePermission } from '../store/permissions.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -59,6 +60,7 @@ export function GroupDetail() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const online = useOnlineStatus()
+  const canManageGroups = usePermission('manage_groups')
 
   async function loadData() {
     if (!id) return
@@ -190,6 +192,7 @@ export function GroupDetail() {
             {count} {count === 1 ? 'música' : 'músicas'}
           </p>
         </div>
+        {canManageGroups && (
         <div className="flex items-center gap-2">
           <button
             onClick={online ? () => { setEditName(group.name); setEditColorIdx(group.color_index); setShowEdit(true) } : undefined}
@@ -224,6 +227,7 @@ export function GroupDetail() {
             Excluir
           </button>
         </div>
+        )}
       </div>
 
       <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', marginBottom: 20 }} />

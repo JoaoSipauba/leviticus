@@ -47,6 +47,8 @@ vi.mock('react-router-dom', () => ({
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/path', () => ({ appLocalDataDir: vi.fn().mockResolvedValue('/data/') }))
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
 
 // ─── import component after mocks ─────────────────────────────────────────
 
@@ -74,7 +76,17 @@ describe('Groups', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     onlineMock.value = true
+    permState.value = true
     localStorage.setItem('leviticus_org_id', ORG_ID)
+  })
+
+  it('esconde "Novo" e "Criar primeiro ministério" sem manage_groups', async () => {
+    permState.value = false
+    setupDb([])
+    render(<Groups />)
+    await screen.findByText('Nenhum ministério ainda')
+    expect(screen.queryByText(/Novo/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Criar primeiro ministério')).not.toBeInTheDocument()
   })
 
   it('lista ministérios carregados do SQLite', async () => {
