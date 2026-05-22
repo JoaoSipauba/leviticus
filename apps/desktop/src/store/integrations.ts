@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { CloudStorageAccount, QuotaInfo } from '@leviticus/core'
-import { getDb } from '../lib/db.js'
+import { getDb, getLastSync } from '../lib/db.js'
 import * as cs from '../lib/cloud-storage/client.js'
 
 export type IntegrationStatus =
@@ -54,7 +54,20 @@ export const useIntegrationsStore = create<IntegrationsState>((set, get) => ({
           error: null,
         })
       } else {
-        set({ account: null, quota: null, status: 'disconnected', error: null })
+        // Cache vazio significa um de dois estados distintos:
+        // - sync nunca completou (device recém-aberto): não dá pra concluir
+        //   nada → 'unknown' (estado de loading; o banner não aparece nele).
+        // - sync já rodou e confirmou ausência de conta → 'disconnected'.
+        // Sem essa distinção, um device já configurado mostra o banner falso
+        // "Sem backup configurado" no boot, antes do syncOrg popular o cache.
+        // Issue #121.
+        const lastSync = await getLastSync(orgId)
+        set({
+          account: null,
+          quota: null,
+          status: lastSync == null ? 'unknown' : 'disconnected',
+          error: null,
+        })
       }
     } finally {
       set({ refreshing: false })

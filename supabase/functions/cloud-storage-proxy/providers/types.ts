@@ -53,6 +53,10 @@ export interface CloudStorageProvider {
   // Pasta da app
   ensureAppFolder(accessToken: string, folderName: string): Promise<{ folderId: string }>
 
+  // Idempotência de upload: procura um arquivo pelo nome dentro de uma pasta.
+  // Retorna o id+size do primeiro match, ou null se não existir. Issue #122.
+  findFileInFolder(accessToken: string, folderId: string, filename: string): Promise<{ id: string; size: number } | null>
+
   // Operações de arquivo (bytes nunca passam pela edge function)
   getQuota(accessToken: string): Promise<QuotaInfo>
   createUploadSession(accessToken: string, params: {
