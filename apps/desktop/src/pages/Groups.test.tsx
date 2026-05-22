@@ -150,7 +150,7 @@ describe('Groups', () => {
     it('mantém modal aberto e exibe erro quando insert falha', async () => {
       insertSingleMock.mockResolvedValueOnce({
         data: null,
-        error: { message: 'permission denied' },
+        error: { code: '42501', message: 'permission denied' },
       })
       setupDb([])
       render(<Groups />)
@@ -162,7 +162,7 @@ describe('Groups', () => {
       fireEvent.click(screen.getByRole('button', { name: /^Criar$/ }))
 
       await waitFor(() => {
-        expect(screen.getByText('permission denied')).toBeInTheDocument()
+        expect(screen.getByText('Você não tem permissão para esta ação.')).toBeInTheDocument()
       })
       // modal stays open
       expect(screen.getByText('Novo ministério')).toBeInTheDocument()

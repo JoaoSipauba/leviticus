@@ -31,6 +31,7 @@ import { readDurationFromBlob } from '../lib/audio-meta.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 import { toastSuccess } from '../store/toasts.js'
 import { captureException } from '../lib/observability.js'
+import { permissionErrorMessage } from '../lib/permission-error.js'
 import { supabase } from '../lib/supabase.js'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { fetchYoutubeMetadata, searchYoutube, getPreviewUrl, type YTSearchResult } from '../lib/ytdlp.js'
@@ -1329,7 +1330,8 @@ export function AddSongModal() {
         .select('id')
         .single()
       if (insertErr || !songRow) {
-        throw new Error(insertErr?.message ?? 'Falha ao salvar música')
+        captureException(insertErr, { feature: 'add-song', step: 'insert-song-upload' })
+        throw new Error(permissionErrorMessage(insertErr) ?? 'Algo deu errado. Tente novamente.')
       }
 
       const songId = songRow.id

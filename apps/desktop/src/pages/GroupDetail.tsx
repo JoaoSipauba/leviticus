@@ -9,6 +9,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { SongCard } from '../components/SongCard.js'
 import { useUIStore } from '../store/ui.js'
 import { captureException } from '../lib/observability.js'
+import { permissionErrorMessage } from '../lib/permission-error.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -104,7 +105,7 @@ export function GroupDetail() {
       .eq('id', group.id)
     if (error) {
       captureException(error, { feature: 'group-detail', step: 'update-error' })
-      setEditError('Algo deu errado. Tente novamente.')
+      setEditError(permissionErrorMessage(error) ?? 'Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
@@ -122,7 +123,7 @@ export function GroupDetail() {
     const { error } = await supabase.from('groups').delete().eq('id', group.id)
     if (error) {
       captureException(error, { feature: 'group-detail', step: 'delete-error' })
-      setDeleteError('Algo deu errado. Tente novamente.')
+      setDeleteError(permissionErrorMessage(error) ?? 'Algo deu errado. Tente novamente.')
       setDeleting(false)
       return
     }

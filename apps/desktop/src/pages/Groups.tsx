@@ -6,6 +6,7 @@ import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { captureException } from '../lib/observability.js'
+import { permissionErrorMessage } from '../lib/permission-error.js'
 import { Skeleton } from '../components/Skeleton.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
@@ -72,7 +73,7 @@ export function Groups() {
 
     if (insertError || !data) {
       captureException(insertError, { feature: 'groups', step: 'inserterror' })
-      setError(insertError?.message ?? 'Erro ao criar ministério.')
+      setError(permissionErrorMessage(insertError) ?? 'Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
