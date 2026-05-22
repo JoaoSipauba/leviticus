@@ -206,10 +206,6 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
 
   return (
     <div>
-      <div style={{ marginBottom: 16, padding: '10px 14px', borderRadius: 9, display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, background: 'rgba(245,158,11,0.06)', border: '1px dashed rgba(245,158,11,0.25)', color: '#fbbf24', lineHeight: 1.5 }}>
-        <span><strong style={{ color: '#fde68a' }}>Em construção:</strong> os papéis e permissões estão sendo definidos aqui, mas a aplicação dos checks no resto do app é progressiva.</span>
-      </div>
-
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
 
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
