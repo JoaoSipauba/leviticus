@@ -193,10 +193,12 @@ jobs:
 
           # Manifest parcial só dessa plataforma. O job de publish baixa, mescla e
           # gera o latest.json final com todas as plataformas presentes.
+          # Usa node (sempre presente no runner) em vez de jq — o runner
+          # self-hosted Windows não tem jq instalado.
           SIG=$(cat "$UPDATER_SIG")
           URL="${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${TAG}/${UPDATER_NAME}"
-          jq -n --arg signature "$SIG" --arg url "$URL" \
-            '{signature:$signature, url:$url}' > "platform-${PLATFORM}.json"
+          node -e 'const fs=require("fs");const[p,s,u]=process.argv.slice(1);fs.writeFileSync(`platform-${p}.json`,JSON.stringify({signature:s,url:u}))' \
+            "$PLATFORM" "$SIG" "$URL"
           upload "platform-${PLATFORM}.json" "${TAG}/platforms/${PLATFORM}.json"
 
   publish:
