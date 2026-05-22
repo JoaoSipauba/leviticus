@@ -11,11 +11,10 @@
 //   - inline rename input (autofocus, right panel)
 //   - "salvar" blue text button (right panel, lowercase per source)
 //   - "Renomear" button (right panel)
-//   - "Deletar" red button (right panel)
-//   - window.confirm is used for delete → stubConfirm required
+//   - "Deletar" red button (right panel) → abre ConfirmModal
 
 import { browser, $, expect } from '@wdio/globals'
-import { cleanLocalSqlite, setReactInputValue, signupAndCreateOrg, stubConfirm } from '../helpers/app.js'
+import { cleanLocalSqlite, setReactInputValue, signupAndCreateOrg, confirmModalAction } from '../helpers/app.js'
 import { makeAdminClient } from '../helpers/supabase.js'
 
 describe('Journey D — Org Roles CRUD', () => {
@@ -70,9 +69,12 @@ describe('Journey D — Org Roles CRUD', () => {
     await renomearBtn.waitForExist({ timeout: 10_000 })
     await renomearBtn.click()
 
-    // Inline rename input appears (autofocus). It is the only active input.
+    // Inline rename input (data-testid estável — o seletor genérico 'input'
+    // é ambíguo e racy). Esperar montar antes de setar o valor.
+    const renameInput = '[data-testid="role-rename-input"]'
+    await $(renameInput).waitForExist({ timeout: 10_000, timeoutMsg: 'Rename input não montou' })
     const renamedTo = `Renamed T1 ${Date.now()}`
-    await setReactInputValue('input', renamedTo)
+    await setReactInputValue(renameInput, renamedTo)
 
     // Click "salvar" (lowercase blue text button next to the input)
     const salvarBtn = $('button=salvar')
@@ -94,7 +96,8 @@ describe('Journey D — Org Roles CRUD', () => {
 
     // ─── Reserved-name guard: try renaming to "Dono" ─────────────────────
     await renomearBtn.click()
-    await setReactInputValue('input', 'Dono')
+    await $(renameInput).waitForExist({ timeout: 10_000, timeoutMsg: 'Rename input não montou' })
+    await setReactInputValue(renameInput, 'Dono')
     await salvarBtn.click()
 
     // OrgRoles renders error as plain <p> (no role="alert").
@@ -120,12 +123,11 @@ describe('Journey D — Org Roles CRUD', () => {
     const roleName = `Test Role T2 ${Date.now()}`
     const roleId = await createRoleViaUI(roleName)
 
-    // Role is auto-selected. Stub confirm before clicking Deletar.
-    await stubConfirm(true)
-
+    // Role is auto-selected. "Deletar" abre um ConfirmModal — confirmar nele.
     const deletarBtn = $('button*=Deletar')
     await deletarBtn.waitForExist({ timeout: 10_000 })
     await deletarBtn.click()
+    await confirmModalAction()
 
     // Poll for ABSENCE
     let deleted = false
@@ -183,8 +185,8 @@ describe('Journey D — Org Roles CRUD', () => {
     await roleItem.waitForExist({ timeout: 15_000, timeoutMsg: `Role "${roleName}" not visible in list` })
     await roleItem.click()
 
-    // Stub confirm and attempt delete
-    await stubConfirm(true)
+    // Papel com membros: clicar "Deletar" mostra erro inline e NÃO abre o
+    // ConfirmModal (guard em requestDeleteRole intercepta antes).
     const deletarBtn = $('button*=Deletar')
     await deletarBtn.waitForExist({ timeout: 10_000 })
     await deletarBtn.click()

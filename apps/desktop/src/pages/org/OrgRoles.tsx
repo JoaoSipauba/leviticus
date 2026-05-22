@@ -262,6 +262,7 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                   {editingName ? (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} autoFocus
+                        data-testid="role-rename-input"
                         onKeyDown={(e) => { if (e.key === 'Enter') void renameRole(); if (e.key === 'Escape') setEditingName(false) }}
                         style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '4px 8px', fontSize: 15, color: '#f3f4f6', outline: 'none' }} />
                       <button onClick={() => void renameRole()}

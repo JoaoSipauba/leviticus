@@ -10,7 +10,7 @@ import {
   createOrgWithOwner,
   createInviteCode,
 } from '../helpers/supabase.js'
-import { cleanLocalSqlite, setReactInputValue, stubConfirm } from '../helpers/app.js'
+import { cleanLocalSqlite, setReactInputValue, confirmModalAction } from '../helpers/app.js'
 
 describe('Journey #6 — Org invites', () => {
   describe('Test 1 — Owner generates and revokes an invite code', () => {
@@ -144,9 +144,9 @@ describe('Journey #6 — Org invites', () => {
       await revogarBtn.waitForExist({ timeout: 30_000 })
       await revogarBtn.waitForEnabled({ timeout: 5_000 })
 
-      // OrgInvites.handleRevoke uses window.confirm — stub it to silently accept.
-      await stubConfirm(true)
+      // Revogar abre um ConfirmModal — clicar o gatilho e confirmar no modal.
       await revogarBtn.click()
+      await confirmModalAction()
 
       // ─── Poll for is_active === false ──────────────────────────────────
       let revokedRow: { is_active: boolean } | null = null

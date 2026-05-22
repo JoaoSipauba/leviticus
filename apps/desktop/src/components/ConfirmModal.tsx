@@ -49,7 +49,7 @@ export function ConfirmModal({
               style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
               {cancelLabel}
             </button>
-            <button onClick={onConfirm} disabled={pending}
+            <button onClick={onConfirm} disabled={pending} data-testid="confirm-modal-confirm"
               style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: accent, border: 'none', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
               {pending ? 'Aguarde…' : confirmLabel}
             </button>
