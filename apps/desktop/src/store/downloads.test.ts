@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { classifyError, selectAggregate } from './downloads.js'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { classifyError, selectAggregate, useDownloadsStore } from './downloads.js'
+import { startDownload } from '../lib/ytdlp.js'
 
 // Mocks necessários antes de importar o store
 vi.mock('../lib/ytdlp.js', () => ({
@@ -7,6 +8,9 @@ vi.mock('../lib/ytdlp.js', () => ({
   deleteSongFile: vi.fn().mockResolvedValue(undefined),
   DOWNLOAD_CANCELED: 'canceled',
 }))
+
+const { trackEventMock } = vi.hoisted(() => ({ trackEventMock: vi.fn() }))
+vi.mock('../lib/analytics.js', () => ({ trackEvent: trackEventMock }))
 
 describe('classifyError', () => {
   it('classifica patterns conhecidos como permanent', () => {
@@ -68,5 +72,33 @@ describe('selectAggregate', () => {
     } as never
     const agg = selectAggregate({ byId } as never)
     expect(agg.totalProgress).toBe(0)
+  })
+})
+
+describe('analytics — download events', () => {
+  beforeEach(() => {
+    trackEventMock.mockClear()
+  })
+
+  it('emite download_succeeded quando o download conclui', async () => {
+    vi.mocked(startDownload).mockReturnValue({ promise: Promise.resolve(''), cancel: vi.fn() })
+    useDownloadsStore.getState().enqueue('song-ok', 'http://yt/ok')
+    await vi.waitFor(() =>
+      expect(trackEventMock).toHaveBeenCalledWith('download_succeeded', { songId: 'song-ok' }),
+    )
+  })
+
+  it('emite download_failed em falha permanente', async () => {
+    vi.mocked(startDownload).mockReturnValue({
+      promise: Promise.reject(new Error('Video unavailable')),
+      cancel: vi.fn(),
+    })
+    useDownloadsStore.getState().enqueue('song-bad', 'http://yt/bad')
+    await vi.waitFor(() =>
+      expect(trackEventMock).toHaveBeenCalledWith(
+        'download_failed',
+        expect.objectContaining({ songId: 'song-bad' }),
+      ),
+    )
   })
 })
