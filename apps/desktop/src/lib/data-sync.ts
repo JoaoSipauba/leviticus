@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 import { supabase } from './supabase.js'
 import { syncOrg } from './sync.js'
 import { useUIStore } from '../store/ui.js'
+import { usePermissionsStore } from '../store/permissions.js'
 import { captureException } from './observability.js'
 
 // Sync reativo: escuta mudanças no Supabase (Realtime) E refocus da janela,
@@ -48,6 +49,8 @@ function scheduleSync(orgId: string) {
         // Sem isso, componentes ficam com state cacheado e o usuário não vê
         // a mudança até navegar.
         useUIStore.getState().bumpLibrary()
+        const currentOrg = localStorage.getItem('leviticus_org_id')
+        if (currentOrg) void usePermissionsStore.getState().refresh(currentOrg)
       })
       .catch((e) => captureException(e, { feature: 'sync', step: 'reactive-pass' }))
   }, DEBOUNCE_MS)

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase.js'
+import { usePermissionsStore } from './permissions.js'
 
 type AuthState = {
   user: User | null
@@ -19,5 +20,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   signOut: async () => {
     await supabase.auth.signOut()
     set({ user: null, session: null, loading: false })
+    usePermissionsStore.getState().clear()
   },
 }))
