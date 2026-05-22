@@ -117,6 +117,12 @@ vi.mock('../lib/audio-meta.js', () => ({
   backfillDurationFromFile: backfillMock,
 }))
 
+const { trackEventMock } = vi.hoisted(() => ({ trackEventMock: vi.fn() }))
+vi.mock('../lib/analytics.js', () => ({
+  trackEvent: trackEventMock,
+  flushAnalyticsQueue: vi.fn(),
+}))
+
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/core', () => ({ convertFileSrc: (p: string) => p, invoke: vi.fn() }))
@@ -473,5 +479,30 @@ describe('PlayerMini', () => {
 
     // After toggle, title changes
     expect(screen.getByTitle('Desativar repetição (R)')).toBeInTheDocument()
+  })
+})
+
+// ── Analytics events ──────────────────────────────────────────────────────────
+
+describe('analytics events', () => {
+  beforeEach(() => {
+    trackEventMock.mockClear()
+    handleSongEndMock.mockClear()
+    playerState.currentSong = null
+    playerState.currentPlaylist = null
+    playerState.isPlaying = false
+    playerState.playlistSongs = []
+    playerState.playlistPosition = null
+  })
+
+  it('emite song_played quando uma música começa a tocar', () => {
+    playerState.currentSong = { ...baseSong }
+    playerState.currentPlaylist = { id: 'culto-1' }
+    render(<PlayerMini />)
+
+    expect(trackEventMock).toHaveBeenCalledWith(
+      'song_played',
+      expect.objectContaining({ songId: 'song-1', playlistId: 'culto-1' }),
+    )
   })
 })

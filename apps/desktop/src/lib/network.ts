@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http'
 import { env } from '../env.js'
+import { flushAnalyticsQueue } from './analytics.js'
 
 // Issue #31: detecção de offline real (não só navigator.onLine).
 //
@@ -71,6 +72,8 @@ async function runCheck() {
   const current = useNetworkStore.getState().online
   if (online !== current) {
     useNetworkStore.getState().setOnline(online)
+    // Voltou pra online — drena eventos de analytics acumulados offline.
+    if (online) void flushAnalyticsQueue()
   }
 }
 
