@@ -5,6 +5,11 @@ import { uploadResumable } from './upload.js'
 import { setBackupStatus } from './status.js'
 import type { AudioCategory } from './format-detection.js'
 
+// Guard in-flight: impede dois callers concorrentes (sync-worker runPass,
+// startInitialSync, AddSongModal) de subir a MESMA música ao mesmo tempo —
+// o que criava arquivos duplicados no Drive. Issue #122.
+const inFlightUploads = new Set<string>()
+
 export type UploadSongOpts = {
   orgId: string
   songId: string
@@ -36,11 +41,22 @@ const MIME_BY_EXT: Record<string, string> = {
  * 6. Atualiza songs.backup_status='uploaded'
  *
  * Se qualquer passo falhar, marca backup_status='failed' e propaga.
+ *
+ * Um retorno sem erro NÃO garante que ESTE caller subiu o arquivo: se outro
+ * caller já está subindo a mesma música (guard in-flight), a função retorna
+ * no-op e o outro caller conclui o backup e seta o backup_status. Issue #122.
  */
 export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
   if (opts.kind === 'unsupported') {
     throw new Error(`Formato não suportado: ${opts.ext}`)
   }
+
+  if (inFlightUploads.has(opts.songId)) {
+    // Outro caller já está subindo essa música nesta sessão. No-op: o
+    // backup (e o backup_status) será concluído por aquele caller. #122
+    return
+  }
+  inFlightUploads.add(opts.songId)
 
   let uploadPath = opts.filePath
   let uploadExt = opts.ext
@@ -67,6 +83,18 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
       mimeType,
     })
 
+    // Idempotência server-side: se o arquivo já existe no Drive (outro
+    // device ou sessão anterior já subiu), o servidor devolve o fileId em vez
+    // de uma sessão. Reconcilia o estado local sem re-upload. Issue #122.
+    if ('alreadyExists' in session) {
+      await setBackupStatus(opts.songId, 'uploaded', {
+        cloud_file_id: session.fileId,
+        cloud_file_size: session.size,
+        cloud_file_hash: hash,
+      })
+      return
+    }
+
     // 4. Upload chunked — a resposta final do PUT já contém o file
     // resource do Drive (id, size, mimeType). Antes chamávamos
     // `getFileInfo(orgId, sessionId)` mas o sessionId é o `upload_id`,
@@ -92,5 +120,7 @@ export async function uploadSongToDrive(opts: UploadSongOpts): Promise<void> {
       // sem-op deliberado
     }
     throw err
+  } finally {
+    inFlightUploads.delete(opts.songId)
   }
 }

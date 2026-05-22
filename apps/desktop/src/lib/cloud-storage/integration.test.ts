@@ -56,6 +56,7 @@ describe('integração: upload happy path', () => {
       ))
 
     const session = await createUploadSession('org-1', { filename: 'a.opus', size: 3, mimeType: 'audio/opus' })
+    if ('alreadyExists' in session) throw new Error('expected new upload session')
     expect(session.sessionUrl).toBe('https://up')
 
     await uploadResumable({ filePath: '/x', session })

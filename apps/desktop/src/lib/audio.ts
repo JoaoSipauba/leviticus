@@ -31,6 +31,47 @@ function inferFormat(filePath: string): string[] {
   return [ext]
 }
 
+// Cria uma Howl e fia a detecção de fim de faixa.
+//
+// O `onend` do Howler é flaky com `html5: true` (obrigatório no Tauri pelo
+// protocolo asset://) — não dispara de forma confiável, principalmente após
+// recriar a Howl no repeat-one (issues #63, #116: a faixa acabava, o tempo
+// passava da duração e o repeat não acontecia). A correção anexa o evento
+// `ended` nativo do HTMLMediaElement como fonte da verdade. Todos os
+// caminhos (onend do Howler, `ended` nativo, sanity check) funilam por
+// `fireEnd`, que dispara `onEnd` no máximo uma vez por instância de Howl.
+function createHowl(src: string, format: string[], callbacks: AudioCallbacks | undefined): Howl {
+  let endFired = false
+  const fireEnd = () => {
+    if (endFired) return
+    endFired = true
+    callbacks?.onEnd?.()
+  }
+
+  const howl = new Howl({
+    src: [src],
+    format,
+    html5: true,
+    autoplay: true,
+    volume: callbacks?.volume ?? 1,
+    onend: fireEnd,
+    onload: callbacks?.onLoad,
+    onloaderror: (_id, err) => captureException(err, { feature: 'audio', step: 'load' }),
+    onplayerror: (_id, err) => captureException(err, { feature: 'audio', step: 'play' }),
+  })
+
+  howl.once('load', () => {
+    const node = (howl as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds?.[0]?._node
+    if (!node) return
+    node.addEventListener('ended', fireEnd)
+    // Sanity check: se o evento `ended` não propagar, a flag nativa `ended`
+    // do elemento ainda é setada ao chegar no fim — pega num `timeupdate`.
+    node.addEventListener('timeupdate', () => { if (node.ended) fireEnd() })
+  })
+
+  return howl
+}
+
 export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   if (_howl) {
     _howl.stop()
@@ -42,17 +83,7 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   _currentSrc = src
   _currentFormat = format
   _currentCallbacks = callbacks
-  _howl = new Howl({
-    src: [src],
-    format,
-    html5: true,
-    autoplay: true,
-    volume: callbacks?.volume ?? 1,
-    onend: callbacks?.onEnd,
-    onload: callbacks?.onLoad,
-    onloaderror: (_id, err) => captureException(err, { feature: 'audio', step: 'load' }),
-    onplayerror: (_id, err) => captureException(err, { feature: 'audio', step: 'play' }),
-  })
+  _howl = createHowl(src, format, callbacks)
 
   return _howl
 }
@@ -62,17 +93,7 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
 export function restartCurrent(): void {
   if (!_currentSrc) return
   if (_howl) { _howl.stop(); _howl.unload() }
-  _howl = new Howl({
-    src: [_currentSrc],
-    format: _currentFormat,
-    html5: true,
-    autoplay: true,
-    volume: _currentCallbacks?.volume ?? 1,
-    onend: _currentCallbacks?.onEnd,
-    onload: _currentCallbacks?.onLoad,
-    onloaderror: (_id, err) => captureException(err, { feature: 'audio', step: 'load' }),
-    onplayerror: (_id, err) => captureException(err, { feature: 'audio', step: 'play' }),
-  })
+  _howl = createHowl(_currentSrc, _currentFormat, _currentCallbacks)
 }
 
 export function getCurrentHowl(): Howl | null {

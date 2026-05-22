@@ -4,6 +4,7 @@ vi.mock('../lib/db.js', () => ({
   getDb: vi.fn().mockResolvedValue({
     select: vi.fn().mockResolvedValue([]),
   }),
+  getLastSync: vi.fn().mockResolvedValue(null),
 }))
 vi.mock('../lib/cloud-storage/client.js', () => ({
   getQuota: vi.fn(),
@@ -12,7 +13,7 @@ vi.mock('../lib/cloud-storage/client.js', () => ({
 }))
 
 import { useIntegrationsStore } from './integrations.js'
-import { getDb } from '../lib/db.js'
+import { getDb, getLastSync } from '../lib/db.js'
 
 describe('integrationsStore', () => {
   beforeEach(() => {
@@ -47,9 +48,17 @@ describe('integrationsStore', () => {
     expect(s.status).toBe('connected')
   })
 
-  it('refreshAccount marca status disconnected quando vazio', async () => {
+  it('refreshAccount marca disconnected quando vazio e sync já rodou', async () => {
     ;(await getDb() as any).select.mockResolvedValueOnce([])
+    ;(getLastSync as any).mockResolvedValueOnce('2026-05-21T00:00:00Z')
     await useIntegrationsStore.getState().refreshAccount('o1')
     expect(useIntegrationsStore.getState().status).toBe('disconnected')
+  })
+
+  it('refreshAccount marca unknown quando vazio e sync nunca rodou', async () => {
+    ;(await getDb() as any).select.mockResolvedValueOnce([])
+    ;(getLastSync as any).mockResolvedValueOnce(null)
+    await useIntegrationsStore.getState().refreshAccount('o1')
+    expect(useIntegrationsStore.getState().status).toBe('unknown')
   })
 })

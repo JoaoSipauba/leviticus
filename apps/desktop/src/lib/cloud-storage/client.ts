@@ -8,7 +8,7 @@ import { env } from '../../env.js'
 import type {
   ProviderId,
   QuotaInfo,
-  UploadSession,
+  UploadSessionResult,
   CloudFileInfo,
   EdgeFunctionError,
 } from './types.js'
@@ -50,7 +50,7 @@ export async function createUploadSession(orgId: string, params: {
   filename: string
   size: number
   mimeType: string
-}): Promise<UploadSession> {
+}): Promise<UploadSessionResult> {
   return callEdge('upload-session', {
     org_id: orgId,
     filename: params.filename,

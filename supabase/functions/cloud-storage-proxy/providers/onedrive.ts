@@ -11,6 +11,7 @@ export const oneDriveProvider: CloudStorageProvider = {
   refreshAccessToken() { throw new NotImplementedError('onedrive') },
   revokeToken() { throw new NotImplementedError('onedrive') },
   ensureAppFolder() { throw new NotImplementedError('onedrive') },
+  findFileInFolder() { throw new NotImplementedError('onedrive') },
   getQuota() { throw new NotImplementedError('onedrive') },
   createUploadSession() { throw new NotImplementedError('onedrive') },
   generateDownloadUrl() { throw new NotImplementedError('onedrive') },

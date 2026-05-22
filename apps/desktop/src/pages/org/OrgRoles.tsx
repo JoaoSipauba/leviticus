@@ -9,6 +9,7 @@ import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton } from '../../components/Skeleton.js'
+import { ConfirmModal } from '../../components/ConfirmModal.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -49,6 +50,8 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
   const [editingName, setEditingName] = useState(false)
   const [renameValue, setRenameValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const saveTimer = useRef<number | null>(null)
 
   async function load() {
@@ -151,17 +154,29 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
     await load()
   }
 
-  async function deleteRole() {
+  function requestDeleteRole() {
     if (!selectedId || isDono) return
     if (selected && selected.memberCount > 0) {
       setError('Esse papel ainda tem membros — atribua outro papel antes de deletar.')
       return
     }
-    if (!window.confirm(`Deletar o papel "${selected?.name}"?`)) return
+    setError(null)
+    setShowDeleteConfirm(true)
+  }
+
+  async function deleteRole() {
+    if (!selectedId || isDono) return
+    setDeleting(true)
     const { error: e } = await supabase.from('roles').delete().eq('id', selectedId)
-    if (e) { captureException(e, { feature: 'org-roles' }); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.'); return }
+    if (e) {
+      captureException(e, { feature: 'org-roles' }); toastError('Algo deu errado', 'Tente novamente.'); setError('Algo deu errado.')
+      setDeleting(false); setShowDeleteConfirm(false)
+      return
+    }
     await syncOrg(orgId)
     toastSuccess('Papel deletado')
+    setDeleting(false)
+    setShowDeleteConfirm(false)
     setSelectedId(null)
     await load()
   }
@@ -247,6 +262,7 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                   {editingName ? (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} autoFocus
+                        data-testid="role-rename-input"
                         onKeyDown={(e) => { if (e.key === 'Enter') void renameRole(); if (e.key === 'Escape') setEditingName(false) }}
                         style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '4px 8px', fontSize: 15, color: '#f3f4f6', outline: 'none' }} />
                       <button onClick={() => void renameRole()}
@@ -265,7 +281,7 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>
                       <Pencil size={11} />Renomear
                     </button>
-                    <button onClick={() => void deleteRole()}
+                    <button onClick={requestDeleteRole}
                       style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(127,29,29,0.2)', border: '1px solid rgba(220,38,38,0.3)', color: '#fca5a5', cursor: 'pointer' }}>
                       <Trash2 size={11} />Deletar
                     </button>
@@ -305,6 +321,16 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={showDeleteConfirm}
+        title="Deletar papel?"
+        body={`O papel "${selected?.name ?? ''}" será removido permanentemente.`}
+        confirmLabel="Deletar"
+        pending={deleting}
+        onConfirm={() => void deleteRole()}
+        onClose={() => setShowDeleteConfirm(false)}
+      />
     </div>
   )
 }

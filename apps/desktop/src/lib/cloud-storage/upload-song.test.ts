@@ -82,4 +82,46 @@ describe('uploadSongToDrive', () => {
     })).rejects.toThrow('boom')
     expect(setBackupStatus).toHaveBeenCalledWith('song-3', 'failed')
   })
+
+  it('guard in-flight: segunda chamada concorrente pro mesmo songId é no-op', async () => {
+    const opts = {
+      orgId: 'o1', songId: 'song-dup', filePath: '/local/song-dup.mp3',
+      ext: 'mp3', kind: 'lossy' as const,
+    }
+    // Chamadas concorrentes: inFlightUploads.add() é síncrono — roda antes
+    // de qualquer await — então a segunda chamada encontra a guarda antes
+    // que a primeira resolva qualquer await.
+    const first = uploadSongToDrive(opts)
+    const second = uploadSongToDrive(opts)
+    await Promise.all([first, second])
+    // A segunda virou no-op — createUploadSession só foi chamada uma vez.
+    expect(createUploadSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('idempotência: createUploadSession devolve alreadyExists → reconcilia sem upload', async () => {
+    ;(createUploadSession as any).mockResolvedValueOnce({
+      alreadyExists: true, fileId: 'gd-existing', size: 2048,
+    })
+    await uploadSongToDrive({
+      orgId: 'o1', songId: 'song-already', filePath: '/local/song-already.mp3',
+      ext: 'mp3', kind: 'lossy',
+    })
+    expect(uploadResumable).not.toHaveBeenCalled()
+    expect(setBackupStatus).toHaveBeenCalledWith('song-already', 'uploaded', expect.objectContaining({
+      cloud_file_id: 'gd-existing',
+      cloud_file_size: 2048,
+      cloud_file_hash: 'hash-abc',
+    }))
+  })
+
+  it('guard in-flight: libera o songId após concluir', async () => {
+    const opts = {
+      orgId: 'o1', songId: 'song-seq', filePath: '/local/song-seq.mp3',
+      ext: 'mp3', kind: 'lossy' as const,
+    }
+    await uploadSongToDrive(opts)
+    await uploadSongToDrive(opts)
+    // Sequencial (não concorrente): o segundo upload roda normalmente.
+    expect(createUploadSession).toHaveBeenCalledTimes(2)
+  })
 })

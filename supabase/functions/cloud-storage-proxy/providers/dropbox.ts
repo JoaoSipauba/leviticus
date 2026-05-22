@@ -10,6 +10,7 @@ export const dropboxProvider: CloudStorageProvider = {
   refreshAccessToken() { throw new NotImplementedError('dropbox') },
   revokeToken() { throw new NotImplementedError('dropbox') },
   ensureAppFolder() { throw new NotImplementedError('dropbox') },
+  findFileInFolder() { throw new NotImplementedError('dropbox') },
   getQuota() { throw new NotImplementedError('dropbox') },
   createUploadSession() { throw new NotImplementedError('dropbox') },
   generateDownloadUrl() { throw new NotImplementedError('dropbox') },

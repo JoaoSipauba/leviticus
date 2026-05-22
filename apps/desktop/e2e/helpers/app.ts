@@ -87,6 +87,23 @@ export async function stubConfirm(returnValue: boolean): Promise<void> {
   }, returnValue)
 }
 
+/**
+ * Confirma um `ConfirmModal` aberto. Vários fluxos destrutivos (revogar
+ * convite, deletar papel, etc.) migraram de `window.confirm` para o
+ * `ConfirmModal` — clicar o gatilho só abre o modal; a ação real dispara no
+ * botão de confirmar dentro dele.
+ *
+ * Clica o botão de confirmar pelo `data-testid="confirm-modal-confirm"` —
+ * estável, sem depender de texto (que colide com o botão-gatilho) nem de
+ * navegação de DOM. Ver ConfirmModal.tsx.
+ */
+export async function confirmModalAction(): Promise<void> {
+  const confirmBtn = $('[data-testid="confirm-modal-confirm"]')
+  await confirmBtn.waitForExist({ timeout: 10_000, timeoutMsg: 'ConfirmModal não abriu' })
+  await confirmBtn.waitForEnabled({ timeout: 5_000 })
+  await confirmBtn.click()
+}
+
 /** Resolves the path Tauri's shell capability maps to for `yt-dlp` (and `ffmpeg`). */
 export function appLocalBinDir(): string {
   if (platform() === 'darwin') {

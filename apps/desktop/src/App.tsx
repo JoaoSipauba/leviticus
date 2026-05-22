@@ -17,6 +17,7 @@ import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
+import { flushAnalyticsQueue, trackEvent } from './lib/analytics.js'
 
 // v2: bumped após adicionar ffmpeg como fonte de verdade pra duração.
 // v1 escrevia valores 2× pra VBR mp3 (parser HTMLAudio). v2 re-roda
@@ -81,8 +82,21 @@ export function App() {
           setBootBackfillDone(true) // sem session, não há música pra backfillar
         } else {
           const orgId = localStorage.getItem('leviticus_org_id')
+          // 1 evento por abertura do app (só com sessão — trackEvent já
+          // descarta eventos sem usuário).
+          trackEvent('app_opened')
           if (orgId) {
             syncOrg(orgId)
+              .then(() => {
+                // Re-checa o status de cloud agora que o syncOrg populou
+                // cloud_storage_accounts no SQLite. Sem isso, o refreshAccount
+                // do boot (rodado antes do sync) deixa o store
+                // preso em 'unknown' num device já configurado, e o banner
+                // falso "Sem backup configurado" aparece. Issue #121.
+                void useIntegrationsStore.getState().refreshAccount(orgId).catch(
+                  (e) => console.warn('[boot] refreshAccount pós-sync falhou:', e)
+                )
+              })
               .then(() => cleanupAudioOrphans())
               .then(() => {
                 // Boot-time backfill de duration_seconds. Encadeado APÓS
@@ -203,6 +217,14 @@ export function App() {
     return () => {
       unlisten?.()
     }
+  }, [])
+
+  // Drena a fila de analytics no boot e a cada 1 min enquanto o app está
+  // aberto. Eventos gerados offline ficam na fila e sobem quando há rede.
+  useEffect(() => {
+    void flushAnalyticsQueue()
+    const interval = setInterval(() => void flushAnalyticsQueue(), 60_000)
+    return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
