@@ -93,13 +93,17 @@ describe('OrgInvites', () => {
     expect(screen.getByTestId('invite-modal')).toBeInTheDocument()
   })
 
-  it('botão revogar chama supabase.rpc e recarrega lista', async () => {
+  it('botão revogar abre confirmação e chama supabase.rpc', async () => {
     setupMocks()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     rpcMock.mockResolvedValue({ data: { ok: true }, error: null })
     render(<OrgInvites orgId={ORG_ID} />)
     await screen.findByText('ABC-123')
-    await userEvent.click(screen.getByRole('button', { name: /Revogar/i }))
+    // clica no botão da linha → abre o modal de confirmação
+    await userEvent.click(screen.getByRole('button', { name: 'Revogar' }))
+    await screen.findByText('Revogar código?')
+    // confirma no modal (último botão "Revogar" — o de confirmação)
+    const revogarBtns = screen.getAllByRole('button', { name: 'Revogar' })
+    await userEvent.click(revogarBtns[revogarBtns.length - 1]!)
     await waitFor(() => expect(rpcMock).toHaveBeenCalledWith('revoke_invite_code', { p_code_id: 'c1' }))
     expect(syncOrgMock).toHaveBeenCalledWith(ORG_ID)
     expect(toastSuccessMock).toHaveBeenCalledWith('Código revogado')
@@ -107,11 +111,13 @@ describe('OrgInvites', () => {
 
   it('erro do revoke mostra mensagem de erro', async () => {
     setupMocks()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     rpcMock.mockResolvedValue({ data: null, error: { message: 'fail' } })
     render(<OrgInvites orgId={ORG_ID} />)
     await screen.findByText('ABC-123')
-    await userEvent.click(screen.getByRole('button', { name: /Revogar/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Revogar' }))
+    await screen.findByText('Revogar código?')
+    const revogarBtns = screen.getAllByRole('button', { name: 'Revogar' })
+    await userEvent.click(revogarBtns[revogarBtns.length - 1]!)
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
     expect(screen.getByText('Algo deu errado. Tente novamente.')).toBeInTheDocument()
     expect(syncOrgMock).not.toHaveBeenCalled()
