@@ -99,7 +99,7 @@ describe('EditSongModal', () => {
     uiStoreState.songToEdit = null
     uiStoreState.songToEditGroups = ['group-1']
     localStorage.setItem('leviticus_org_id', 'org-1')
-    rpcMock.mockResolvedValue({ error: null })
+    rpcMock.mockResolvedValue({ data: { ok: true }, error: null })
   })
 
   afterEach(() => {
