@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.12.1](https://github.com/JoaoSipauba/leviticus/compare/v0.12.0...v0.12.1) (2026-05-22)
+
 ## [0.12.0](https://github.com/JoaoSipauba/leviticus/compare/v0.11.0...v0.12.0) (2026-05-22)
 
 ### Funcionalidades
