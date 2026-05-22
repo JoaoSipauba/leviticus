@@ -17,8 +17,10 @@ vi.mock('../../lib/supabase.js', () => ({
   },
 }))
 
-vi.mock('../../lib/permissions.js', () => ({
-  isOwner: vi.fn().mockResolvedValue(true),
+const { ownerRef } = vi.hoisted(() => ({ ownerRef: { value: true } }))
+vi.mock('../../store/permissions.js', () => ({
+  usePermissionsStore: (selector: (s: { isOwner: boolean }) => unknown) =>
+    selector({ isOwner: ownerRef.value }),
 }))
 
 vi.mock('../../components/org/TransferOwnershipModal.js', () => ({
@@ -49,6 +51,7 @@ function renderDanger(orgId = 'org-1') {
 describe('OrgDanger', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ownerRef.value = true
   })
 
   it('renderiza seções "Transferir propriedade" e "Deletar organização" para o dono', async () => {
@@ -78,8 +81,7 @@ describe('OrgDanger', () => {
   })
 
   it('não exibe botão Sair nem seções de owner quando não é dono', async () => {
-    const { isOwner } = await import('../../lib/permissions.js')
-    vi.mocked(isOwner).mockResolvedValueOnce(false)
+    ownerRef.value = false
 
     renderDanger()
     await waitFor(() => screen.getByText('Sair da organização'))
@@ -90,8 +92,7 @@ describe('OrgDanger', () => {
   })
 
   it('clicar Sair abre RemoveMemberModal para não-dono', async () => {
-    const { isOwner } = await import('../../lib/permissions.js')
-    vi.mocked(isOwner).mockResolvedValueOnce(false)
+    ownerRef.value = false
 
     renderDanger()
     await waitFor(() => screen.getByRole('button', { name: /^Sair$/ }))

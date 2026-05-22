@@ -9,8 +9,9 @@ vi.mock('../lib/db.js', () => ({
   getDb: vi.fn(),
 }))
 
-vi.mock('../lib/permissions.js', () => ({
-  hasPermission: vi.fn(),
+const { permRef } = vi.hoisted(() => ({ permRef: { value: false } }))
+vi.mock('../store/permissions.js', () => ({
+  usePermission: () => permRef.value,
 }))
 
 // Stub every sub-page so the container test stays isolated
@@ -22,7 +23,6 @@ vi.mock('./org/OrgIntegrations.js', () => ({ OrgIntegrations: () => <div>OrgInte
 vi.mock('./org/OrgDanger.js', () => ({ OrgDanger: () => <div>OrgDanger</div> }))
 
 import { getDb } from '../lib/db.js'
-import { hasPermission } from '../lib/permissions.js'
 import { OrgManage } from './OrgManage.js'
 
 // ---- helpers ----
@@ -55,7 +55,7 @@ describe('OrgManage', () => {
     vi.clearAllMocks()
     localStorage.setItem('leviticus_org_id', 'org-1')
     vi.mocked(getDb).mockResolvedValue(makeDb() as any)
-    vi.mocked(hasPermission).mockResolvedValue(false)
+    permRef.value = false
   })
 
   // ------------------------------------------------------------------
@@ -76,7 +76,7 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('renderiza tabs de admin quando usuário tem manage_members e manage_roles', async () => {
-    vi.mocked(hasPermission).mockResolvedValue(true)
+    permRef.value = true
 
     renderAt('members')
 
@@ -124,7 +124,7 @@ describe('OrgManage', () => {
   // da URL — antes ele era estado local fixado na montagem e ignorava a
   // navegação externa.
   it('reage a navegação externa que muda ?tab', async () => {
-    vi.mocked(hasPermission).mockResolvedValue(true)
+    permRef.value = true
     const user = userEvent.setup()
 
     render(
@@ -160,7 +160,7 @@ describe('OrgManage', () => {
 
   // ------------------------------------------------------------------
   it('exibe contadores de membros, convites e papéis nos tabs', async () => {
-    vi.mocked(hasPermission).mockResolvedValue(true)
+    permRef.value = true
     vi.mocked(getDb).mockResolvedValue(makeDb({ memberCnt: 5, inviteCnt: 2, roleCnt: 4 }) as any)
 
     renderAt('members')

@@ -7,7 +7,7 @@ import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
-import { hasPermission } from '../lib/permissions.js'
+import { usePermission } from '../store/permissions.js'
 import { useUIStore } from '../store/ui.js'
 
 type Props = {
@@ -40,7 +40,7 @@ export function AddSongToPlaylistModal({
   const [alreadyInSection, setAlreadyInSection] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
   // Issue: aba "Baixar nova" só aparece pra quem pode adicionar músicas.
-  const [canAddNew, setCanAddNew] = useState(false)
+  const canAddNew = usePermission('add_songs')
   const online = useOnlineStatus()
   const openAddSong = useUIStore((s) => s.openAddSong)
 
@@ -49,10 +49,6 @@ export function AddSongToPlaylistModal({
     setQuery(''); setError(null); setAddedIds(new Set())
     setFilterToGroup(Boolean(groupId))
     void load()
-    const orgId = localStorage.getItem('leviticus_org_id') ?? ''
-    if (orgId) {
-      void hasPermission('add_songs', orgId).then(setCanAddNew)
-    }
   }, [open, playlistId])
 
   // "Baixar nova": fecha o seletor e abre o AddSongModal com o contexto

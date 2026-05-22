@@ -34,8 +34,8 @@ vi.mock('../../lib/sync.js', () => ({
   syncOrg: syncOrgMock,
 }))
 
-vi.mock('../../lib/permissions.js', () => ({
-  hasPermission: vi.fn().mockImplementation(() => Promise.resolve(canEditRef.value)),
+vi.mock('../../store/permissions.js', () => ({
+  usePermission: () => canEditRef.value,
 }))
 
 vi.mock('../../store/toasts.js', () => ({
