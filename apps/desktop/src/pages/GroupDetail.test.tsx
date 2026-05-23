@@ -58,6 +58,8 @@ vi.mock('../components/SongCard.js', () => ({
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/path', () => ({ appLocalDataDir: vi.fn().mockResolvedValue('/data/') }))
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
 
 // ─── import after mocks ────────────────────────────────────────────────────
 
@@ -102,6 +104,16 @@ describe('GroupDetail', () => {
     vi.clearAllMocks()
     localStorage.setItem('leviticus_org_id', 'org-1')
     uiStoreState.librarySeed = 0
+    permState.value = true
+  })
+
+  it('esconde Editar/Excluir do ministério sem manage_groups', async () => {
+    permState.value = false
+    setupDb()
+    render(<GroupDetail />)
+    await waitFor(() => screen.getByText('Louvor'))
+    expect(screen.queryByText('Editar')).not.toBeInTheDocument()
+    expect(screen.queryByText('Excluir')).not.toBeInTheDocument()
   })
 
   afterEach(() => {

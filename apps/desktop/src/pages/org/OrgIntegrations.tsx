@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { open as openExternal } from '@tauri-apps/plugin-shell'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { useIntegrationsStore } from '../../store/integrations.js'
-import { hasPermission } from '../../lib/permissions.js'
+import { usePermission } from '../../store/permissions.js'
 import * as cs from '../../lib/cloud-storage/client.js'
 import { getLeviticusUsedBytes } from '../../lib/cloud-storage/quota.js'
 import { getDb } from '../../lib/db.js'
@@ -29,7 +29,7 @@ export function OrgIntegrations({ orgId, active = false }: Props) {
   const refreshQuota = useIntegrationsStore((s) => s.refreshQuota)
   const clearAccount = useIntegrationsStore((s) => s.clearAccount)
 
-  const [canManage, setCanManage] = useState(false)
+  const canManage = usePermission('manage_integrations')
   const [connecting, setConnecting] = useState(false)
   const [swapOpen, setSwapOpen] = useState(false)
   const [disconnectOpen, setDisconnectOpen] = useState(false)
@@ -39,7 +39,6 @@ export function OrgIntegrations({ orgId, active = false }: Props) {
 
   // Carrega permissão + conta + quota + counts
   useEffect(() => {
-    void hasPermission('manage_integrations', orgId).then(setCanManage)
     void refreshAccount(orgId)
   }, [orgId, refreshAccount])
 

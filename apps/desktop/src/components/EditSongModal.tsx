@@ -8,6 +8,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useModalDismiss } from '../lib/useModalDismiss.js'
 import type { SongType } from '@leviticus/core'
 import { captureException } from '../lib/observability.js'
+import { permissionErrorMessage } from '../lib/permission-error.js'
 
 type GroupRow = { id: string; name: string }
 
@@ -240,7 +241,7 @@ export function EditSongModal() {
     setSaving(true)
     setError(null)
 
-    const { error: saveErr } = await supabase.rpc('update_song', {
+    const { data: saveData, error: saveErr } = await supabase.rpc('update_song', {
       p_song_id:         songToEdit.id,
       p_org_id:          songToEdit.org_id,
       p_youtube_url:     songToEdit.youtube_url,
@@ -253,9 +254,13 @@ export function EditSongModal() {
       p_group_ids:       selectedGroups.length > 0 ? selectedGroups : null,
     })
 
-    if (saveErr) {
-      captureException(saveErr, { feature: 'edit-song-modal', step: 'update-song-rpc-error', extras: { code: saveErr.code, message: saveErr.message } })
-      setError('Algo deu errado. Tente novamente.')
+    if (saveErr || !saveData?.ok) {
+      captureException(saveErr ?? new Error(`update_song: ${saveData?.error}`), {
+        feature: 'edit-song-modal', step: 'update-song-rpc-error',
+        extras: { code: saveErr?.code, message: saveErr?.message, rpcError: saveData?.error },
+      })
+      const permMsg = permissionErrorMessage(saveErr ?? saveData)
+      setError(permMsg ?? 'Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }

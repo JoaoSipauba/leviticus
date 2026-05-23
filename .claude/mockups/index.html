@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loading States — YouTube Search</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0c0c16;
+    color: #f3f4f6;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+    padding: 40px 24px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 32px;
+  }
+
+  .card {
+    background: #13131f;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #4b5563;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 99px;
+    letter-spacing: .04em;
+  }
+  .badge-current { background: rgba(75,85,99,0.3); color: #6b7280; }
+  .badge-new { background: rgba(37,99,235,0.25); color: #60a5fa; }
+
+  /* ── Shared search input ── */
+  .search-box {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    color: #9ca3af;
+    width: 100%;
+  }
+
+  /* ── Row (result card shape) ── */
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+  }
+
+  .thumb {
+    width: 56px; height: 36px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+    background: linear-gradient(135deg,#1e3a8a,#2563eb);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+  .row-info { flex: 1; min-width: 0; }
+  .row-title {
+    font-size: 12px; font-weight: 600; color: #f3f4f6;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .row-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+  .row-dur {
+    font-size: 10px; color: #4b5563; flex-shrink: 0;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px; border-radius: 4px;
+  }
+
+  /* ────────────────────────────────────────────
+     A: Current — centered spinner
+  ──────────────────────────────────────────── */
+  .spinner-wrap {
+    display: flex; justify-content: center; padding: 10px 0;
+  }
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(59,130,246,0.2);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ────────────────────────────────────────────
+     B: Skeleton cards
+  ──────────────────────────────────────────── */
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+  .skel {
+    background: linear-gradient(90deg,
+      rgba(255,255,255,0.04) 25%,
+      rgba(255,255,255,0.09) 50%,
+      rgba(255,255,255,0.04) 75%
+    );
+    background-size: 800px 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+    border-radius: 6px;
+  }
+  .skel-thumb { width: 56px; height: 36px; border-radius: 6px; flex-shrink: 0; }
+  .skel-line { height: 10px; border-radius: 4px; }
+  .skel-line-short { height: 9px; border-radius: 4px; width: 55%; margin-top: 5px; }
+
+  /* ────────────────────────────────────────────
+     C: Dots
+  ──────────────────────────────────────────── */
+  .dots-wrap {
+    display: flex; justify-content: center; align-items: center;
+    gap: 6px; padding: 12px 0;
+  }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #2563eb;
+    animation: dot-bounce .9s ease-in-out infinite;
+  }
+  .dot:nth-child(2) { animation-delay: .15s; background: #3b82f6; }
+  .dot:nth-child(3) { animation-delay: .30s; background: #60a5fa; }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: .4; }
+    40%           { transform: scale(1);   opacity: 1; }
+  }
+
+  /* ────────────────────────────────────────────
+     D: Blurred results (stale + spinner overlay)
+  ──────────────────────────────────────────── */
+  .stale-wrap { position: relative; }
+  .stale-rows { filter: blur(1.5px); opacity: 0.45; pointer-events: none; display: flex; flex-direction: column; gap: 6px; }
+  .stale-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    gap: 8px;
+  }
+  .stale-overlay .spinner { width: 14px; height: 14px; }
+  .stale-label { font-size: 11px; color: #6b7280; }
+
+  /* ────────────────────────────────────────────
+     E: Progress bar under search box
+  ──────────────────────────────────────────── */
+  .progress-track {
+    height: 2px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-top: -6px;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2563eb, #60a5fa);
+    border-radius: 99px;
+    animation: indeterminate 1.4s ease-in-out infinite;
+    transform-origin: left;
+  }
+  @keyframes indeterminate {
+    0%   { width: 0%;   margin-left: 0%; }
+    50%  { width: 60%;  margin-left: 20%; }
+    100% { width: 0%;   margin-left: 100%; }
+  }
+
+  /* ────────────────────────────────────────────
+     F: Pulse rows (ghost rows that pulse)
+  ──────────────────────────────────────────── */
+  @keyframes pulse {
+    0%, 100% { opacity: .35; }
+    50%       { opacity: .65; }
+  }
+  .pulse-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.05);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .pulse-row:nth-child(2) { animation-delay: .2s; }
+  .pulse-row:nth-child(3) { animation-delay: .4s; }
+  .pulse-row:nth-child(4) { animation-delay: .6s; }
+  .pulse-row:nth-child(5) { animation-delay: .8s; }
+  .pulse-thumb {
+    width: 56px; height: 36px; border-radius: 6px; flex-shrink: 0;
+    background: rgba(255,255,255,0.07);
+  }
+  .pulse-lines { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .pulse-line { height: 9px; background: rgba(255,255,255,0.07); border-radius: 4px; }
+  .pulse-line-short { width: 50%; }
+  .pulse-dur { width: 32px; height: 18px; background: rgba(255,255,255,0.05); border-radius: 4px; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<h1>Loading states — busca YouTube</h1>
+
+<div class="grid">
+
+  <!-- A: Current -->
+  <div class="card">
+    <div class="card-label">
+      A — Spinner centralizado
+      <span class="badge badge-current">atual</span>
+    </div>
+    <div class="search-box">hosanna hillsong</div>
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- B: Skeleton -->
+  <div class="card">
+    <div class="card-label">
+      B — Skeleton shimmer
+      <span class="badge badge-new">novo</span>
+    </div>
+    <div class="search-box">hosanna hillsong</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="row" style="background:transparent;border-color:rgba(255,255,255,0.05)">
+        <div class="skel skel-thumb"></div>
+        <div style="flex:1;min-width:0">
+          <div class="skel skel-line" style="width:80%"></div>
+          <div class="skel skel-line-short"></div>
+        </div>
+        <div class="skel" style="width:30px;height:16px;border-radius:4px;flex-shrink:0"></div>
+      </div>
+      <div class="row" style="background:transparent;border-color:rgba(255,255,255,0.05)">
+        <div class="skel skel-thumb"></div>
+        <div style="flex:1;min-width:0">
+          <div class="skel skel-line" style="width:65%"></div>
+          <div class="skel skel-line-short" style="width:40%"></div>
+        </div>
+        <div class="skel" style="width:30px;height:16px;border-radius:4px;flex-shrink:0"></div>
+      </div>
+      <div class="row" style="background:transparent;border-color:rgba(255,255,255,0.05)">
+        <div class="skel skel-thumb"></div>
+        <div style="flex:1;min-width:0">
+          <div class="skel skel-line" style="width:75%"></div>
+          <div class="skel skel-line-short" style="width:50%"></div>
+        </div>
+        <div class="skel" style="width:30px;height:16px;border-radius:4px;flex-shrink:0"></div>
+      </div>
+      <div class="row" style="background:transparent;border-color:rgba(255,255,255,0.05)">
+        <div class="skel skel-thumb"></div>
+        <div style="flex:1;min-width:0">
+          <div class="skel skel-line" style="width:60%"></div>
+          <div class="skel skel-line-short" style="width:35%"></div>
+        </div>
+        <div class="skel" style="width:30px;height:16px;border-radius:4px;flex-shrink:0"></div>
+      </div>
+      <div class="row" style="background:transparent;border-color:rgba(255,255,255,0.05)">
+        <div class="skel skel-thumb"></div>
+        <div style="flex:1;min-width:0">
+          <div class="skel skel-line" style="width:70%"></div>
+          <div class="skel skel-line-short" style="width:45%"></div>
+        </div>
+        <div class="skel" style="width:30px;height:16px;border-radius:4px;flex-shrink:0"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Dots -->
+  <div class="card">
+    <div class="card-label">
+      C — Pontos animados
+      <span class="badge badge-new">novo</span>
+    </div>
+    <div class="search-box">hosanna hillsong</div>
+    <div class="dots-wrap">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- D: Blurred stale -->
+  <div class="card">
+    <div class="card-label">
+      D — Resultados antigos desfocados
+      <span class="badge badge-new">novo</span>
+    </div>
+    <div class="search-box">hosanna hillsong 2</div>
+    <div class="stale-wrap">
+      <div class="stale-rows">
+        <div class="row">
+          <div class="thumb"></div>
+          <div class="row-info">
+            <div class="row-title">Hosanna — Hillsong Worship</div>
+            <div class="row-sub">Hillsong Worship</div>
+          </div>
+          <span class="row-dur">4:23</span>
+        </div>
+        <div class="row">
+          <div class="thumb"></div>
+          <div class="row-info">
+            <div class="row-title">Hosanna (Praise Is Rising)</div>
+            <div class="row-sub">Paul Baloche</div>
+          </div>
+          <span class="row-dur">5:01</span>
+        </div>
+        <div class="row">
+          <div class="thumb"></div>
+          <div class="row-info">
+            <div class="row-title">Hosanna — Alive Again</div>
+            <div class="row-sub">Matt Maher</div>
+          </div>
+          <span class="row-dur">3:55</span>
+        </div>
+      </div>
+      <div class="stale-overlay">
+        <div class="spinner"></div>
+        <span class="stale-label">Buscando…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- E: Progress bar -->
+  <div class="card">
+    <div class="card-label">
+      E — Barra de progresso indeterminada
+      <span class="badge badge-new">novo</span>
+    </div>
+    <div class="search-box">hosanna hillsong</div>
+    <div class="progress-track">
+      <div class="progress-bar"></div>
+    </div>
+    <!-- empty state while loading -->
+    <div style="padding:12px 0;display:flex;align-items:center;justify-content:center">
+      <span style="font-size:12px;color:#4b5563">Buscando resultados…</span>
+    </div>
+  </div>
+
+  <!-- F: Pulse rows -->
+  <div class="card">
+    <div class="card-label">
+      F — Linhas pulsantes
+      <span class="badge badge-new">novo</span>
+    </div>
+    <div class="search-box">hosanna hillsong</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <div class="pulse-row">
+        <div class="pulse-thumb"></div>
+        <div class="pulse-lines">
+          <div class="pulse-line" style="width:72%"></div>
+          <div class="pulse-line pulse-line-short"></div>
+        </div>
+        <div class="pulse-dur"></div>
+      </div>
+      <div class="pulse-row">
+        <div class="pulse-thumb"></div>
+        <div class="pulse-lines">
+          <div class="pulse-line" style="width:60%"></div>
+          <div class="pulse-line pulse-line-short" style="width:38%"></div>
+        </div>
+        <div class="pulse-dur"></div>
+      </div>
+      <div class="pulse-row">
+        <div class="pulse-thumb"></div>
+        <div class="pulse-lines">
+          <div class="pulse-line" style="width:80%"></div>
+          <div class="pulse-line pulse-line-short" style="width:44%"></div>
+        </div>
+        <div class="pulse-dur"></div>
+      </div>
+      <div class="pulse-row">
+        <div class="pulse-thumb"></div>
+        <div class="pulse-lines">
+          <div class="pulse-line" style="width:55%"></div>
+          <div class="pulse-line pulse-line-short" style="width:30%"></div>
+        </div>
+        <div class="pulse-dur"></div>
+      </div>
+      <div class="pulse-row">
+        <div class="pulse-thumb"></div>
+        <div class="pulse-lines">
+          <div class="pulse-line" style="width:68%"></div>
+          <div class="pulse-line pulse-line-short" style="width:42%"></div>
+        </div>
+        <div class="pulse-dur"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

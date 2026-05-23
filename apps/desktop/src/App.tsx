@@ -15,6 +15,7 @@ import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
+import { usePermissionsStore } from './store/permissions.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
 import { flushAnalyticsQueue, trackEvent } from './lib/analytics.js'
@@ -95,6 +96,9 @@ export function App() {
                 // falso "Sem backup configurado" aparece. Issue #121.
                 void useIntegrationsStore.getState().refreshAccount(orgId).catch(
                   (e) => console.warn('[boot] refreshAccount pós-sync falhou:', e)
+                )
+                void usePermissionsStore.getState().refresh(orgId).catch(
+                  (e) => console.warn('[boot] permissions refresh pós-sync falhou:', e)
                 )
               })
               .then(() => cleanupAudioOrphans())

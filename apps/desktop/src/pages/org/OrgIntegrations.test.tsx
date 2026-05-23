@@ -16,8 +16,8 @@ vi.mock('../../store/integrations.js', () => ({
     { getState: () => mockState }
   ),
 }))
-vi.mock('../../lib/permissions.js', () => ({
-  hasPermission: vi.fn().mockResolvedValue(true),
+vi.mock('../../store/permissions.js', () => ({
+  usePermission: () => true,
 }))
 vi.mock('../../lib/cloud-storage/client.js', () => ({
   initOAuth: vi.fn().mockResolvedValue({ authUrl: 'https://x', state: 's' }),

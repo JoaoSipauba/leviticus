@@ -6,6 +6,8 @@ import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { captureException } from '../lib/observability.js'
+import { permissionErrorMessage } from '../lib/permission-error.js'
+import { usePermission } from '../store/permissions.js'
 import { Skeleton } from '../components/Skeleton.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
@@ -37,6 +39,7 @@ export function Groups() {
   const navigate = useNavigate()
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const online = useOnlineStatus()
+  const canManageGroups = usePermission('manage_groups')
 
   async function loadGroups() {
     const db = await getDb()
@@ -72,7 +75,7 @@ export function Groups() {
 
     if (insertError || !data) {
       captureException(insertError, { feature: 'groups', step: 'inserterror' })
-      setError(insertError?.message ?? 'Erro ao criar ministério.')
+      setError(permissionErrorMessage(insertError) ?? 'Algo deu errado. Tente novamente.')
       setSaving(false)
       return
     }
@@ -128,6 +131,7 @@ export function Groups() {
             Organize por departamento ou ministério
           </p>
         </div>
+        {canManageGroups && (
         <button
           onClick={online ? () => setShowModal(true) : undefined}
           disabled={!online}
@@ -147,6 +151,7 @@ export function Groups() {
           </svg>
           Novo
         </button>
+        )}
       </div>
 
       {/* Grid */}
@@ -157,13 +162,15 @@ export function Groups() {
             <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
               Nenhum ministério ainda
             </p>
-            <button
-              onClick={() => setShowModal(true)}
-              className="text-sm mt-1"
-              style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              Criar primeiro ministério
-            </button>
+            {canManageGroups && (
+              <button
+                onClick={() => setShowModal(true)}
+                className="text-sm mt-1"
+                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Criar primeiro ministério
+              </button>
+            )}
           </div>
         </div>
       ) : (

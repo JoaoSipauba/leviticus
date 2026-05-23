@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Info, Users, Mail, Shield, Settings, Plug } from 'lucide-react'
 import { getDb } from '../lib/db.js'
-import { hasPermission } from '../lib/permissions.js'
+import { usePermission } from '../store/permissions.js'
 import { OrgInfo } from './org/OrgInfo.js'
 import { OrgMembers } from './org/OrgMembers.js'
 import { OrgInvites } from './org/OrgInvites.js'
@@ -37,7 +37,8 @@ export function OrgManage() {
   // o estado nunca re-sincronizava).
   const tab = (searchParams.get('tab') as TabKey) ?? 'members'
   const [orgName, setOrgName] = useState<string>('')
-  const [allowedKeys, setAllowedKeys] = useState<Set<TabKey>>(new Set(['info', 'members', 'integrations', 'danger']))
+  const canMembers = usePermission('manage_members')
+  const canRoles = usePermission('manage_roles')
   const [memberCount, setMemberCount] = useState<number>(0)
   const [inviteCount, setInviteCount] = useState<number>(0)
   const [roleCount, setRoleCount] = useState<number>(0)
@@ -50,11 +51,6 @@ export function OrgManage() {
         [orgId]
       )
       setOrgName(orgRows[0]?.name ?? '')
-
-      const allowed = new Set<TabKey>(['info', 'members', 'integrations', 'danger'])
-      if (await hasPermission('manage_members', orgId)) allowed.add('invites')
-      if (await hasPermission('manage_roles', orgId)) allowed.add('roles')
-      setAllowedKeys(allowed)
 
       const counts = await Promise.all([
         db.select<{ cnt: number }[]>(`SELECT COUNT(*) as cnt FROM organization_members WHERE org_id = ?`, [orgId]),
@@ -71,6 +67,10 @@ export function OrgManage() {
   function selectTab(k: TabKey) {
     setSearchParams({ tab: k }, { replace: true })
   }
+
+  const allowedKeys = new Set<TabKey>(['info', 'members', 'integrations', 'danger'])
+  if (canMembers) allowedKeys.add('invites')
+  if (canRoles) allowedKeys.add('roles')
 
   const visibleTabs = ALL_TABS.filter((t) => allowedKeys.has(t.key))
   const effectiveTab: TabKey = allowedKeys.has(tab) ? tab : 'members'

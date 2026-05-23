@@ -4,7 +4,7 @@ import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Search, Plus } from 'lucide-react'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
-import { hasPermission, isOwner } from '../../lib/permissions.js'
+import { usePermission } from '../../store/permissions.js'
 import { toastSuccess } from '../../store/toasts.js'
 import { MemberRow, type MemberDisplayRow } from '../../components/org/MemberRow.js'
 import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
@@ -34,7 +34,7 @@ export function OrgMembers({ orgId, active = false }: { orgId: string; active?: 
   const [ministryOptions, setMinistryOptions] = useState<string[]>([])
   const [me, setMe] = useState<string>('')
   const [ownerUserId, setOwnerUserId] = useState<string>('')
-  const [canManage, setCanManage] = useState(false)
+  const canManage = usePermission('manage_members')
   const [menuFor, setMenuFor] = useState<{ row: MemberDisplayRow; anchor: HTMLElement; variant: MenuVariant } | null>(null)
   const [openChangeRole, setOpenChangeRole] = useState<MemberDisplayRow | null>(null)
   const [openManageMin, setOpenManageMin] = useState<MemberDisplayRow | null>(null)
@@ -116,8 +116,6 @@ export function OrgMembers({ orgId, active = false }: { orgId: string; active?: 
     setRoleOptions(distinctRoles)
     const distinctMins = Array.from(new Set(display.flatMap((d) => d.ministries)))
     setMinistryOptions(distinctMins)
-
-    setCanManage(await hasPermission('manage_members', orgId) || await isOwner(orgId))
   }
 
   useEffect(() => { void load() }, [orgId])

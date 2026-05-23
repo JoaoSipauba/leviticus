@@ -64,6 +64,8 @@ vi.mock('../lib/audio-meta.js', () => ({
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/path', () => ({ appLocalDataDir: vi.fn().mockResolvedValue('/data/') }))
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
 
 // ─── import component after mocks ─────────────────────────────────────────
 
@@ -103,6 +105,17 @@ describe('Library', () => {
     localStorage.setItem('leviticus_org_id', 'org-1')
     integrationsStoreState.status = 'disconnected'
     uiStoreState.librarySeed = 0
+    permState.value = true
+  })
+
+  it('esconde "Adicionar" (header e empty-state) sem add_songs', async () => {
+    permState.value = false
+    setupDbSelect([])
+    render(<Library />)
+    await waitFor(() => {
+      expect(screen.getByText('Sua biblioteca está vazia')).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('button', { name: /Adicionar primeira música/i })).not.toBeInTheDocument()
   })
 
   afterEach(() => {

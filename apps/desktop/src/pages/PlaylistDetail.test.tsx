@@ -142,6 +142,14 @@ vi.mock('../components/SongCard.js', () => ({
   SongCard: ({ song }: any) => <div data-testid="song-card">{song.title}</div>,
 }))
 
+// permRef.set = null → mock concede tudo. set = Set(...) → só as listadas.
+// Permite testes específicos por permissão (PlaylistDetail consulta
+// manage_playlists e add_songs_to_playlist separadamente).
+const { permRef } = vi.hoisted(() => ({ permRef: { set: null as Set<string> | null } }))
+vi.mock('../store/permissions.js', () => ({
+  usePermission: (p: string) => permRef.set ? permRef.set.has(p) : true,
+}))
+
 // tauri plugin stubs
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
@@ -207,9 +215,20 @@ describe('PlaylistDetail', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.setItem('leviticus_org_id', 'org-1')
+    permRef.set = null
     // Reset stable mocks that vi.clearAllMocks clears
     subscribeCompletedMock.mockReturnValue(() => {})
     subscribeCanceledMock.mockReturnValue(() => {})
+  })
+
+  it('esconde "Adicionar seção" sem manage_playlists', async () => {
+    permRef.set = new Set() // nenhuma permissão
+    setupDbSelect()
+    render(<PlaylistDetail />)
+    await waitFor(() => {
+      expect(screen.getByText('Culto de Domingo')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Adicionar seção')).not.toBeInTheDocument()
   })
 
   afterEach(() => {
