@@ -108,13 +108,73 @@ Componente `KpiCard` aceita `delta?: { value: number; format: 'pct' | 'pp' | 'ab
   - Date inputs em form submetendo `?from=YYYY-MM-DD&to=YYYY-MM-DD`
   - Sem JS extra: tudo via navegação. Coerente com SSR.
 
-### Seção 01 — Landing (Vercel)
+### Seção 01 — Landing (Vercel + Supabase)
 
 Mantém VercelChart + BarList (referrers/países), mas adiciona:
 - **Delta nos 3 KPIs principais** (visitantes, pageviews, bounce rate)
-- **4º KPI placeholder** "Conversão Baixar" — card com opacidade 55% e label "Backlog · evento customizado". Não puxa dado. Documenta gap intencionalmente.
+- **4º KPI "Downloads" REAL** — substitui o placeholder do mockup. Lê de nova tabela `landing_downloads` (ver §Landing — contador de download). Total no período + delta + breakdown mac/win.
 - Badges Snapshot/Flow em cada KPI (todos Flow nesta seção)
 - Visual: cards/typography do design novo
+
+#### Sub-seção 01·A — Waitlist mobile
+
+Card novo (não estava no mockup original — adição). Mostra interesse declarado em versão mobile:
+
+| Métrica | Query |
+|---|---|
+| Total na waitlist | `count(*) from waitlist` |
+| Aguardando iOS | `count where 'ios' = any(platforms)` |
+| Aguardando Android | `count where 'android' = any(platforms)` |
+| Aguardando ambos | `count where 'ios' = any(platforms) and 'android' = any(platforms)` |
+| Novos no período | `count where created_at in period` + delta vs anterior |
+
+Componente `WaitlistCard` — uma row com 3 stat boxes (total, iOS, Android) + delta de novos no período. Layout similar ao `triple-stat` do mockup.
+
+Fonte: `waitlist` table já existe ([supabase/migrations/20260513000001_waitlist.sql](../../../supabase/migrations/20260513000001_waitlist.sql)). Service role lê sem RLS — perfeito para admin server-side.
+
+#### Sub-seção 01·B — Contador de downloads (nova feature na landing)
+
+**Por que:** hoje os botões em [apps/landing/components/Download.tsx](../../../apps/landing/components/Download.tsx) apontam direto pro Supabase Storage (`<a href={release.macUrl}>`). Não temos visibilidade nenhuma de clicks.
+
+**Design:**
+
+1. **Nova tabela `landing_downloads`** (migration aditiva):
+   ```sql
+   create table landing_downloads (
+     id           uuid primary key default gen_random_uuid(),
+     platform     text not null check (platform in ('mac', 'win')),
+     occurred_at  timestamptz not null default now(),
+     referrer     text,        -- request header, opcional
+     user_agent   text,        -- raw UA pra futura segmentação
+     country      text         -- da request header (Vercel injeta x-vercel-ip-country)
+   );
+   alter table landing_downloads enable row level security;
+   create index idx_landing_downloads_occurred on landing_downloads (occurred_at);
+   create index idx_landing_downloads_platform on landing_downloads (platform, occurred_at);
+   -- Sem policy de INSERT/SELECT: apenas service role escreve (via API route do landing)
+   --                                e lê (via admin server component). Anon não toca.
+   ```
+
+   Sem PII: não loga IP nem email. UA é útil mas serializa em texto livre — sem fingerprinting.
+
+2. **Nova API route** `apps/landing/app/api/download/[platform]/route.ts`:
+   - Recebe `GET /api/download/mac` ou `/win`
+   - Insere row em `landing_downloads` via `supabaseAdmin` (service role)
+   - Resolve URL do release atual (já está em `lib/release.ts`)
+   - Retorna `302` redirect pro Supabase Storage
+   - Falha de log NÃO bloqueia download — `try/catch` silencioso, captureException no Sentry
+   - Robusto a bot: filtra UAs de bot conhecidos (`bot|crawl|spider|preview` regex) — não loga, mas redirect funciona
+   - Cache: `Cache-Control: no-store` (evita CDN servir 302 cached)
+
+3. **Atualizar `Download.tsx`** — troca `href={release.macUrl}` por `href="/api/download/mac"` (idem Windows). Botões de "Outras versões" (GitHub Releases) ficam direto, sem track.
+
+4. **Card no admin** — usa dados de `landing_downloads`:
+   - "Downloads" KPI principal (Seção 01, 4º card): `count where occurred_at in period` + delta
+   - Breakdown mac/win em row pequena abaixo
+
+**Trade-off conhecido:** redirect adiciona ~50-100ms ao click. Aceitável — usuário não percebe na transição pro download.
+
+**Backward compat:** durante deploy, anchors antigos no cache do browser/Google podem usar URL direto do Supabase. OK — só perdemos os primeiros dias de tracking de quem cacheou a landing. Sem quebra.
 
 ### Seção 02 — Produto (Supabase + Analytics Events)
 
@@ -258,6 +318,10 @@ alter table analytics_events
 
 Aditivo: app antigo não emite, app novo emite. RLS já cobre.
 
+### Migration: tabela landing_downloads
+
+Ver §Sub-seção 01·B acima. Resumo: tabela nova, RLS ativa, sem policy de SELECT/INSERT (só service role).
+
 ### Migration: created_at em groups e org_invite_codes
 
 `supabase/migrations/20260523000002_groups_invites_created_at.sql`:
@@ -321,7 +385,7 @@ Per CLAUDE.md:
 
 ## Migration checklist (CLAUDE.md)
 
-Para as 2 migrations novas:
+Para as 3 migrations novas (`culto_started`, `groups+invites.created_at`, `landing_downloads`):
 
 - [x] **Aditiva?** Sim — novo CHECK item + novas colunas nullable com default
 - [x] **Mirror SQLite?** Não aplicável — `analytics_events` é só remote (insert via supabase client). `groups` e `org_invite_codes` são sincronizadas via `sync.ts` mas as colunas adicionadas não são lidas pelo app desktop ainda (só pelo admin server-side)
@@ -345,7 +409,6 @@ Decisão: **manter agregação client-side em TypeScript** (em `adminData.ts`). 
 
 ## Out of scope (futuros PRs)
 
-- Card "Conversão Baixar" — evento customizado Vercel ainda não definido
 - Convites usados — falta coluna de redemption em `org_invite_codes`
 - Atualização viva do "última atualização há Xs" — exige client hook, fora do PR1
 - Sentry init no admin landing — verificar se já existe; se não, separar
@@ -370,6 +433,8 @@ Decisão: **manter agregação client-side em TypeScript** (em `adminData.ts`). 
 - [ ] `pnpm test` passa em `apps/landing/` e `apps/desktop/`
 - [ ] `pnpm typecheck` passa no monorepo
 - [ ] Admin antigo (`PeriodSelector`) deletado, sem código morto
+- [ ] Botões de download em `Download.tsx` usam `/api/download/[platform]` e geram rows em `landing_downloads`
+- [ ] Card de waitlist mostra totais por plataforma com delta
 - [ ] PR body cita `Closes #<issue>` se houver issue rastreando
 
 ## Open questions (resolver no plan, não bloqueante)
