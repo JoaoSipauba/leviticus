@@ -226,6 +226,14 @@ export function PlayerMini() {
       const p = getPosition()
       const howlD = getDuration()
       setPos(p)
+      // Issue #116 reaberta: no repeat-one, a faixa termina e o
+      // handleSongEnd dispara restartCurrent — o id da música NÃO muda, então
+      // o effect em `currentSong?.id` não reabre o guard. Sem este reset, o
+      // 2º ciclo nunca detecta fim (guard fica `true`). Detecta o restart
+      // pelo retorno da posição pra perto de zero. Vale também pra seek-to-0.
+      if (songEndedRef.current && p < 0.5) {
+        songEndedRef.current = false
+      }
       // Priorize Howl quando reporta valor sane (> 0 e dentro de 30% da DB).
       // Caso Howler retorne lixo (VBR mp3 sem tag TLEN ocasionalmente reporta
       // 2× o real), fica com a duração da DB. Issue #42.
