@@ -64,9 +64,20 @@ function createHowl(src: string, format: string[], callbacks: AudioCallbacks | u
     const node = (howl as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds?.[0]?._node
     if (!node) return
     node.addEventListener('ended', fireEnd)
-    // Sanity check: se o evento `ended` não propagar, a flag nativa `ended`
-    // do elemento ainda é setada ao chegar no fim — pega num `timeupdate`.
-    node.addEventListener('timeupdate', () => { if (node.ended) fireEnd() })
+    // Sanity check no `timeupdate`. Em ordem de confiabilidade observada:
+    //   1. `node.ended === true` — pega quando o evento `ended` não propaga
+    //      mas a flag nativa foi setada.
+    //   2. `currentTime >= duration` — fallback agressivo pra WKWebView
+    //      onde `ended` não é setada de forma confiável (issue #116 reaberta:
+    //      a 2ª execução do repeat-one no v0.12.1 ainda passa do fim sem
+    //      disparar nem o evento nem a flag — a posição cruza `duration`
+    //      mas o player não para).
+    // Margem de 0.15s evita falsos positivos perto do fim sem ter chegado.
+    node.addEventListener('timeupdate', () => {
+      if (node.ended) { fireEnd(); return }
+      const d = node.duration
+      if (Number.isFinite(d) && d > 0 && node.currentTime >= d - 0.15) fireEnd()
+    })
   })
 
   return howl
