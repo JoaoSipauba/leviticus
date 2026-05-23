@@ -71,7 +71,7 @@ describe('getAdminProduto', () => {
 
   it('funnel.signups = users.length (histórico total)', async () => {
     const now = new Date().toISOString()
-    listUsersMock.mockImplementationOnce(async () => ({
+    ;(listUsersMock as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => ({
       data: {
         users: [
           { id: 'u1', email: 'a@b.com', created_at: now },
