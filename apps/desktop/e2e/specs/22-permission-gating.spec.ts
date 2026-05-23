@@ -94,7 +94,7 @@ describe('Journey #22 — Permission gating (#120)', () => {
     // Sanity: a música-semente carregou — confirma que estamos numa tela
     // populada, não numa biblioteca vazia que esconderia o botão por outro motivo.
     await browser.waitUntil(
-      async () => (await $('*=Música Semente')).isExisting(),
+      async () => (await $('p*=Música Semente')).isExisting(),
       { timeout: 30_000, timeoutMsg: 'Música-semente não apareceu na biblioteca' },
     )
     expect(await $('button=Adicionar').isExisting()).toBe(false)
@@ -103,7 +103,10 @@ describe('Journey #22 — Permission gating (#120)', () => {
   it('SongCard: menu de ação não expõe Editar nem Excluir', async () => {
     await browser.url('tauri://localhost/library')
     await waitBootDone()
-    await $('*=Música Semente').waitForExist({ timeout: 30_000 })
+    await browser.waitUntil(
+      async () => (await $('p*=Música Semente')).isExisting(),
+      { timeout: 30_000, timeoutMsg: 'Música-semente não apareceu' },
+    )
     const menuBtn = $('button[aria-label="Mais ações"]')
     await menuBtn.waitForExist({ timeout: 10_000 })
     await menuBtn.click()
@@ -115,7 +118,7 @@ describe('Journey #22 — Permission gating (#120)', () => {
     await browser.url('tauri://localhost/ministries')
     await waitBootDone()
     await browser.waitUntil(
-      async () => (await $('*=Ministério Semente')).isExisting(),
+      async () => (await $('p*=Ministério Semente')).isExisting(),
       { timeout: 30_000, timeoutMsg: 'Ministério-semente não apareceu' },
     )
     expect(await $('button=Novo').isExisting()).toBe(false)
@@ -126,7 +129,7 @@ describe('Journey #22 — Permission gating (#120)', () => {
     await browser.url('tauri://localhost/services')
     await waitBootDone()
     await browser.waitUntil(
-      async () => (await $('*=Culto Semente')).isExisting(),
+      async () => (await $('p*=Culto Semente')).isExisting(),
       { timeout: 30_000, timeoutMsg: 'Culto-semente não apareceu' },
     )
     expect(await $('button*=Novo culto').isExisting()).toBe(false)
