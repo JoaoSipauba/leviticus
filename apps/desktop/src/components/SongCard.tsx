@@ -443,7 +443,7 @@ export function SongCard({
     }
 
     const filePath = await getSongFilename(song.id)
-    playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
+    playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: song.duration_seconds ?? undefined })
     if (playlistContext) {
       play(song, {
         playlist: playlistContext.playlist,

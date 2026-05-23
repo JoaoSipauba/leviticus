@@ -553,6 +553,7 @@ export function PlaylistDetail() {
           handleSongEnd().catch((e) => captureException(e, { feature: 'playlist', step: 'song-end' }))
         },
         volume,
+        durationOverride: first?.duration_seconds ?? undefined,
       })
       usePlayerStore.getState().play(first, {
         playlist,

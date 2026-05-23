@@ -55,7 +55,7 @@ export async function handleSongEnd(): Promise<void> {
     if (!(await isDownloaded(next.id))) { state.pause(); return }
     try {
       const path = await getSongFilename(next.id)
-      playSong(path, { onEnd: () => void handleSongEnd(), volume: state.volume })
+      playSong(path, { onEnd: () => void handleSongEnd(), volume: state.volume, durationOverride: next.duration_seconds ?? undefined })
       state.resume()
     } catch {
       state.pause()
