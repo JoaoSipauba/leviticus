@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.12.1](https://github.com/JoaoSipauba/leviticus/compare/v0.12.0...v0.12.1) (2026-05-22)
+
+## [0.12.0](https://github.com/JoaoSipauba/leviticus/compare/v0.11.0...v0.12.0) (2026-05-22)
+
+### Funcionalidades
+
+* add analytics module with durable event queue ([e810eea](https://github.com/JoaoSipauba/leviticus/commit/e810eea0367aa53159324e93265cc9810094fdb9))
+* add analytics_events table for behavioral metrics ([00fc990](https://github.com/JoaoSipauba/leviticus/commit/00fc990fc2f8b84a99a2f274ab009a686311a7c1))
+* add local analytics_queue table for durable event buffering ([ce9a61c](https://github.com/JoaoSipauba/leviticus/commit/ce9a61cbabb16d6a9086366c16d5155c9a929231))
+* emit download_succeeded and download_failed analytics events ([23a5b09](https://github.com/JoaoSipauba/leviticus/commit/23a5b096a417ee76190a960e6d01bcbbea6235fb))
+* emit song_completed analytics event on track end ([bdfd373](https://github.com/JoaoSipauba/leviticus/commit/bdfd3734bc7c053327830265e2ddbc903d434331))
+* emit song_played analytics event ([60de19c](https://github.com/JoaoSipauba/leviticus/commit/60de19c8bf7a0054763341ff03031b681f79b167))
+* findFileInFolder no provider Drive pra idempotencia de upload ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([981fae6](https://github.com/JoaoSipauba/leviticus/commit/981fae63dc2f29890206439e961460f3af29ec1c))
+* flush analytics queue and emit app_opened event ([3523286](https://github.com/JoaoSipauba/leviticus/commit/3523286f7c56504f1e4a3aa6fd3c04f04276ffe8))
+* **org:** abas revalidam em realtime quando o sync reativo ticka ([8ffea0b](https://github.com/JoaoSipauba/leviticus/commit/8ffea0b8bbda82d8e881be71373328ce849f08a9))
+* **org:** refetch silencioso ao reativar aba (stale-while-revalidate) ([b291cd2](https://github.com/JoaoSipauba/leviticus/commit/b291cd29d200622895aa12a55f173e93e6ea8ba7)), closes [#110](https://github.com/JoaoSipauba/leviticus/issues/110)
+* upload-session devolve alreadyExists quando arquivo ja existe ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([3b6db6c](https://github.com/JoaoSipauba/leviticus/commit/3b6db6cc0557520d84c7da086ff97d4f22fbccc8))
+
+### Correções
+
+* **a11y:** ConfirmModal com role=dialog e dispensa por teclado ([cabc75e](https://github.com/JoaoSipauba/leviticus/commit/cabc75e75d84e1a829b207d03804f791191f804d))
+* client reconcilia upload quando arquivo ja existe no Drive ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([cdf407a](https://github.com/JoaoSipauba/leviticus/commit/cdf407a79a534711b595efc44f43e18a344e16b5))
+* corrige aba de convites, revogação/exclusão e repeat-one ([8c07e44](https://github.com/JoaoSipauba/leviticus/commit/8c07e4481425be52420b5bc98aa8c1da31ee6e99)), closes [#116](https://github.com/JoaoSipauba/leviticus/issues/116) [#117](https://github.com/JoaoSipauba/leviticus/issues/117) [#118](https://github.com/JoaoSipauba/leviticus/issues/118)
+* escapar backslash no findFileInFolder e reforcar teste ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([b0243fd](https://github.com/JoaoSipauba/leviticus/commit/b0243fdf56b2fe61f982397b527ddd70ad1b02f8))
+* guard in-flight no upload pra evitar duplicata intra-device ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([bbff4ec](https://github.com/JoaoSipauba/leviticus/commit/bbff4ec97b580a72fb13cfb086f6216a5680ec24))
+* **landing:** corrige feedback de review do dashboard admin ([378c31d](https://github.com/JoaoSipauba/leviticus/commit/378c31df8e482b9d59ebf285d4da8548339ee372))
+* logar falha de refreshAccount pos-sync no boot ([#121](https://github.com/JoaoSipauba/leviticus/issues/121)) ([d9df921](https://github.com/JoaoSipauba/leviticus/commit/d9df921abc378ca49ba667b5de02f57018d4df20))
+* **org:** carrega abas uma vez ao abrir Organização + corrige skeleton ([88c857d](https://github.com/JoaoSipauba/leviticus/commit/88c857de7f4126ae3b1ddd1c8c8321c5eea1e492))
+* re-checar status de cloud apos syncOrg no boot ([#121](https://github.com/JoaoSipauba/leviticus/issues/121)) ([3578a26](https://github.com/JoaoSipauba/leviticus/commit/3578a267bfc3f8b3c0cbc140e2399ed0e1041c6c))
+* refreshAccount distingue unknown de disconnected ([#121](https://github.com/JoaoSipauba/leviticus/issues/121)) ([01ab364](https://github.com/JoaoSipauba/leviticus/commit/01ab364624eea919bff647f86b316d425b7288f6))
+* restaurar idempotencia server-side de handleUploadSession ([#122](https://github.com/JoaoSipauba/leviticus/issues/122)) ([b2b14b4](https://github.com/JoaoSipauba/leviticus/commit/b2b14b4b186f19a240db0f739a2d157d9a15c2fa))
+
 ## [0.11.0](https://github.com/JoaoSipauba/leviticus/compare/v0.10.0...v0.11.0) (2026-05-21)
 
 ### Funcionalidades
