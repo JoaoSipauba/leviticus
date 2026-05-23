@@ -39,7 +39,10 @@ export async function handleSongEnd(): Promise<void> {
     trackEvent('song_completed', {
       songId: cs.id,
       playlistId: cp?.id,
-      metadata: { played_seconds: Math.round(cs.duration_seconds ?? state.position ?? 0) },
+      metadata: {
+        played_seconds: Math.round(cs.duration_seconds ?? state.position ?? 0),
+        duration_seconds: Math.round(cs.duration_seconds ?? 0),
+      },
     })
   }
 
