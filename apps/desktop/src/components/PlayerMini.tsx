@@ -263,9 +263,14 @@ export function PlayerMini() {
       // do ponto de vista do store, força handleSongEnd manualmente.
       // Sem isso, isPlaying fica true após o fim → polling continua e o
       // slider parece "progredir além". Issue #62.
+      // Sem margem: com durationOverride confiável da DB, queremos disparar
+      // exatamente quando a posição alcança a duração (não 250ms antes — o
+      // usuário via o repeat acontecer em 4:32 numa música de 4:33). O
+      // polling de 500ms naturalmente pega o tick um pouco após `duration`,
+      // o que ainda mostra `4:33` (floor) — o que o usuário espera ver.
       if (
         chosen > 0 &&
-        p >= chosen - 0.25 &&
+        p >= chosen &&
         !songEndedRef.current
       ) {
         songEndedRef.current = true
