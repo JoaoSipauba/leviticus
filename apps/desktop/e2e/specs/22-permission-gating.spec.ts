@@ -35,6 +35,22 @@ describe('Journey #22 — Permission gating (#120)', () => {
   let playlistId: string
 
   before(async () => {
+    // Em modo suíte, specs anteriores deixam o app logado. Sem signout, o
+    // login do joiner herda `leviticus_org_id` da org anterior — onde ele
+    // não é membro → RLS filtra tudo e nada aparece. Sair antes do clean.
+    const currentUrl = await browser.getUrl()
+    if (!/\/login/.test(currentUrl)) {
+      const sairBtn = $('button=Sair')
+      await sairBtn.waitForExist({ timeout: 10_000 })
+      await sairBtn.click()
+      const signOutInModal = $('button*=Sair da conta')
+      await signOutInModal.waitForExist({ timeout: 5_000 })
+      await signOutInModal.click()
+      await browser.waitUntil(
+        async () => /\/login(\?|$|\/)/.test(await browser.getUrl()),
+        { timeout: 20_000, timeoutMsg: 'Não redirecionou pra /login após Sair' },
+      )
+    }
     await cleanLocalSqlite()
     const admin = makeAdminClient()
     const ts = Date.now()
