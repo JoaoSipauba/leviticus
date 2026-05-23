@@ -10,6 +10,7 @@ export type AnalyticsEventType =
   | 'song_completed'
   | 'download_succeeded'
   | 'download_failed'
+  | 'culto_started'
 
 type EventPayload = {
   songId?: string
