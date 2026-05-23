@@ -118,8 +118,13 @@ vi.mock('../store/ui.js', () => ({
   },
 }))
 
-const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
-vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
+// permSet = null → mock concede tudo (default das suítes existentes).
+// permSet = Set('manage_songs', ...) → concede só as permissões listadas.
+// Permite que cada teste valide o gating por permissão específica.
+const { permRef } = vi.hoisted(() => ({ permRef: { set: null as Set<string> | null } }))
+vi.mock('../store/permissions.js', () => ({
+  usePermission: (p: string) => permRef.set ? permRef.set.has(p) : true,
+}))
 
 vi.mock('../store/downloads.js', () => ({
   useDownloadsStore: (selector?: (s: typeof downloadsState) => unknown) => {
@@ -165,7 +170,7 @@ const baseSong = {
 describe('SongCard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    permState.value = true
+    permRef.set = null
     playerState.currentSong = null
     playerState.isPlaying = false
     playerState.volume = 1
@@ -184,7 +189,7 @@ describe('SongCard', () => {
   })
 
   it('esconde Editar e Excluir da biblioteca sem manage_songs', async () => {
-    permState.value = false
+    permRef.set = new Set() // nenhuma permissão
     render(<SongCard song={baseSong} onEdit={vi.fn()} />)
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Mais ações/i })).toBeInTheDocument()

@@ -50,7 +50,11 @@ function scheduleSync(orgId: string) {
         // a mudança até navegar.
         useUIStore.getState().bumpLibrary()
         const currentOrg = localStorage.getItem('leviticus_org_id')
-        if (currentOrg) void usePermissionsStore.getState().refresh(currentOrg)
+        if (currentOrg) {
+          void usePermissionsStore.getState().refresh(currentOrg).catch(
+            (e) => captureException(e, { feature: 'sync', step: 'permissions-refresh' })
+          )
+        }
       })
       .catch((e) => captureException(e, { feature: 'sync', step: 'reactive-pass' }))
   }, DEBOUNCE_MS)

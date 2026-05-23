@@ -133,7 +133,7 @@ sem `add_songs`) mostram só a lista, sem o empty-state que convida a criar.
 
 ## 5. Correção de RPCs backend
 
-Nova migration `supabase/migrations/20260522000002_rpc_permission_checks.sql`
+Nova migration `supabase/migrations/20260522000003_rpc_permission_checks.sql`
 (`CREATE OR REPLACE` — retrocompatível; app antigo chama a mesma assinatura e
 passa a ser checado, comportamento correto).
 
@@ -154,8 +154,7 @@ no app são atualizados pra ler o envelope.
 
 ## 6. Erros amigáveis
 
-Helper em [lib/permissions.ts](../../../apps/desktop/src/lib/permissions.ts)
-(ou novo `lib/errors.ts`):
+Helper em [lib/permission-error.ts](../../../apps/desktop/src/lib/permission-error.ts):
 
 ```ts
 // Detecta erro de permissão vindo de RLS (Postgres 42501) ou de envelope

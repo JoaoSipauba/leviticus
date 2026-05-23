@@ -27,16 +27,23 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_exists boolean;
+  v_real_org_id uuid;
 BEGIN
-  SELECT EXISTS(SELECT 1 FROM songs WHERE id = p_song_id) INTO v_exists;
-  -- Música existente → editar exige manage_songs. Música nova (o upsert
-  -- insere) → exige add_songs.
-  IF v_exists THEN
-    IF NOT (is_org_owner(p_org_id) OR has_permission(p_org_id, 'manage_songs')) THEN
+  SELECT org_id INTO v_real_org_id FROM songs WHERE id = p_song_id;
+  -- Música existente → editar exige manage_songs NA ORG DA MÚSICA (não na que
+  -- o cliente passou). Sem isso, um atacante com manage_songs na org A
+  -- passaria p_org_id=A + p_song_id de outra org B e atualizaria a música de
+  -- B (a função é SECURITY DEFINER, RLS não pega). Também rejeita se o
+  -- cliente mentiu sobre o p_org_id — contrato explícito.
+  IF v_real_org_id IS NOT NULL THEN
+    IF p_org_id <> v_real_org_id THEN
+      RETURN jsonb_build_object('ok', false, 'error', 'org_mismatch');
+    END IF;
+    IF NOT (is_org_owner(v_real_org_id) OR has_permission(v_real_org_id, 'manage_songs')) THEN
       RETURN jsonb_build_object('ok', false, 'error', 'forbidden');
     END IF;
   ELSE
+    -- Música nova: insert vai usar p_org_id (atacante só pode criar na org dele).
     IF NOT (is_org_owner(p_org_id) OR has_permission(p_org_id, 'add_songs')) THEN
       RETURN jsonb_build_object('ok', false, 'error', 'forbidden');
     END IF;

@@ -97,7 +97,9 @@ export function App() {
                 void useIntegrationsStore.getState().refreshAccount(orgId).catch(
                   (e) => console.warn('[boot] refreshAccount pós-sync falhou:', e)
                 )
-                void usePermissionsStore.getState().refresh(orgId)
+                void usePermissionsStore.getState().refresh(orgId).catch(
+                  (e) => console.warn('[boot] permissions refresh pós-sync falhou:', e)
+                )
               })
               .then(() => cleanupAudioOrphans())
               .then(() => {

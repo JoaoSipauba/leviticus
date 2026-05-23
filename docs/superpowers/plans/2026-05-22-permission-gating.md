@@ -26,7 +26,7 @@
 | `apps/desktop/src/App.tsx` | Chamar `refresh` no boot após `syncOrg` (modificar) |
 | `apps/desktop/src/lib/data-sync.ts` | Chamar `refresh` no tick reativo (modificar) |
 | `apps/desktop/src/pages/OrgManage.tsx`, `org/OrgMembers.tsx`, `org/OrgInfo.tsx`, `org/OrgIntegrations.tsx`, `org/OrgDanger.tsx`, `components/AddSongToPlaylistModal.tsx` | Migrar callers async → store (modificar) |
-| `supabase/migrations/20260522000002_rpc_permission_checks.sql` | Checagem de permissão nos RPCs (criar) |
+| `supabase/migrations/20260522000003_rpc_permission_checks.sql` | Checagem de permissão nos RPCs (criar) |
 | `apps/desktop/src/pages/Library.tsx`, `components/SongCard.tsx`, `pages/Groups.tsx`, `pages/GroupDetail.tsx`, `pages/Playlists.tsx`, `pages/PlaylistDetail.tsx` | Gating de UI (modificar) |
 | `apps/desktop/src/pages/org/OrgRoles.tsx` | Remover banner "Em construção" (modificar) |
 
@@ -341,14 +341,14 @@ git commit -m "refactor: migrate permission checks to permissions store"
 ## Task 4: Checagem de permissão nos RPCs backend
 
 **Files:**
-- Create: `supabase/migrations/20260522000002_rpc_permission_checks.sql`
+- Create: `supabase/migrations/20260522000003_rpc_permission_checks.sql`
 - Modify: call sites de `update_song` / `update_song_groups` / `reorder_playlist_songs` no app (ver Step 4)
 
 `update_song`, `update_song_groups` e `reorder_playlist_songs` são `SECURITY DEFINER` e hoje não checam permissão (bypassam o RLS). Recebem checagem inline. Os 3 retornam `void` hoje → passam pro envelope `{ok, error}`.
 
 - [ ] **Step 1: Criar a migration**
 
-`supabase/migrations/20260522000002_rpc_permission_checks.sql`:
+`supabase/migrations/20260522000003_rpc_permission_checks.sql`:
 
 ```sql
 -- Fecha o gap: 3 RPCs SECURITY DEFINER bypassavam o RLS sem checar permissão.
@@ -500,7 +500,7 @@ $$;
 - [ ] **Step 2: Aplicar a migration**
 
 Run: `supabase migration up`
-Expected: aplica `20260522000002_rpc_permission_checks` sem erro.
+Expected: aplica `20260522000003_rpc_permission_checks` sem erro.
 
 - [ ] **Step 3: Verificar — membro sem permissão é bloqueado**
 
@@ -534,7 +534,7 @@ Expected: sem erros.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add supabase/migrations/20260522000002_rpc_permission_checks.sql apps/desktop/src/
+git add supabase/migrations/20260522000003_rpc_permission_checks.sql apps/desktop/src/
 git commit -m "fix: add permission checks to update_song, update_song_groups, reorder RPCs"
 ```
 
