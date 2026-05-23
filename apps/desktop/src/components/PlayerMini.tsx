@@ -225,7 +225,6 @@ export function PlayerMini() {
     function tick() {
       const p = getPosition()
       const howlD = getDuration()
-      setPos(p)
       // Issue #116 reaberta: no repeat-one, a faixa termina e o
       // handleSongEnd dispara restartCurrent — o id da música NÃO muda, então
       // o effect em `currentSong?.id` não reabre o guard. Sem este reset, o
@@ -241,6 +240,12 @@ export function PlayerMini() {
         ? howlD
         : dbDuration || howlD
       setDuration(chosen)
+      // O arquivo real costuma terminar uns décimos antes da duração reportada
+      // pelo yt-dlp (e o `onend` do Howler dispara no fim físico). Sem isso,
+      // o usuário via o display congelar em 4:32 numa música de 4:33 logo
+      // antes do restart no repeat-one. Quando faltam < 1s, mostra o total.
+      const displayPos = chosen > 0 && p > 0 && chosen - p < 1 ? chosen : p
+      setPos(displayPos)
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
       mediaSession.updatePosition({ position: p, duration: chosen })
