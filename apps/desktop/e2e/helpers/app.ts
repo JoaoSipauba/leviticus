@@ -166,6 +166,19 @@ export async function installYtDlpMock(): Promise<void> {
   await setYtDlpMockMode('happy')
 }
 
+/**
+ * Remove o mock de yt-dlp do bin dir do app dev. Chamado no `onComplete` do
+ * wdio.local.conf pra evitar contaminar a próxima sessão de uso REAL do app
+ * dev — sem isso, baixar uma música no app dev usa o fake e gera arquivo
+ * vazio. Idempotente (no-op se nada existir). Também limpa o /tmp/fake-yt-dlp.mode.
+ */
+export async function uninstallYtDlpMock(): Promise<void> {
+  const binDir = appLocalBinDir()
+  await rmIfExists(path.join(binDir, 'yt-dlp'))
+  await rmIfExists(path.join(binDir, 'yt-dlp.version'))
+  await rmIfExists('/tmp/fake-yt-dlp.mode')
+}
+
 /** Writes /tmp/fake-yt-dlp.mode — read by fake-yt-dlp.sh on each invocation. */
 export async function setYtDlpMockMode(
   mode: 'happy' | 'fail-metadata' | 'fail-download'
