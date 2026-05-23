@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.13.0](https://github.com/JoaoSipauba/leviticus/compare/v0.12.1...v0.13.0) (2026-05-23)
+
+### Funcionalidades
+
+* permission gating ([#120](https://github.com/JoaoSipauba/leviticus/issues/120)) ([#142](https://github.com/JoaoSipauba/leviticus/issues/142)) ([8c82fe9](https://github.com/JoaoSipauba/leviticus/commit/8c82fe958328c3416b90d291acdf4354744d9ad1))
+
+### Correções
+
+* **audio:** repeat-one cycle 2 — sanity check no timeupdate ([#116](https://github.com/JoaoSipauba/leviticus/issues/116)) ([#143](https://github.com/JoaoSipauba/leviticus/issues/143)) ([de529b6](https://github.com/JoaoSipauba/leviticus/commit/de529b625bacdf812f86c9478b2d16b4c327a31a))
+
 ## [0.12.1](https://github.com/JoaoSipauba/leviticus/compare/v0.12.0...v0.12.1) (2026-05-22)
 
 ## [0.12.0](https://github.com/JoaoSipauba/leviticus/compare/v0.11.0...v0.12.0) (2026-05-22)
