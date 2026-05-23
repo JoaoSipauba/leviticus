@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 
 // ── hoisted mocks ───────────────────────────────────────────────────────────
-const { mockGetDb, mockSupabase, mockHasPermission, mockIsOwner } = vi.hoisted(() => {
+const { mockGetDb, mockSupabase, permRef } = vi.hoisted(() => {
   const mockSelect = vi.fn()
   const mockGetDb = vi.fn().mockResolvedValue({ select: mockSelect })
 
@@ -14,17 +14,13 @@ const { mockGetDb, mockSupabase, mockHasPermission, mockIsOwner } = vi.hoisted((
     from: vi.fn(),
   }
 
-  const mockHasPermission = vi.fn().mockResolvedValue(true)
-  const mockIsOwner = vi.fn().mockResolvedValue(false)
-
-  return { mockGetDb, mockSupabase, mockHasPermission, mockIsOwner }
+  return { mockGetDb, mockSupabase, permRef: { value: true } }
 })
 
 vi.mock('../../lib/db.js', () => ({ getDb: mockGetDb }))
 vi.mock('../../lib/supabase.js', () => ({ supabase: mockSupabase }))
-vi.mock('../../lib/permissions.js', () => ({
-  hasPermission: mockHasPermission,
-  isOwner: mockIsOwner,
+vi.mock('../../store/permissions.js', () => ({
+  usePermission: () => permRef.value,
 }))
 vi.mock('../../store/toasts.js', () => ({
   toastSuccess: vi.fn(),
@@ -97,8 +93,7 @@ function renderComponent() {
 describe('OrgMembers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockHasPermission.mockResolvedValue(true)
-    mockIsOwner.mockResolvedValue(false)
+    permRef.value = true
     mockSupabase.auth.getUser.mockResolvedValue({ data: { user: { id: 'user-me' } } })
   })
 

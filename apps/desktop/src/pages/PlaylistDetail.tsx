@@ -27,6 +27,7 @@ import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useDownloadsStore } from '../store/downloads.js'
 import { useUIStore } from '../store/ui.js'
+import { usePermission } from '../store/permissions.js'
 
 type DraftSection = {
   sectionId: string
@@ -68,6 +69,8 @@ export function PlaylistDetail() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deletingPlaylist, setDeletingPlaylist] = useState(false)
   const online = useOnlineStatus()
+  const canManagePlaylists = usePermission('manage_playlists')
+  const canAddToPlaylist = usePermission('add_songs_to_playlist')
   const enqueueDownload = useDownloadsStore((s) => s.enqueue)
   const subscribeCompleted = useDownloadsStore((s) => s.subscribeCompleted)
   const subscribeCanceled = useDownloadsStore((s) => s.subscribeCanceled)
@@ -550,6 +553,7 @@ export function PlaylistDetail() {
           handleSongEnd().catch((e) => captureException(e, { feature: 'playlist', step: 'song-end' }))
         },
         volume,
+        durationOverride: first?.duration_seconds ?? undefined,
       })
       usePlayerStore.getState().play(first, {
         playlist,
@@ -617,6 +621,7 @@ export function PlaylistDetail() {
                   <Play size={16} fill="#0d0d16" stroke="none" /> Tocar tudo
                 </button>
               )}
+              {canManagePlaylists && (
               <button
                 onClick={online ? () => setAddSectionOpen(true) : undefined}
                 disabled={!online}
@@ -631,6 +636,8 @@ export function PlaylistDetail() {
                 }}>
                 <Plus size={14} /> Adicionar seção
               </button>
+              )}
+              {canManagePlaylists && (
               <PlaylistMenu
                 onEdit={() => setEditingPlaylist(true)}
                 onDelete={() => setConfirmingDelete(true)}
@@ -639,6 +646,7 @@ export function PlaylistDetail() {
                 onConfirmDelete={handleDeletePlaylist}
                 onCancelDelete={() => setConfirmingDelete(false)}
               />
+              )}
             </div>
           </div>
         </div>
@@ -743,6 +751,8 @@ export function PlaylistDetail() {
                 ? (newLabel) => handleRenameSection(section.sectionId, newLabel)
                 : undefined}
               onDelete={() => handleDeleteSection(section.sectionId, section.isDraft)}
+              canManagePlaylists={canManagePlaylists}
+              canAddToPlaylist={canAddToPlaylist}
             />
             {idx === allSections.length - 1 && (
               <SectionDropIndicator
@@ -752,6 +762,7 @@ export function PlaylistDetail() {
           </div>
         ))}
 
+        {canManagePlaylists && (
         <button
           onClick={online ? () => setAddSectionOpen(true) : undefined}
           disabled={!online}
@@ -766,6 +777,7 @@ export function PlaylistDetail() {
         >
           <Plus size={16} /> Adicionar seção
         </button>
+        )}
       </div>
 
       <PlaylistFormModal
@@ -827,6 +839,7 @@ function PlaylistSection({
   dragState, dropTarget,
   onPlay, onStartDragSong, onStartDragSection, onEndDrag,
   onAddSong, onRemoveSong, onRename, onDelete,
+  canManagePlaylists, canAddToPlaylist,
 }: {
   section: SectionView & { isDraft: boolean }
   playlist: Playlist
@@ -844,6 +857,8 @@ function PlaylistSection({
   onRemoveSong: (ps: PlaylistSong & { song: Song }) => void
   onRename?: (newLabel: string) => void
   onDelete: () => void
+  canManagePlaylists: boolean
+  canAddToPlaylist: boolean
 }) {
   const isBeingDraggedSection = dragState?.kind === 'section' && dragState.sectionId === section.sectionId
   return (
@@ -861,6 +876,7 @@ function PlaylistSection({
         onEndDrag={onEndDrag}
         onRename={onRename}
         onDelete={onDelete}
+        canManagePlaylists={canManagePlaylists}
       />
       <div className="space-y-px">
         {(() => {
@@ -933,18 +949,20 @@ function PlaylistSection({
           />
         )}
       </div>
-      <button
-        onClick={onAddSong}
-        className="text-xs text-muted hover:text-[#9ca3af] transition-colors flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
-      >
-        <Plus size={12} /> Adicionar música
-      </button>
+      {(canManagePlaylists || canAddToPlaylist) && (
+        <button
+          onClick={onAddSong}
+          className="text-xs text-muted hover:text-[#9ca3af] transition-colors flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
+        >
+          <Plus size={12} /> Adicionar música
+        </button>
+      )}
     </section>
   )
 }
 
 function SectionHeader({
-  section, onPlay, onStartDragSection, onEndDrag, onRename, onDelete,
+  section, onPlay, onStartDragSection, onEndDrag, onRename, onDelete, canManagePlaylists,
 }: {
   section: SectionView & { isDraft: boolean }
   onPlay?: () => void
@@ -952,6 +970,7 @@ function SectionHeader({
   onEndDrag: () => void
   onRename?: (newLabel: string) => void
   onDelete: () => void
+  canManagePlaylists: boolean
 }) {
   const [renaming, setRenaming] = useState(false)
   const [newLabel, setNewLabel] = useState(section.label)
@@ -1043,6 +1062,7 @@ function SectionHeader({
         title={onPlay ? 'Tocar a partir desta seção' : 'Adicione uma música primeiro'}>
         <Play size={10} fill="currentColor" /> Tocar
       </button>
+      {canManagePlaylists && (
       <div>
         <button
           ref={btnMenuRef}
@@ -1099,6 +1119,7 @@ function SectionHeader({
           document.body
         )}
       </div>
+      )}
     </div>
   )
 }

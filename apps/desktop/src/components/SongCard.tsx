@@ -9,6 +9,7 @@ import { usePlayerStore } from '../store/player.js'
 import { useUIStore } from '../store/ui.js'
 import { useDownloadsStore, selectStatus } from '../store/downloads.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
+import { usePermission } from '../store/permissions.js'
 import { captureException } from '../lib/observability.js'
 import { downloadSongFromDrive } from '../lib/cloud-storage/download-song.js'
 import { deleteFile as deleteCloudFile } from '../lib/cloud-storage/client.js'
@@ -108,6 +109,8 @@ function ActionsMenu({
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const canManageSongs = usePermission('manage_songs')
+  const canManagePlaylists = usePermission('manage_playlists')
   const btnRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState<{ top: number; right: number }>({ top: 0, right: 0 })
@@ -235,7 +238,7 @@ function ActionsMenu({
             </div>
           ) : (
             <>
-              {onEdit && (
+              {onEdit && canManageSongs && (
                 <button
                   role="menuitem"
                   onClick={online ? (e) => { e.stopPropagation(); setOpen(false); onEdit() } : undefined}
@@ -280,7 +283,7 @@ function ActionsMenu({
                 </button>
               )}
 
-              {onRemoveFromPlaylist && (
+              {onRemoveFromPlaylist && canManagePlaylists && (
                 <button
                   role="menuitem"
                   onClick={online ? (e) => { e.stopPropagation(); setOpen(false); void onRemoveFromPlaylist() } : undefined}
@@ -299,7 +302,7 @@ function ActionsMenu({
                   Dentro do culto, "Remover deste culto" já cobre a intenção
                   imediata, e excluir da biblioteca é destrutivo demais pra
                   estar próximo dele. Pra apagar de vez, vai pela biblioteca. */}
-              {!onRemoveFromPlaylist && (
+              {!onRemoveFromPlaylist && canManageSongs && (
                 <button
                   role="menuitem"
                   onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}
@@ -440,7 +443,7 @@ export function SongCard({
     }
 
     const filePath = await getSongFilename(song.id)
-    playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
+    playSong(filePath, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: song.duration_seconds ?? undefined })
     if (playlistContext) {
       play(song, {
         playlist: playlistContext.playlist,

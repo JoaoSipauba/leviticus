@@ -4,7 +4,7 @@ import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
-import { hasPermission } from '../../lib/permissions.js'
+import { usePermission } from '../../store/permissions.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
@@ -19,20 +19,19 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
   const [stats, setStats] = useState<Stats>({ members: 0, ministries: 0, playlists: 0 })
   const [form, setForm] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
   const [original, setOriginal] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
-  const [canEdit, setCanEdit] = useState(false)
+  const canEdit = usePermission('manage_members')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   async function load(opts?: { silent?: boolean }) {
     const db = await getDb()
-    const [orgRows, m, g, p, canEditNow] = await Promise.all([
+    const [orgRows, m, g, p] = await Promise.all([
       db.select<{ name: string; city: string | null; timezone: string }[]>(
         `SELECT name, city, timezone FROM orgs WHERE id = ?`, [orgId]
       ),
       db.select<{ cnt: number }[]>(`SELECT COUNT(*) as cnt FROM organization_members WHERE org_id = ?`, [orgId]),
       db.select<{ cnt: number }[]>(`SELECT COUNT(*) as cnt FROM groups WHERE org_id = ?`, [orgId]),
       db.select<{ cnt: number }[]>(`SELECT COUNT(*) as cnt FROM playlists WHERE org_id = ?`, [orgId]),
-      hasPermission('manage_members', orgId),
     ])
     setStats({ members: m[0]?.cnt ?? 0, ministries: g[0]?.cnt ?? 0, playlists: p[0]?.cnt ?? 0 })
     // Refetch silencioso NÃO sobrescreve o form se há edição não salva —
@@ -49,7 +48,6 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
       }
       setForm(f); setOriginal(f)
     }
-    setCanEdit(canEditNow)
     setLoading(false)
   }
 

@@ -17,7 +17,7 @@ import { spawn, execFileSync, type ChildProcess } from 'node:child_process'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { config as baseConfig } from './wdio.conf.js'
 import { appBinaryPath } from './helpers/env.js'
-import { takeScreenshot } from './helpers/app.js'
+import { takeScreenshot, uninstallYtDlpMock } from './helpers/app.js'
 
 let tauriWd: ChildProcess | null = null
 
@@ -96,8 +96,12 @@ export const config: WebdriverIO.Config = {
   },
 
   // Rede de segurança final: garante que nada sobrou após a suíte inteira.
-  onComplete: () => {
+  onComplete: async () => {
     killStrayProcesses()
+    // Remove o mock de yt-dlp do bin do app dev. Sem isso, se o dev abrir o
+    // app dev pra testar logo após rodar E2E, baixar uma música usa o fake
+    // e gera arquivo vazio.
+    await uninstallYtDlpMock()
   },
 
   // Re-define afterTest because object spread doesn't merge nested functions —

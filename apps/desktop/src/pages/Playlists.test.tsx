@@ -44,6 +44,8 @@ vi.mock('../components/PlaylistFormModal.js', () => ({
 vi.mock('@tauri-apps/plugin-http', () => ({ fetch: vi.fn() }))
 vi.mock('@tauri-apps/plugin-sql', () => ({ default: { load: vi.fn() } }))
 vi.mock('@tauri-apps/api/path', () => ({ appLocalDataDir: vi.fn().mockResolvedValue('/data/') }))
+const { permState } = vi.hoisted(() => ({ permState: { value: true } }))
+vi.mock('../store/permissions.js', () => ({ usePermission: () => permState.value }))
 
 // ─── import component after mocks ─────────────────────────────────────────
 
@@ -88,6 +90,18 @@ describe('Playlists', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.setItem('leviticus_org_id', 'org-1')
+    permState.value = true
+  })
+
+  it('esconde "Novo culto" e "Criar primeiro culto" sem manage_playlists', async () => {
+    permState.value = false
+    setupDb([])
+    render(<Playlists />)
+    await waitFor(() => {
+      expect(screen.getByText('Nenhum culto agendado.')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('Novo culto')).not.toBeInTheDocument()
+    expect(screen.queryByText('Criar primeiro culto')).not.toBeInTheDocument()
   })
 
   afterEach(() => {

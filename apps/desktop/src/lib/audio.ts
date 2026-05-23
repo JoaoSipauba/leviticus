@@ -18,6 +18,15 @@ type AudioCallbacks = {
   onEnd?: () => void
   onLoad?: () => void
   volume?: number
+  /**
+   * Duração em segundos da DB (vinda do yt-dlp). Sobrescreve o cálculo
+   * interno do Howler — issue conhecida do Safari/WebKit (Tauri) onde mp3
+   * com certas metatags reportam o dobro da duração real.
+   * https://github.com/goldfire/howler.js/issues/789
+   * Quando definido, `pos >= duration` no PlayerMini fica confiável e o
+   * sanity de fim no `timeupdate` também.
+   */
+  durationOverride?: number
 }
 
 // Mapeia a extensão do arquivo pra o hint de formato que Howler espera.
@@ -61,12 +70,33 @@ function createHowl(src: string, format: string[], callbacks: AudioCallbacks | u
   })
 
   howl.once('load', () => {
+    // Override de duração — vide JSDoc em AudioCallbacks.durationOverride.
+    // Mexe em internos privados do Howler (_duration / _sprite.__default),
+    // mas é a solução documentada pela comunidade pro bug do WebKit:
+    // https://github.com/goldfire/howler.js/issues/789#issuecomment
+    if (callbacks?.durationOverride && Number.isFinite(callbacks.durationOverride) && callbacks.durationOverride > 0) {
+      const dSec = callbacks.durationOverride
+      const internal = howl as unknown as { _duration: number; _sprite: { __default?: [number, number] } }
+      internal._duration = dSec
+      if (internal._sprite?.__default) internal._sprite.__default[1] = dSec * 1000
+    }
     const node = (howl as unknown as { _sounds?: Array<{ _node?: HTMLAudioElement }> })._sounds?.[0]?._node
     if (!node) return
     node.addEventListener('ended', fireEnd)
-    // Sanity check: se o evento `ended` não propagar, a flag nativa `ended`
-    // do elemento ainda é setada ao chegar no fim — pega num `timeupdate`.
-    node.addEventListener('timeupdate', () => { if (node.ended) fireEnd() })
+    // Sanity check no `timeupdate`. Em ordem de confiabilidade observada:
+    //   1. `node.ended === true` — pega quando o evento `ended` não propaga
+    //      mas a flag nativa foi setada.
+    //   2. `currentTime >= duration` — fallback agressivo pra WKWebView
+    //      onde `ended` não é setada de forma confiável (issue #116 reaberta:
+    //      a 2ª execução do repeat-one no v0.12.1 ainda passa do fim sem
+    //      disparar nem o evento nem a flag — a posição cruza `duration`
+    //      mas o player não para).
+    // Margem de 0.15s evita falsos positivos perto do fim sem ter chegado.
+    node.addEventListener('timeupdate', () => {
+      if (node.ended) { fireEnd(); return }
+      const d = node.duration
+      if (Number.isFinite(d) && d > 0 && node.currentTime >= d - 0.15) fireEnd()
+    })
   })
 
   return howl

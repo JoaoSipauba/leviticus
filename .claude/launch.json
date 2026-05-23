@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "mockup",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "-l", "3456", ".claude/mockups"],
+      "port": 3456
+    },
+    {
+      "name": "desktop",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "appsdesktop", "dev"],
+      "port": 1420
+    },
+    {
+      "name": "landing",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@leviticus/landing", "dev"],
+      "port": 3000
+    }
+  ]
+}

@@ -262,6 +262,32 @@ Um teste só conta como verde se passa **rodado sozinho E rodado junto com os ou
 
 Se um teste passa isolado mas falha na suíte (ou vice-versa), isso é um **defeito do teste** — vazamento de estado entre testes, race de timing, ou dependência de ordem de execução. Não é "reroda que passa": corrija a causa (isolar estado, ancorar esperas no estado real em vez de `sleep` fixo, dar timeout coerente com a lentidão sob carga) antes de fechar. Flakiness não rastreada mascara regressão real — se não der pra corrigir na hora, abra issue `type:dx` e referencie no handoff.
 
+### Como escrever testes isoláveis (anti-flaky)
+
+A regra acima é o *quê*; isto é o *como*. Vale pra toda camada (unit, component, E2E).
+
+**Princípios gerais (qualquer camada):**
+
+- **Cada teste cria e destrói o próprio estado.** Não dependa de dado que outro teste deixou, nem de ordem de execução. Se dois testes precisam do mesmo setup, cada um monta o seu (ou use `beforeEach`, não `before`).
+- **`beforeEach` reseta tudo que o teste toca.** Mocks (`vi.clearAllMocks()`), refs/flags hoisted (`permState.value = true`), `localStorage`, stores Zustand. Estado de módulo que persiste entre testes é a causa nº 1 de "passa isolado, falha na suíte".
+- **Nunca ancore espera em tempo fixo.** Nada de `sleep(500)` torcendo pra algo acontecer. Espere o **estado real**: o elemento existir, a row aparecer no banco, o mock ter sido chamado. `sleep` fixo passa sozinho (máquina ociosa) e falha na suíte (máquina sob carga).
+- **IDs e nomes únicos por teste.** Use sufixo de timestamp (`+${Date.now()}`) em emails, nomes de org, URLs — evita colisão com rows de testes anteriores no mesmo banco.
+
+**Unit / component (Vitest):**
+
+- Mocks declarados com `vi.hoisted` + estado mutável (`{ value }`) devem ser **resetados no `beforeEach`** — senão o último teste que setou `false` vaza pro próximo arquivo/teste.
+- Não compartilhe instância de store entre testes; recrie ou limpe (`.getState().clear()` / reset).
+- Se um teste muda algo global (`vi.setSystemTime`, `vi.stubGlobal`), restaure no `finally`/`afterEach`.
+
+**E2E (WebdriverIO):**
+
+- **Cada spec file assume só o ponto de partida do harness** (app em `/login`, ou seja lá o que o `beforeSession` garante) — nunca o estado deixado pelo spec anterior. Se o spec precisa estar logado, ele faz o login no próprio `before`.
+- **`cleanLocalSqlite()` no `before`** de qualquer spec que dependa de cache local limpo.
+- **Seed via service-role admin client** (`helpers/supabase.ts`) — monte org/song/playlist direto no banco, não dependa de outro spec ter criado.
+- Entre `describe`s no mesmo arquivo, se o primeiro deixou o app logado, o segundo faz signout explícito no `before` (ver `02-org-invites.spec.ts`).
+- **Espere o boot terminar** (`#boot-splash` sumir) depois de cada `browser.url(...)` — o splash só some após `syncOrg`, então é o sinal de "dados prontos". Não navegue e leia a tela no mesmo tick.
+- Timeouts generosos o suficiente pra suíte sob carga (a CI roda tudo serial); `waitUntil` com `timeoutMsg` descritivo, nunca `pause`.
+
 ### Stack
 
 | Ferramenta | Versão | Onde mora |

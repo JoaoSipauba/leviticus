@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { getDb } from '../../lib/db.js'
 import { supabase } from '../../lib/supabase.js'
-import { isOwner } from '../../lib/permissions.js'
+import { usePermissionsStore } from '../../store/permissions.js'
 import { TransferOwnershipModal } from '../../components/org/TransferOwnershipModal.js'
 import { DeleteOrgModal } from '../../components/org/DeleteOrgModal.js'
 import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
 
 export function OrgDanger({ orgId, active = false }: { orgId: string; active?: boolean }) {
   const navigate = useNavigate()
-  const [owner, setOwner] = useState(false)
+  const owner = usePermissionsStore((s) => s.isOwner)
   const [orgName, setOrgName] = useState('')
   const [me, setMe] = useState('')
   const [openTransfer, setOpenTransfer] = useState(false)
@@ -21,7 +21,6 @@ export function OrgDanger({ orgId, active = false }: { orgId: string; active?: b
     const db = await getDb()
     const row = await db.select<{ name: string }[]>(`SELECT name FROM orgs WHERE id = ?`, [orgId])
     setOrgName(row[0]?.name ?? '')
-    setOwner(await isOwner(orgId))
     const { data: userData } = await supabase.auth.getUser()
     setMe(userData.user?.id ?? '')
   }

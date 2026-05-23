@@ -50,7 +50,7 @@ export function PlayerMini() {
     if (!next) return
     if (!(await isDownloaded(next.id))) return
     const path = await getSongFilename(next.id)
-    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: next.duration_seconds ?? undefined })
     usePlayerStore.getState().resume()
   }, [nextInPlaylist])
 
@@ -61,7 +61,7 @@ export function PlayerMini() {
     if (!prev) return
     if (!(await isDownloaded(prev.id))) return
     const path = await getSongFilename(prev.id)
-    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume })
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: prev.duration_seconds ?? undefined })
     usePlayerStore.getState().resume()
   }, [])
 
@@ -225,7 +225,14 @@ export function PlayerMini() {
     function tick() {
       const p = getPosition()
       const howlD = getDuration()
-      setPos(p)
+      // Issue #116 reaberta: no repeat-one, a faixa termina e o
+      // handleSongEnd dispara restartCurrent — o id da música NÃO muda, então
+      // o effect em `currentSong?.id` não reabre o guard. Sem este reset, o
+      // 2º ciclo nunca detecta fim (guard fica `true`). Detecta o restart
+      // pelo retorno da posição pra perto de zero. Vale também pra seek-to-0.
+      if (songEndedRef.current && p < 0.5) {
+        songEndedRef.current = false
+      }
       // Priorize Howl quando reporta valor sane (> 0 e dentro de 30% da DB).
       // Caso Howler retorne lixo (VBR mp3 sem tag TLEN ocasionalmente reporta
       // 2× o real), fica com a duração da DB. Issue #42.
@@ -233,6 +240,12 @@ export function PlayerMini() {
         ? howlD
         : dbDuration || howlD
       setDuration(chosen)
+      // O arquivo real costuma terminar uns décimos antes da duração reportada
+      // pelo yt-dlp (e o `onend` do Howler dispara no fim físico). Sem isso,
+      // o usuário via o display congelar em 4:32 numa música de 4:33 logo
+      // antes do restart no repeat-one. Quando faltam < 1s, mostra o total.
+      const displayPos = chosen > 0 && p > 0 && chosen - p < 1 ? chosen : p
+      setPos(displayPos)
       setPosition(p)
       // Atualiza barra de progresso do widget "Tocando agora" do macOS.
       mediaSession.updatePosition({ position: p, duration: chosen })
@@ -255,9 +268,14 @@ export function PlayerMini() {
       // do ponto de vista do store, força handleSongEnd manualmente.
       // Sem isso, isPlaying fica true após o fim → polling continua e o
       // slider parece "progredir além". Issue #62.
+      // Sem margem: com durationOverride confiável da DB, queremos disparar
+      // exatamente quando a posição alcança a duração (não 250ms antes — o
+      // usuário via o repeat acontecer em 4:32 numa música de 4:33). O
+      // polling de 500ms naturalmente pega o tick um pouco após `duration`,
+      // o que ainda mostra `4:33` (floor) — o que o usuário espera ver.
       if (
         chosen > 0 &&
-        p >= chosen - 0.25 &&
+        p >= chosen &&
         !songEndedRef.current
       ) {
         songEndedRef.current = true
