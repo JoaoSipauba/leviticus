@@ -62,4 +62,12 @@ describe('PeriodBar', () => {
     const inputs = screen.getAllByDisplayValue('2026-04-21')
     expect(inputs.length).toBeGreaterThan(0)
   })
+
+  it('marca "Hoje" como ativo quando preset = today (URL = ?period=today)', () => {
+    render(<PeriodBar current={makePeriod('today')} />)
+    const hoje = screen.getByText('Hoje').closest('a')
+    expect(hoje?.className).toContain('active')
+    expect(hoje?.getAttribute('href')).toBe('?period=today')
+    expect(screen.getByText('?period=today')).toBeTruthy()
+  })
 })
