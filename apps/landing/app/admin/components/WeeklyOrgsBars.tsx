@@ -54,6 +54,8 @@ export default function WeeklyOrgsBars({ data }: Props) {
             axisLine={false}
             tickLine={false}
             tickCount={4}
+            allowDecimals={false}
+            domain={[0, 'dataMax']}
           />
           <Tooltip
             contentStyle={{

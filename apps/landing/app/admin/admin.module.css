@@ -502,6 +502,7 @@
   font-size: 13px;
   color: var(--text);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 .admin-root :global(.barlist-row .bar-track) {
   flex: 1;

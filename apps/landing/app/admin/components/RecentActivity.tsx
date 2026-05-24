@@ -40,7 +40,7 @@ export default function RecentActivity({ rows }: Props) {
 
   return (
     <div>
-      {rows.map((row, i) => {
+      {rows.slice(0, 10).map((row, i) => {
         const cfg = TYPE_CONFIG[row.type] ?? { dotClass: 'org', label: row.type }
         const who = whoLabel(row)
         return (

@@ -6,6 +6,15 @@ type Props = {
   emptyLabel?: string
 }
 
+function initials(name: string): string {
+  return name
+    .split(/[\s./]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
 export default function BarList({ items, color = 'var(--primary, #3b82f6)', emptyLabel = 'Sem dados.' }: Props) {
   if (!items || items.length === 0) {
     return <div className="admin-empty">{emptyLabel}</div>
@@ -16,10 +25,14 @@ export default function BarList({ items, color = 'var(--primary, #3b82f6)', empt
     <div className="barlist">
       {items.map((item) => (
         <div key={item.name} className="barlist-row">
-          <div className="barlist-track" style={{ ['--w' as string]: `${(item.count / max) * 100}%`, ['--c' as string]: color }}>
-            <span className="barlist-name">{item.name}</span>
+          <div className="ico">{initials(item.name)}</div>
+          <div className="bar-wrap">
+            <span className="label">{item.name}</span>
+            <div className="bar-track">
+              <div className="bar-fill" style={{ width: `${(item.count / max) * 100}%`, background: color }} />
+            </div>
           </div>
-          <span className="barlist-count">{item.count.toLocaleString('pt-BR')}</span>
+          <span className="val">{item.count.toLocaleString('pt-BR')}</span>
         </div>
       ))}
     </div>
