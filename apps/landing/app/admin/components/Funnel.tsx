@@ -21,8 +21,10 @@ export default function Funnel({ data }: Props) {
         const barWidth = base > 0 ? `${pct.toFixed(2)}%` : (i === 0 ? '100%' : '0%')
 
         const prev = i > 0 ? values[i - 1] : null
-        const dropped = prev !== null ? prev - count : null
-        const dropPct = prev !== null && prev > 0 ? ((prev - count) / prev * 100).toFixed(0) : null
+        const dropped = prev !== null ? Math.max(0, prev - count) : null
+        const dropPct = prev !== null && prev > 0
+          ? (Math.max(0, (prev - count)) / prev * 100).toFixed(0)
+          : null
 
         return (
           <div key={step.key}>

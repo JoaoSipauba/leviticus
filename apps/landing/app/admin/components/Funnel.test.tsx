@@ -51,4 +51,23 @@ describe('Funnel', () => {
     expect(screen.getByText('playlists.created_at')).toBeTruthy()
     expect(screen.getByText('culto_started')).toBeTruthy()
   })
+
+  it('drop 6→3 mostra 50%, não 100% — bug repro com dados reais', () => {
+    // Reproduz o cenário do bug: 9 signups, 6 com 1ª música, 3 com 1º culto, 0 executaram
+    const bugData: FunnelData = { signups: 9, firstSong: 6, firstCulto: 3, firstExecuted: 0 }
+    render(<Funnel data={bugData} />)
+    // Drop de firstSong(6) para firstCulto(3) = (6-3)/6 = 50%
+    expect(screen.getByText('↓ −50% (3 perdidos)')).toBeTruthy()
+    // Drop de firstCulto(3) para firstExecuted(0) = (3-0)/3 = 100%
+    expect(screen.getByText('↓ −100% (3 perdidos)')).toBeTruthy()
+  })
+
+  it('clamps drop count to 0 when count > prev (data anomaly)', () => {
+    // Se dados virem inconsistentes (count > prev), não mostra "-N perdidos"
+    const anomalyData: FunnelData = { signups: 5, firstSong: 8, firstCulto: 3, firstExecuted: 0 }
+    render(<Funnel data={anomalyData} />)
+    // Ensure no negative "perdidos" count appears anywhere in the rendered output
+    const allText = document.body.textContent ?? ''
+    expect(allText).not.toMatch(/-\d+ perdidos/)
+  })
 })
