@@ -67,19 +67,30 @@ const COUNTRY_NAMES: Record<string, string> = {
 function aggregateVercelMain(json: unknown): { visitors: number; pageviews: number; bounceRate: number | null; timeseries: VercelPoint[] } {
   const groups = vercelGroups(json)
   const series = groups?.all ?? []
-  const timeseries: VercelPoint[] = series.map((d) => ({
-    key: d.key, label: fmtDayLabel(d.key.slice(0, 10)),
-    pageviews: d.total ?? 0, visitors: d.devices ?? 0,
-  }))
+
+  // Vercel ignora granularity=day em períodos curtos e devolve buckets
+  // horários — somamos por dia (YYYY-MM-DD) pra ter 1 ponto por dia no chart.
+  const byDay = new Map<string, { pageviews: number; visitors: number; bWeighted: number; bWeight: number }>()
+  for (const d of series) {
+    const dayKey = (d.key ?? '').slice(0, 10)
+    if (!dayKey) continue
+    const cur = byDay.get(dayKey) ?? { pageviews: 0, visitors: 0, bWeighted: 0, bWeight: 0 }
+    cur.pageviews += d.total ?? 0
+    cur.visitors += d.devices ?? 0
+    if (typeof d.bounceRate === 'number' && (d.devices ?? 0) > 0) {
+      cur.bWeighted += d.bounceRate * d.devices
+      cur.bWeight += d.devices
+    }
+    byDay.set(dayKey, cur)
+  }
+
+  const timeseries: VercelPoint[] = Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, v]) => ({ key, label: fmtDayLabel(key), pageviews: v.pageviews, visitors: v.visitors }))
   const pageviews = timeseries.reduce((s, d) => s + d.pageviews, 0)
   const visitors = timeseries.reduce((s, d) => s + d.visitors, 0)
-  let bWeighted = 0, bWeight = 0
-  for (const d of series) {
-    if (typeof d.bounceRate === 'number' && (d.devices ?? 0) > 0) {
-      bWeighted += d.bounceRate * d.devices
-      bWeight += d.devices
-    }
-  }
+  const bWeighted = Array.from(byDay.values()).reduce((s, v) => s + v.bWeighted, 0)
+  const bWeight = Array.from(byDay.values()).reduce((s, v) => s + v.bWeight, 0)
   return {
     visitors, pageviews, timeseries,
     bounceRate: bWeight > 0 ? bWeighted / bWeight : null,
