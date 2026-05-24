@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.15.0](https://github.com/JoaoSipauba/leviticus/compare/v0.14.0...v0.15.0) (2026-05-24)
+
+### Funcionalidades
+
+* **ci:** poda releases antigas do bucket app-releases (retem 3) ([#150](https://github.com/JoaoSipauba/leviticus/issues/150)) ([80efbf0](https://github.com/JoaoSipauba/leviticus/commit/80efbf008eaee611f0e6ca5b5adcbf119d728504))
+
+### Correções
+
+* **admin:** preset 'Hoje' não filtrava (URL key 'hoje' vs resolver 'today') ([#151](https://github.com/JoaoSipauba/leviticus/issues/151)) ([22d7339](https://github.com/JoaoSipauba/leviticus/commit/22d73397dccb9e24e23f01e49a244d093ec3a7cb))
+
 ## [0.14.0](https://github.com/JoaoSipauba/leviticus/compare/v0.13.0...v0.14.0) (2026-05-24)
 
 ### Funcionalidades
