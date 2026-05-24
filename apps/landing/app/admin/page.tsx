@@ -28,6 +28,7 @@ import ActivityHeatmap from './components/ActivityHeatmap'
 import RecentActivity from './components/RecentActivity'
 import SentryErrorChart from './components/SentryErrorChart'
 import SeverityBreakdown from './components/SeverityBreakdown'
+import AutoRefresh from './components/AutoRefresh'
 
 export const revalidate = 0
 
@@ -77,7 +78,8 @@ export default async function AdminDashboard({
               color: 'var(--muted-2)',
             }}
           >
-            Atualizado em {formatTs(fetchedAt)} · cache externo 10 min
+            Atualizado em {formatTs(fetchedAt)} · cache externo 10 min ·{' '}
+            <AutoRefresh fetchedAt={fetchedAt} />
           </p>
         </div>
 
