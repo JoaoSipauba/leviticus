@@ -1,20 +1,8 @@
 import type { VersionAdoptionRow } from '../../../lib/adminEvents'
 
 function isOldVersion(version: string, latestVersion: string): boolean {
-  const parse = (v: string) =>
-    v
-      .replace(/^v/, '')
-      .split('.')
-      .map((n) => parseInt(n, 10) || 0)
-  const lParts = parse(latestVersion)
-  const cParts = parse(version)
-  // Compare segment by segment; first difference > 1 in any segment = old
-  for (let i = 0; i < Math.max(lParts.length, cParts.length); i++) {
-    const l = lParts[i] ?? 0
-    const c = cParts[i] ?? 0
-    if (l !== c) return l - c > 1
-  }
-  return false
+  // Any version that isn't the latest is considered old
+  return version !== latestVersion
 }
 
 type Props = { data: VersionAdoptionRow[] }

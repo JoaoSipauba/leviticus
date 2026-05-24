@@ -27,15 +27,18 @@ describe('VersionAdoption', () => {
 
   it('versões antigas têm classe ver-old', () => {
     render(<VersionAdoption data={mockData} />)
-    const oldEl = screen.getByText('v0.1.10')
+    // Toda versão != latest é old
+    const oldEl = screen.getByText('v0.1.12')
     expect(oldEl.className).toContain('ver-old')
-    const oldEl2 = screen.getByText('v0.1.8')
+    const oldEl2 = screen.getByText('v0.1.10')
     expect(oldEl2.className).toContain('ver-old')
+    const oldEl3 = screen.getByText('v0.1.8')
+    expect(oldEl3.className).toContain('ver-old')
   })
 
   it('mostra warning quando há usuários em versões antigas', () => {
     const { container } = render(<VersionAdoption data={mockData} />)
-    // 2 + 1 = 3 usuários em versões antigas (v0.1.10 e v0.1.8)
+    // 6 + 2 + 1 = 9 usuários em versões antigas (v0.1.12, v0.1.10, v0.1.8)
     expect(container.textContent).toContain('versões antigas')
   })
 
@@ -47,12 +50,12 @@ describe('VersionAdoption', () => {
     expect(container.textContent).not.toContain('versões antigas')
   })
 
-  it('não mostra warning quando não há usuários em versões antigas', () => {
-    const noOld: VersionAdoptionRow[] = [
-      { version: 'v0.1.13', users: 10, pct: 83.3 },
-      { version: 'v0.1.12', users: 2, pct: 16.7 }, // só 1 minor atrás → não é "old"
+  it('não mostra warning quando todos estão exatamente na versão mais recente', () => {
+    // Toda versão != latest é old — se só existe 1 versão (todos na latest), sem warning
+    const soLatest: VersionAdoptionRow[] = [
+      { version: 'v0.1.13', users: 12, pct: 100 },
     ]
-    const { container } = render(<VersionAdoption data={noOld} />)
+    const { container } = render(<VersionAdoption data={soLatest} />)
     expect(container.textContent).not.toContain('versões antigas')
   })
 

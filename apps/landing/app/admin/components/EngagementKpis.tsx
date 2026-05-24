@@ -21,9 +21,12 @@ export default function EngagementKpis({ data, prev, totalCultos }: Props) {
   const songsDelta = prev ? deltaPct(data.songsPlayed, prev.songsPlayed) : undefined
   const cultosDelta = prev ? deltaPct(data.cultosExecuted, prev.cultosExecuted) : undefined
 
-  const completionPct = data.completionRate !== null ? data.completionRate * 100 : null
+  // Clamp to [0, 100] — songsCompleted > songsPlayed pode ocorrer por dados inconsistentes no DB
+  const completionPct = data.completionRate !== null
+    ? Math.min(100, Math.max(0, data.completionRate * 100))
+    : null
   const prevCompletionPct = prev?.completionRate !== undefined && prev?.completionRate !== null
-    ? prev.completionRate * 100
+    ? Math.min(100, Math.max(0, prev.completionRate * 100))
     : null
   const completionDelta = deltaPp(completionPct, prevCompletionPct)
 
@@ -72,7 +75,7 @@ export default function EngagementKpis({ data, prev, totalCultos }: Props) {
         kind="flow"
         delta={audioDelta}
         deltaFormat="pct"
-        context={`${audioMinutes} min reproduzidos`}
+        context={useHours ? `${audioMinutes} min reproduzidos` : `${audioMinutes} reproduzidos`}
       />
     </div>
   )
