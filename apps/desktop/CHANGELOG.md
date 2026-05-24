@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.14.0](https://github.com/JoaoSipauba/leviticus/compare/v0.13.0...v0.14.0) (2026-05-24)
+
+### Funcionalidades
+
+* **admin:** redesign do dashboard com métricas event-driven ([#146](https://github.com/JoaoSipauba/leviticus/issues/146)) ([6601341](https://github.com/JoaoSipauba/leviticus/commit/660134114c27d6353ef9972c0b322d32198f3a78))
+
 ## [0.13.0](https://github.com/JoaoSipauba/leviticus/compare/v0.12.1...v0.13.0) (2026-05-23)
 
 ### Funcionalidades
