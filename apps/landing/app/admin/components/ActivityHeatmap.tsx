@@ -14,13 +14,14 @@ export default function ActivityHeatmap({ data }: Props) {
     return data.find((d) => d.dow === dow && d.hour === hour) ?? { dow, hour, count: 0 }
   }
 
+  // Tokens: --primary = #3b82f6
   function intensity(count: number): string {
     if (count === 0) return 'rgba(59,130,246,0.04)'
     const ratio = count / maxCount
-    if (ratio < 0.25) return 'rgba(59,130,246,0.18)'
-    if (ratio < 0.5)  return 'rgba(59,130,246,0.38)'
-    if (ratio < 0.75) return 'rgba(59,130,246,0.58)'
-    return 'rgba(59,130,246,0.85)'
+    if (ratio < 0.25) return 'rgba(59,130,246,0.15)'
+    if (ratio < 0.5)  return 'rgba(59,130,246,0.32)'
+    if (ratio < 0.75) return 'rgba(59,130,246,0.55)'
+    return 'rgba(59,130,246,0.82)'
   }
 
   return (

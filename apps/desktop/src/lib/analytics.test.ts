@@ -45,6 +45,11 @@ describe('trackEvent', () => {
     expect(typeof row.occurred_at).toBe('string')
   })
 
+  it('aceita culto_started', () => {
+    localStorage.setItem('leviticus_org_id', 'org-1')
+    expect(() => trackEvent('culto_started', { playlistId: 'pl-1' })).not.toThrow()
+  })
+
   it('não enfileira quando não há usuário logado', async () => {
     const { useAuthStore } = await import('../store/auth.js')
     vi.mocked(useAuthStore.getState).mockReturnValueOnce({ user: null } as never)

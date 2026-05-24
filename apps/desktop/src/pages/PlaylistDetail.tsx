@@ -21,6 +21,7 @@ import { SongCard } from '../components/SongCard.js'
 import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
 import { captureException } from '../lib/observability.js'
+import { trackEvent } from '../lib/analytics.js'
 import { playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { isDownloaded, getSongFilename } from '../lib/ytdlp.js'
@@ -569,6 +570,7 @@ export function PlaylistDetail() {
     // Toca tudo desde o começo, na ordem do banco. Não pula tocadas — usuário
     // que clica "Tocar tudo" geralmente quer recomeçar do zero.
     const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+    if (playlist) trackEvent('culto_started', { playlistId: playlist.id })
     playSongs(all.map((ps) => ps.song)).catch((e) => captureException(e, { feature: 'playlist', step: 'play-all' }))
   }
 
