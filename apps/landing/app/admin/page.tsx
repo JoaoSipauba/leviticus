@@ -269,14 +269,8 @@ export default async function AdminDashboard({
             </div>
           </div>
 
-          {/* Crescimento acumulado */}
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="card-head">
-              <div>
-                <h3>Crescimento acumulado</h3>
-                <p className="desc">Últimos 90 dias</p>
-              </div>
-            </div>
+          {/* Crescimento acumulado — GrowthChart já renderiza seu próprio card */}
+          <div style={{ marginTop: 16 }}>
             <GrowthChart data={produto.growth} />
           </div>
 
@@ -409,14 +403,8 @@ export default async function AdminDashboard({
             <TeamStructureKpis data={produto.teamStructure} />
           </div>
 
-          {/* Heatmap de atividade */}
-          <div className="card" style={{ marginTop: 16 }}>
-            <div className="card-head">
-              <div>
-                <h3>Heatmap de atividade</h3>
-                <p className="desc">Hora × dia da semana (all-time)</p>
-              </div>
-            </div>
+          {/* Heatmap de atividade — ActivityHeatmap já renderiza seu próprio card */}
+          <div style={{ marginTop: 16 }}>
             <ActivityHeatmap data={produto.heatmap} />
           </div>
 
@@ -425,7 +413,7 @@ export default async function AdminDashboard({
             <div className="card-head">
               <div>
                 <h3>Atividade recente</h3>
-                <p className="desc">Ações no período · últimas 30</p>
+                <p className="desc">Ações no período · últimas 10</p>
               </div>
             </div>
             <RecentActivity rows={produto.recent} />

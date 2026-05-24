@@ -17,12 +17,6 @@ export default function WaitlistCard({ data }: Props) {
 
   return (
     <div className="card">
-      <div className="card-head">
-        <div>
-          <h3>Waitlist mobile</h3>
-          <p className="desc">Pessoas aguardando a versão móvel</p>
-        </div>
-      </div>
       <div className="triple-stat">
         <div>
           <div className="lbl">Total</div>
