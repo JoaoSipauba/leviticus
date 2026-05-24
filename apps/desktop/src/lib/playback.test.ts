@@ -46,7 +46,7 @@ describe('handleSongEnd — analytics', () => {
     expect(trackEventMock).toHaveBeenCalledWith('song_completed', {
       songId: 'song-1',
       playlistId: 'culto-1',
-      metadata: { played_seconds: 240 },
+      metadata: { played_seconds: 240, duration_seconds: 240 },
     })
   })
 
@@ -56,7 +56,7 @@ describe('handleSongEnd — analytics', () => {
     await handleSongEnd()
     expect(trackEventMock).toHaveBeenCalledWith(
       'song_completed',
-      expect.objectContaining({ metadata: { played_seconds: 180 } }),
+      expect.objectContaining({ metadata: { played_seconds: 180, duration_seconds: 0 } }),
     )
   })
 

@@ -63,7 +63,7 @@ export default function Download({ release }: Props) {
               {release ? `v${release.version} · ~${release.macSizeMB} MB · .dmg` : 'indisponível no momento'}
             </div>
             {release ? (
-              <a href={release.macUrl} className="btn btn-primary download-btn">
+              <a href="/api/download/mac" className="btn btn-primary download-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v14M5 12l7 7 7-7"/></svg>
                 Baixar para macOS
               </a>
@@ -84,7 +84,7 @@ export default function Download({ release }: Props) {
               {release ? `v${release.version} · ~${release.winSizeMB} MB · .exe` : 'indisponível no momento'}
             </div>
             {release ? (
-              <a href={release.winUrl} className="btn btn-primary download-btn">
+              <a href="/api/download/win" className="btn btn-primary download-btn">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v14M5 12l7 7 7-7"/></svg>
                 Baixar para Windows
               </a>

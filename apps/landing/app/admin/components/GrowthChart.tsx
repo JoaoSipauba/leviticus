@@ -29,34 +29,46 @@ export default function GrowthChart({ data }: Props) {
       </div>
       <ResponsiveContainer width="100%" height={240}>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <defs>
-            {SERIES.map((s) => (
-              <linearGradient key={s.key} id={`grad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={s.color} stopOpacity={0.25} />
-                <stop offset="95%" stopColor={s.color} stopOpacity={0} />
-              </linearGradient>
-            ))}
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-          <XAxis dataKey="day" tickFormatter={fmt} tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} interval={14} />
-          <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
-          <Tooltip
-            contentStyle={{ background: '#13131f', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
-            labelFormatter={(l) => fmt(String(l ?? ''))}
-            labelStyle={{ color: '#9ca3af' }}
+          <CartesianGrid strokeDasharray="2 4" stroke="var(--border, #1f2937)" />
+          <XAxis
+            dataKey="day"
+            tickFormatter={fmt}
+            tick={{ fill: 'var(--muted-2, #6b7280)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+            tickLine={false}
+            axisLine={false}
+            interval={14}
           />
-          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+          <YAxis
+            tick={{ fill: 'var(--muted-2, #6b7280)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+            tickLine={false}
+            axisLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            contentStyle={{
+              background: 'var(--card, #13131f)',
+              border: '1px solid var(--border, #1f2937)',
+              borderRadius: 8,
+              fontSize: 12,
+              fontFamily: "'Inter', system-ui, sans-serif",
+            }}
+            labelFormatter={(l) => fmt(String(l ?? ''))}
+            labelStyle={{ color: 'var(--muted, #9ca3af)', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
+            itemStyle={{ color: 'var(--text, #f3f4f6)' }}
+            cursor={{ stroke: 'var(--border-2, #2d2d3d)', strokeWidth: 1 }}
+          />
+          <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12, color: 'var(--muted, #9ca3af)' }} />
           {SERIES.map((s) => (
             <Area
               key={s.key}
               type="monotone"
               dataKey={s.key}
               name={s.label}
+              stackId="growth"
               stroke={s.color}
               strokeWidth={2}
-              fill={`url(#grad-${s.key})`}
-              dot={false}
-              activeDot={{ r: 4 }}
+              fill={s.color}
+              fillOpacity={0.25}
             />
           ))}
         </AreaChart>
