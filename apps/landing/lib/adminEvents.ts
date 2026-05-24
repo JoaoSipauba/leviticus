@@ -191,7 +191,7 @@ export async function fetchEventsHealth(): Promise<EventsHealth> {
 /** Funil de ativação — todos os usuários históricos. */
 export async function fetchFunnel(): Promise<FunnelData> {
   const [songsByUser, playlistsByUser, executedByUser] = await Promise.all([
-    supabaseAdmin.from('songs').select('user_id:created_by').limit(100000),
+    supabaseAdmin.from('songs').select('user_id:added_by').limit(100000),
     supabaseAdmin.from('playlists').select('user_id:created_by').limit(100000),
     supabaseAdmin.from('analytics_events').select('user_id')
       .eq('event_type', 'culto_started').limit(100000),
