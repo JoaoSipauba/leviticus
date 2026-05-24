@@ -3,32 +3,25 @@ import { Calendar } from 'lucide-react'
 import type { Period } from '@/lib/adminPeriod'
 
 type Preset = {
-  key: string
+  // key bate 1:1 com PresetKey de adminPeriod — usado como `?period={key}`.
+  key: 'today' | '7d' | '30d' | '90d'
   label: string
 }
 
 const PRESETS: Preset[] = [
-  { key: 'hoje', label: 'Hoje' },
+  { key: 'today', label: 'Hoje' },
   { key: '7d', label: '7 dias' },
   { key: '30d', label: '30 dias' },
   { key: '90d', label: '90 dias' },
 ]
-
-// Mapeia preset key do adminPeriod pra chave de URL
-const PRESET_MAP: Record<string, string> = {
-  today: 'hoje',
-  '7d': '7d',
-  '30d': '30d',
-  '90d': '90d',
-  custom: '',
-}
 
 type Props = {
   current: Period
 }
 
 export default function PeriodBar({ current }: Props) {
-  const activeKey = PRESET_MAP[current.preset] ?? ''
+  // 'custom' não bate com nenhum preset — nenhum botão fica ativo.
+  const activeKey = current.preset === 'custom' ? '' : current.preset
 
   // Para custom, extrai datas ISO como YYYY-MM-DD pra preencher os inputs
   const fromDate = current.from.slice(0, 10)

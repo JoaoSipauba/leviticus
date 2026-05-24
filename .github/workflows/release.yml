@@ -309,3 +309,98 @@ jobs:
             --title "Leviticus ${TAG}" \
             --notes-file release-notes.md \
             "$DMG" "$TARGZ" "$EXE" "latest.json"
+
+      # Issue #141 — bucket app-releases é free-tier (1GB). Sem poda, a cada
+      # release acumula ~27MB. Mantém só as 3 últimas versões; updater do Tauri
+      # só usa a mais nova apontada por latest.json, então versões intermediárias
+      # são puro overhead.
+      #
+      # continue-on-error: a release já foi publicada com sucesso nesse ponto.
+      # Falha de poda é warning, não bloqueia o workflow.
+      - name: Purge old releases from Supabase Storage (retain top 3)
+        continue-on-error: true
+        env:
+          SUPABASE_URL: https://ttoefyaybhfpwnkbuvzc.supabase.co
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          BUCKET="app-releases"
+          RETAIN=3
+
+          # Lista tudo no top-level. Versões vêm como "folders" (id=null).
+          # Filtra só nomes vX.Y.Z; latest.json e outros arquivos passam batido.
+          VERSIONS=$(curl -sSf -X POST \
+            -H "Authorization: Bearer $SUPABASE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"prefix":"", "limit": 1000, "offset": 0}' \
+            "$SUPABASE_URL/storage/v1/object/list/$BUCKET" \
+            | jq -r '.[] | select(.name | test("^v[0-9]+\\.[0-9]+\\.[0-9]+$")) | .name')
+
+          if [ -z "$VERSIONS" ]; then
+            echo "Nenhuma versão encontrada — nada a purgar."
+            exit 0
+          fi
+
+          TOTAL=$(printf '%s\n' "$VERSIONS" | wc -l | tr -d ' ')
+          echo "Versões no bucket: $TOTAL"
+          printf '%s\n' "$VERSIONS" | sort -V -r | sed 's/^/  /'
+
+          # sort -V trata semver corretamente. Top $RETAIN ficam; resto é purga.
+          TO_DELETE=$(printf '%s\n' "$VERSIONS" | sort -V -r | tail -n +$((RETAIN + 1)))
+          if [ -z "$TO_DELETE" ]; then
+            echo ""
+            echo "$TOTAL <= $RETAIN versões — nada a purgar."
+            exit 0
+          fi
+
+          PURGE_COUNT=$(printf '%s\n' "$TO_DELETE" | wc -l | tr -d ' ')
+          echo ""
+          echo "Removendo $PURGE_COUNT versão(ões):"
+          printf '%s\n' "$TO_DELETE" | sed 's/^/  /'
+
+          # Pra cada versão, lista arquivos (root + platforms/) e deleta em batch.
+          for V in $TO_DELETE; do
+            echo ""
+            echo "-> $V"
+
+            ROOT_FILES=$(curl -sSf -X POST \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"prefix\":\"$V\", \"limit\": 1000}" \
+              "$SUPABASE_URL/storage/v1/object/list/$BUCKET" \
+              | jq -r --arg v "$V" '.[] | select(.id != null) | "\($v)/\(.name)"')
+
+            PLATFORM_FILES=$(curl -sSf -X POST \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"prefix\":\"$V/platforms\", \"limit\": 1000}" \
+              "$SUPABASE_URL/storage/v1/object/list/$BUCKET" \
+              | jq -r --arg v "$V" '.[] | select(.id != null) | "\($v)/platforms/\(.name)"')
+
+            ALL_FILES=$(printf '%s\n%s\n' "$ROOT_FILES" "$PLATFORM_FILES" | sed '/^$/d')
+
+            if [ -z "$ALL_FILES" ]; then
+              echo "  (vazia, skip)"
+              continue
+            fi
+
+            printf '  %s\n' $ALL_FILES
+
+            PAYLOAD=$(printf '%s\n' "$ALL_FILES" | jq -R . | jq -s '{prefixes: .}')
+
+            HTTP=$(curl -sS -o /tmp/purge-resp.txt -w "%{http_code}" -X DELETE \
+              -H "Authorization: Bearer $SUPABASE_KEY" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD" \
+              "$SUPABASE_URL/storage/v1/object/$BUCKET")
+
+            if [ "$HTTP" -ge 300 ]; then
+              echo "  ! erro HTTP $HTTP: $(cat /tmp/purge-resp.txt)"
+            else
+              REMOVED=$(jq -r 'length // 0' /tmp/purge-resp.txt 2>/dev/null || echo "?")
+              echo "  ok removidos: $REMOVED"
+            fi
+          done
+
+          echo ""
+          echo "Purge concluido. Bucket retem top $RETAIN."
