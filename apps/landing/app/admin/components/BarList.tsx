@@ -6,7 +6,7 @@ type Props = {
   emptyLabel?: string
 }
 
-export default function BarList({ items, color = '#3b82f6', emptyLabel = 'Sem dados.' }: Props) {
+export default function BarList({ items, color = 'var(--primary, #3b82f6)', emptyLabel = 'Sem dados.' }: Props) {
   if (!items || items.length === 0) {
     return <div className="admin-empty">{emptyLabel}</div>
   }

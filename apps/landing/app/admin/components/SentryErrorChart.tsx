@@ -34,12 +34,31 @@ export default function SentryErrorChart({ data }: Props) {
             <stop offset="95%" stopColor="#f87171" stopOpacity={0} />
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-        <XAxis dataKey="label" tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} interval={interval} />
-        <YAxis tick={{ fill: '#6b7280', fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+        <CartesianGrid strokeDasharray="2 4" stroke="var(--border, #1f2937)" />
+        <XAxis
+          dataKey="label"
+          tick={{ fill: 'var(--muted-2, #6b7280)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+          tickLine={false}
+          axisLine={false}
+          interval={interval}
+        />
+        <YAxis
+          tick={{ fill: 'var(--muted-2, #6b7280)', fontSize: 11, fontFamily: "'JetBrains Mono', monospace" }}
+          tickLine={false}
+          axisLine={false}
+          allowDecimals={false}
+        />
         <Tooltip
-          contentStyle={{ background: '#13131f', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 }}
-          labelStyle={{ color: '#9ca3af' }}
+          contentStyle={{
+            background: 'var(--card, #13131f)',
+            border: '1px solid var(--border, #1f2937)',
+            borderRadius: 8,
+            fontSize: 12,
+            fontFamily: "'Inter', system-ui, sans-serif",
+          }}
+          labelStyle={{ color: 'var(--muted, #9ca3af)', fontFamily: "'JetBrains Mono', monospace", fontSize: 11 }}
+          itemStyle={{ color: 'var(--text, #f3f4f6)' }}
+          cursor={{ stroke: 'var(--border-2, #2d2d3d)', strokeWidth: 1 }}
         />
         <Area type="monotone" dataKey="count" name="Erros" stroke="#f87171" strokeWidth={2} fill="url(#grad-errors)" dot={false} activeDot={{ r: 4 }} />
       </AreaChart>
