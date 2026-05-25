@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.16.0](https://github.com/JoaoSipauba/leviticus/compare/v0.15.0...v0.16.0) (2026-05-25)
+
+### Funcionalidades
+
+* **admin:** Visitas por dia mostra granularidade horaria no preset Hoje ([#163](https://github.com/JoaoSipauba/leviticus/issues/163)) ([b2e29da](https://github.com/JoaoSipauba/leviticus/commit/b2e29da3a358cd7e1f7fd95f72e0149794401fb4))
+* contabiliza minutos tocados em qualquer parada (song_stopped) ([#162](https://github.com/JoaoSipauba/leviticus/issues/162)) ([1f78224](https://github.com/JoaoSipauba/leviticus/commit/1f7822448b63442fe590f6c136178f144ba9ecd9))
+
+### Correções
+
+* **ci:** close-issues escuta workflow_run em vez de release.published ([#160](https://github.com/JoaoSipauba/leviticus/issues/160)) ([c568b7c](https://github.com/JoaoSipauba/leviticus/commit/c568b7c5389db18280ae74e97c9a2b514ddbebdb)), closes [#116](https://github.com/JoaoSipauba/leviticus/issues/116) [#120](https://github.com/JoaoSipauba/leviticus/issues/120) [#141](https://github.com/JoaoSipauba/leviticus/issues/141)
+
 ## [0.15.0](https://github.com/JoaoSipauba/leviticus/compare/v0.14.0...v0.15.0) (2026-05-24)
 
 ### Funcionalidades
