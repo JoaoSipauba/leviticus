@@ -43,6 +43,18 @@ describe('aggregateEngagement', () => {
   it('completionRate null quando não houve play', () => {
     expect(aggregateEngagement([]).completionRate).toBeNull()
   })
+
+  it('audioMinutes prefere played_seconds (campo sempre presente) sobre duration_seconds', () => {
+    // Eventos legados (pré v0.13.0) só têm played_seconds. Sem fallback,
+    // contagem fica zerada e card "Tempo de áudio" mostra 0 min.
+    const events = [
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 180 } }),
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 240, duration_seconds: 300 } }),
+      mkEvent({ event_type: 'song_completed', metadata: { duration_seconds: 120 } }),
+    ]
+    // 180 + 240 (prefere played) + 120 (fallback duration) = 540s = 9 min
+    expect(aggregateEngagement(events).audioMinutes).toBe(9)
+  })
 })
 
 describe('aggregateVersionAdoption', () => {
