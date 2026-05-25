@@ -51,6 +51,58 @@ describe('getAdminLanding', () => {
     expect(data.waitlistIos).toBe(1)
   })
 
+  it('preset=today gera buckets horários (label "HHh") em vez de agregar por dia', async () => {
+    process.env.VERCEL_ANALYTICS_TOKEN = 'x'
+    process.env.VERCEL_TEAM_ID = 'y'
+    process.env.VERCEL_PROJECT_ID = 'z'
+
+    // 3 horas distintas do mesmo dia — daily aggregation colapsaria pra 1 ponto.
+    const hourlyJson = {
+      data: { groups: { all: [
+        { key: '2026-05-25T09:00:00Z', total: 5, devices: 3, bounceRate: 50 },
+        { key: '2026-05-25T14:00:00Z', total: 12, devices: 8, bounceRate: 40 },
+        { key: '2026-05-25T20:00:00Z', total: 7, devices: 4, bounceRate: 60 },
+      ]}},
+    }
+    global.fetch = vi.fn(async () => new Response(JSON.stringify(hourlyJson), { status: 200 })) as never
+    fromMock.mockImplementation(() => ({
+      select: () => ({ gte: () => ({ lte: () => supabaseChain([]) }) }),
+    }))
+
+    const period = resolvePeriod({ period: 'today' })
+    const prev = computePrevPeriod(period)
+    const data = await getAdminLanding(period, prev)
+    expect(data.timeseries).toHaveLength(3)
+    expect(data.timeseries.map((p) => p.label)).toEqual(['09h', '14h', '20h'])
+    expect(data.timeseries[1].pageviews).toBe(12)
+    expect(data.timeseries[1].visitors).toBe(8)
+  })
+
+  it('preset=7d mantém buckets diários (label DD/MM) — colapsa horas do mesmo dia', async () => {
+    process.env.VERCEL_ANALYTICS_TOKEN = 'x'
+    process.env.VERCEL_TEAM_ID = 'y'
+    process.env.VERCEL_PROJECT_ID = 'z'
+
+    const hourlyJson = {
+      data: { groups: { all: [
+        { key: '2026-05-25T09:00:00Z', total: 5, devices: 3, bounceRate: 50 },
+        { key: '2026-05-25T14:00:00Z', total: 12, devices: 8, bounceRate: 40 },
+      ]}},
+    }
+    global.fetch = vi.fn(async () => new Response(JSON.stringify(hourlyJson), { status: 200 })) as never
+    fromMock.mockImplementation(() => ({
+      select: () => ({ gte: () => ({ lte: () => supabaseChain([]) }) }),
+    }))
+
+    const period = resolvePeriod({ period: '7d' })
+    const prev = computePrevPeriod(period)
+    const data = await getAdminLanding(period, prev)
+    expect(data.timeseries).toHaveLength(1)
+    expect(data.timeseries[0].label).toBe('25/05')
+    expect(data.timeseries[0].pageviews).toBe(17)  // 5 + 12
+    expect(data.timeseries[0].visitors).toBe(11)   // 3 + 8
+  })
+
   it('available=false quando Vercel token não configurado', async () => {
     delete process.env.VERCEL_ANALYTICS_TOKEN
     delete process.env.VERCEL_TEAM_ID

@@ -64,33 +64,49 @@ const COUNTRY_NAMES: Record<string, string> = {
   CA: 'Canadá', MX: 'México', AO: 'Angola', MZ: 'Moçambique',
 }
 
-function aggregateVercelMain(json: unknown): { visitors: number; pageviews: number; bounceRate: number | null; timeseries: VercelPoint[] } {
+function fmtHourLabel(isoHourKey: string): string {
+  // isoHourKey = "2026-05-25T14" → "14h"
+  const h = isoHourKey.slice(11, 13)
+  return h ? `${h}h` : isoHourKey
+}
+
+type Granularity = 'day' | 'hour'
+
+function aggregateVercelMain(
+  json: unknown,
+  granularity: Granularity = 'day',
+): { visitors: number; pageviews: number; bounceRate: number | null; timeseries: VercelPoint[] } {
   const groups = vercelGroups(json)
   const series = groups?.all ?? []
 
-  // Vercel ignora granularity=day em períodos curtos e devolve buckets
-  // horários — somamos por dia (YYYY-MM-DD) pra ter 1 ponto por dia no chart.
-  const byDay = new Map<string, { pageviews: number; visitors: number; bWeighted: number; bWeight: number }>()
+  // Vercel sempre devolve buckets horários em períodos curtos. Pra "Hoje"
+  // mantemos cada hora como ponto (granularity='hour'); pra 7d/30d/90d
+  // agregamos por dia pra evitar centenas de pontos no chart.
+  const bucketKey = (rawKey: string) =>
+    granularity === 'hour' ? rawKey.slice(0, 13) : rawKey.slice(0, 10)
+  const labelFor = granularity === 'hour' ? fmtHourLabel : fmtDayLabel
+
+  const byBucket = new Map<string, { pageviews: number; visitors: number; bWeighted: number; bWeight: number }>()
   for (const d of series) {
-    const dayKey = (d.key ?? '').slice(0, 10)
-    if (!dayKey) continue
-    const cur = byDay.get(dayKey) ?? { pageviews: 0, visitors: 0, bWeighted: 0, bWeight: 0 }
+    const key = bucketKey(d.key ?? '')
+    if (!key) continue
+    const cur = byBucket.get(key) ?? { pageviews: 0, visitors: 0, bWeighted: 0, bWeight: 0 }
     cur.pageviews += d.total ?? 0
     cur.visitors += d.devices ?? 0
     if (typeof d.bounceRate === 'number' && (d.devices ?? 0) > 0) {
       cur.bWeighted += d.bounceRate * d.devices
       cur.bWeight += d.devices
     }
-    byDay.set(dayKey, cur)
+    byBucket.set(key, cur)
   }
 
-  const timeseries: VercelPoint[] = Array.from(byDay.entries())
+  const timeseries: VercelPoint[] = Array.from(byBucket.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, v]) => ({ key, label: fmtDayLabel(key), pageviews: v.pageviews, visitors: v.visitors }))
+    .map(([key, v]) => ({ key, label: labelFor(key), pageviews: v.pageviews, visitors: v.visitors }))
   const pageviews = timeseries.reduce((s, d) => s + d.pageviews, 0)
   const visitors = timeseries.reduce((s, d) => s + d.visitors, 0)
-  const bWeighted = Array.from(byDay.values()).reduce((s, v) => s + v.bWeighted, 0)
-  const bWeight = Array.from(byDay.values()).reduce((s, v) => s + v.bWeight, 0)
+  const bWeighted = Array.from(byBucket.values()).reduce((s, v) => s + v.bWeighted, 0)
+  const bWeight = Array.from(byBucket.values()).reduce((s, v) => s + v.bWeight, 0)
   return {
     visitors, pageviews, timeseries,
     bounceRate: bWeight > 0 ? bWeighted / bWeight : null,
@@ -160,8 +176,12 @@ export async function getAdminLanding(period: Period, prev: Period): Promise<Lan
     }
   }
 
-  const curr = aggregateVercelMain(mainJson)
-  const prevAgg = prevMainJson ? aggregateVercelMain(prevMainJson) : { visitors: 0, pageviews: 0, bounceRate: null, timeseries: [] }
+  // 'Hoje' usa granularity horária no chart pra mostrar horários do dia;
+  // outros períodos agregam por dia. Período anterior segue a mesma escolha
+  // (totalizadores precisam ser comparáveis).
+  const granularity = period.preset === 'today' ? 'hour' : 'day'
+  const curr = aggregateVercelMain(mainJson, granularity)
+  const prevAgg = prevMainJson ? aggregateVercelMain(prevMainJson, granularity) : { visitors: 0, pageviews: 0, bounceRate: null, timeseries: [] }
   const referrers = aggregateGroups(refJson, (k) => (k === '' ? 'Direto' : k))
   const countries = aggregateGroups(countryJson, (k) =>
     k === '' ? 'Desconhecido' : (COUNTRY_NAMES[k.toUpperCase()] ?? k.toUpperCase()),
