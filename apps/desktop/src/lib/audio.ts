@@ -1,6 +1,7 @@
 import { Howl, Howler } from 'howler'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { captureException } from './observability.js'
+import { trackEvent, flushAnalyticsQueue } from './analytics.js'
 
 // Howler mantém um pool de elementos HTML5Audio (default: 10). Quando o
 // pool esgota, ele reusa um Audio "potencialmente travado" e logga
@@ -13,6 +14,15 @@ let _howl: Howl | null = null
 let _currentSrc: string | null = null
 let _currentFormat: string[] = ['mp3']
 let _currentCallbacks: AudioCallbacks | undefined
+
+// Tracking state pra emissão de song_stopped.
+// Preenchido em playSong; zerado/resetado a cada troca de faixa.
+let _currentSongId: string | null = null
+let _currentPlaylistId: string | null = null
+// Setado pra true dentro de fireEnd (fim natural). Se true quando playSong
+// é chamado, a faixa já foi contabilizada como song_completed — não emite
+// song_stopped.
+let _endedNaturally = false
 
 type AudioCallbacks = {
   onEnd?: () => void
@@ -27,6 +37,10 @@ type AudioCallbacks = {
    * sanity de fim no `timeupdate` também.
    */
   durationOverride?: number
+  /** ID da música sendo tocada — usado pra emitir song_stopped. */
+  songId?: string
+  /** ID da playlist/culto sendo executado — contexto do song_stopped. */
+  playlistId?: string
 }
 
 // Mapeia a extensão do arquivo pra o hint de formato que Howler espera.
@@ -49,11 +63,39 @@ function inferFormat(filePath: string): string[] {
 // `ended` nativo do HTMLMediaElement como fonte da verdade. Todos os
 // caminhos (onend do Howler, `ended` nativo, sanity check) funilam por
 // `fireEnd`, que dispara `onEnd` no máximo uma vez por instância de Howl.
+/**
+ * Emite `song_stopped` se houver faixa em andamento que não terminou
+ * naturalmente e o usuário ouviu pelo menos 5s (evita ruído de skips
+ * imediatos). Não-bloqueante e idempotente por chamada de playSong.
+ */
+function flushStoppedIfNeeded(): void {
+  if (!_currentSongId) return
+  if (_endedNaturally) return // song_completed já foi (ou vai ser) emitido
+  const pos = getPosition()
+  if (pos <= 5) return // toque curto — skip imediato, não conta
+  trackEvent('song_stopped', {
+    songId: _currentSongId,
+    playlistId: _currentPlaylistId ?? undefined,
+    metadata: { played_seconds: Math.round(pos) },
+  })
+}
+
+/**
+ * Chama flushStoppedIfNeeded() e força flush da fila de analytics.
+ * Use no encerramento do app (beforeunload / close-requested) pra garantir
+ * que o último song_stopped não se perca.
+ */
+export async function flushAudioBeforeUnload(): Promise<void> {
+  flushStoppedIfNeeded()
+  await flushAnalyticsQueue()
+}
+
 function createHowl(src: string, format: string[], callbacks: AudioCallbacks | undefined): Howl {
   let endFired = false
   const fireEnd = () => {
     if (endFired) return
     endFired = true
+    _endedNaturally = true
     callbacks?.onEnd?.()
   }
 
@@ -103,10 +145,21 @@ function createHowl(src: string, format: string[], callbacks: AudioCallbacks | u
 }
 
 export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
+  // Antes de substituir a Howl, verifica se a faixa anterior deve emitir
+  // song_stopped (parada parcial — pause, skip, troca). fireEnd já setou
+  // _endedNaturally = true nos fins naturais, então flushStoppedIfNeeded
+  // é no-op nesses casos.
+  flushStoppedIfNeeded()
+
   if (_howl) {
     _howl.stop()
     _howl.unload()
   }
+
+  // Atualiza tracking state pra nova faixa.
+  _currentSongId = callbacks?.songId ?? null
+  _currentPlaylistId = callbacks?.playlistId ?? null
+  _endedNaturally = false
 
   const src = convertFileSrc(filePath)
   const format = inferFormat(filePath)

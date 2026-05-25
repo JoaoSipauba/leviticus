@@ -555,6 +555,8 @@ export function PlaylistDetail() {
         },
         volume,
         durationOverride: first?.duration_seconds ?? undefined,
+        songId: first.id,
+        playlistId: playlist?.id,
       })
       usePlayerStore.getState().play(first, {
         playlist,
