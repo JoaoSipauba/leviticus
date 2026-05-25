@@ -1,25 +1,53 @@
 name: Close Released Issues
 
+# IMPORTANTE: o trigger 'release' precisa de evento criado por um PAT.
+# `gh release create` no Release workflow usa GITHUB_TOKEN, e o GitHub
+# bloqueia eventos do GITHUB_TOKEN de disparar outros workflows (anti-loop).
+# Usamos `workflow_run` pra escutar o término do Release — esse trigger
+# funciona independente do token que criou a release.
 on:
-  release:
-    types: [published]
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
 
 permissions:
   issues: write
+  contents: read
 
 jobs:
   close:
+    # Só roda se o Release terminou com sucesso (sem isso fecharia issues
+    # mesmo quando o build falhou).
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     # Self-hosted Mac runner — quota Ubuntu hosted esgotou (issue #73)
     runs-on: [self-hosted, macOS, ARM64, leviticus]
     steps:
       - uses: actions/github-script@v7
         with:
           script: |
-            const release = context.payload.release
-            const version = release.tag_name
+            // workflow_run não carrega payload da release; head_branch do
+            // Release é a tag (release.yml dispara via `gh workflow run --ref vX.Y.Z`).
+            const version = context.payload.workflow_run.head_branch
+            if (!version || !/^v\d+\.\d+\.\d+/.test(version)) {
+              core.warning(`head_branch '${version}' nao parece tag de release — abortando.`)
+              return
+            }
+
+            // Confirma que a release existe (publicada).
+            let release
+            try {
+              const r = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: version,
+              })
+              release = r.data
+            } catch (e) {
+              core.warning(`Release ${version} nao encontrada via API: ${e.message}`)
+              return
+            }
             const url = release.html_url
 
-            // Lista issues com label status:in-dev (todas as que aguardavam release)
             const { data: issues } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,

@@ -19,6 +19,7 @@ import { usePermissionsStore } from './store/permissions.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
 import { flushAnalyticsQueue, trackEvent } from './lib/analytics.js'
+import { flushAudioBeforeUnload } from './lib/audio.js'
 
 // v2: bumped após adicionar ffmpeg como fonte de verdade pra duração.
 // v1 escrevia valores 2× pra VBR mp3 (parser HTMLAudio). v2 re-roda
@@ -229,6 +230,17 @@ export function App() {
     void flushAnalyticsQueue()
     const interval = setInterval(() => void flushAnalyticsQueue(), 60_000)
     return () => clearInterval(interval)
+  }, [])
+
+  // Best-effort: emite song_stopped + flush da fila quando o app fecha.
+  // Cobre fechar pela X do macOS/Windows. Em Tauri, `beforeunload` dispara
+  // de forma confiável quando o WebView é destruído — o tauri://close-requested
+  // seria uma alternativa mas exige interceptar o fechamento, o que muda o
+  // comportamento. beforeunload é suficiente como best-effort.
+  useEffect(() => {
+    const handler = () => { void flushAudioBeforeUnload() }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
   }, [])
 
   useEffect(() => {
