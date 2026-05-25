@@ -29,7 +29,7 @@ describe('aggregateEngagement', () => {
     const events = [
       mkEvent({ event_type: 'song_played' }),
       mkEvent({ event_type: 'song_played' }),
-      mkEvent({ event_type: 'song_completed', metadata: { duration_seconds: 180 } }),
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 180, duration_seconds: 180 } }),
       mkEvent({ event_type: 'culto_started' }),
     ]
     const r = aggregateEngagement(events)
@@ -42,6 +42,29 @@ describe('aggregateEngagement', () => {
 
   it('completionRate null quando não houve play', () => {
     expect(aggregateEngagement([]).completionRate).toBeNull()
+  })
+
+  it('audioMinutes soma song_completed + song_stopped (qualquer parada conta)', () => {
+    const events = [
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 180, duration_seconds: 180 } }),
+      mkEvent({ event_type: 'song_stopped', metadata: { played_seconds: 90 } }),
+      mkEvent({ event_type: 'song_stopped', metadata: { played_seconds: 240 } }),
+    ]
+    // 180 + 90 + 240 = 510s = 8.5min → arredonda pra 9
+    expect(aggregateEngagement(events).audioMinutes).toBe(9)
+  })
+
+  it('audioMinutes prefere played_seconds sobre duration_seconds (compat legado)', () => {
+    const events = [
+      // Evento sem played_seconds — só duration (legado pre-v0.13.0)
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 180 } }),
+      // Tem ambos — deve usar played_seconds (240), não duration (300)
+      mkEvent({ event_type: 'song_completed', metadata: { played_seconds: 240, duration_seconds: 300 } }),
+      // Sem played_seconds — fallback pra duration_seconds
+      mkEvent({ event_type: 'song_completed', metadata: { duration_seconds: 120 } }),
+    ]
+    // 180 + 240 (prefere played) + 120 (fallback duration) = 540s = 9 min
+    expect(aggregateEngagement(events).audioMinutes).toBe(9)
   })
 })
 

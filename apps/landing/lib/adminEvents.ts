@@ -73,10 +73,16 @@ export function aggregateEngagement(events: EventRow[]): EngagementData {
   const cultosExecuted = events.filter((e) => e.event_type === 'culto_started').length
   const songsCompleted = events.filter((e) => e.event_type === 'song_completed').length
   const completionRate = songsPlayed > 0 ? songsCompleted / songsPlayed : null
+  // Soma played_seconds de song_completed (fim natural) e song_stopped
+  // (qualquer parada parcial: pause, skip, troca, fechar app). Reflete o
+  // tempo real de áudio reproduzido, não só músicas completas.
+  // played_seconds é preferido sobre duration_seconds — eventos legados
+  // pre-v0.13.0 só têm played_seconds e duration_seconds ≠ tempo tocado.
   const audioSeconds = events
-    .filter((e) => e.event_type === 'song_completed')
+    .filter((e) => e.event_type === 'song_completed' || e.event_type === 'song_stopped')
     .reduce((sum, e) => {
-      const d = e.metadata?.duration_seconds
+      const md = e.metadata ?? {}
+      const d = md.played_seconds ?? md.duration_seconds
       return sum + (typeof d === 'number' ? d : 0)
     }, 0)
   const audioMinutes = Math.round(audioSeconds / 60)
