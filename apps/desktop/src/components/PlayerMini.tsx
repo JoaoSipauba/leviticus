@@ -50,7 +50,7 @@ export function PlayerMini() {
     if (!next) return
     if (!(await isDownloaded(next.id))) return
     const path = await getSongFilename(next.id)
-    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: next.duration_seconds ?? undefined })
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: next.duration_seconds ?? undefined, songId: next.id, playlistId: usePlayerStore.getState().currentPlaylist?.id })
     usePlayerStore.getState().resume()
   }, [nextInPlaylist])
 
@@ -61,7 +61,7 @@ export function PlayerMini() {
     if (!prev) return
     if (!(await isDownloaded(prev.id))) return
     const path = await getSongFilename(prev.id)
-    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: prev.duration_seconds ?? undefined })
+    playSong(path, { onEnd: () => void handleSongEnd(), volume: usePlayerStore.getState().volume, durationOverride: prev.duration_seconds ?? undefined, songId: prev.id, playlistId: usePlayerStore.getState().currentPlaylist?.id })
     usePlayerStore.getState().resume()
   }, [])
 

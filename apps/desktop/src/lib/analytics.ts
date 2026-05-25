@@ -8,6 +8,7 @@ export type AnalyticsEventType =
   | 'app_opened'
   | 'song_played'
   | 'song_completed'
+  | 'song_stopped'
   | 'download_succeeded'
   | 'download_failed'
   | 'culto_started'

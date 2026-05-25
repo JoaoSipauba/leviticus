@@ -130,7 +130,7 @@ export async function getAdminProduto(period: Period, prev: Period): Promise<Pro
   }
 
   // Fetch all schema + event data in parallel
-  const eventTypes = ['song_played', 'song_completed', 'culto_started', 'app_opened', 'download_succeeded', 'download_failed']
+  const eventTypes = ['song_played', 'song_completed', 'song_stopped', 'culto_started', 'app_opened', 'download_succeeded', 'download_failed']
 
   const [
     users, orgsRes, songsRes, cultosRes, membersRes,

@@ -82,7 +82,7 @@ export function PlayerExpanded({
     try {
       const path = await getSongFilename(song.id)
       const newPosition = playlistSongs.findIndex((s) => s.id === song.id)
-      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: song.duration_seconds ?? undefined })
+      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: song.duration_seconds ?? undefined, songId: song.id, playlistId: currentPlaylist?.id })
       usePlayerStore.getState().play(song, currentPlaylist
         ? { playlist: currentPlaylist, songs: playlistSongs, position: newPosition >= 0 ? newPosition : 0 }
         : undefined,
@@ -98,7 +98,7 @@ export function PlayerExpanded({
     if (!(await isDownloaded(prev.id))) return
     try {
       const path = await getSongFilename(prev.id)
-      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: prev.duration_seconds ?? undefined })
+      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: prev.duration_seconds ?? undefined, songId: prev.id, playlistId: usePlayerStore.getState().currentPlaylist?.id })
       usePlayerStore.getState().resume()
     } catch {
       usePlayerStore.getState().pause()
@@ -111,7 +111,7 @@ export function PlayerExpanded({
     if (!(await isDownloaded(next.id))) return
     try {
       const path = await getSongFilename(next.id)
-      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: next.duration_seconds ?? undefined })
+      playSong(path, { onEnd: () => void handleSongEnd(), volume, durationOverride: next.duration_seconds ?? undefined, songId: next.id, playlistId: usePlayerStore.getState().currentPlaylist?.id })
       usePlayerStore.getState().resume()
     } catch {
       usePlayerStore.getState().pause()
