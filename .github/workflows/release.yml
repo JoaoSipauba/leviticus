@@ -59,6 +59,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Em self-hosted runner (Mac), o PATH herdado pelo runner às vezes não
+      # tem ~/.cargo/bin (depende de quando o serviço foi iniciado). A action
+      # dtolnay/rust-toolchain instala/atualiza o toolchain mas não pôe cargo
+      # no $GITHUB_PATH se a action acredita que já está presente. Resultado:
+      # passos seguintes que invocam `rustc` direto falham com 'command not
+      # found'. Forçamos aqui — idempotente, sem efeito em hosted runners.
+      - name: Ensure cargo on PATH (self-hosted resilience)
+        run: echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable @ 2026-05
 
