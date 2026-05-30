@@ -3,6 +3,7 @@ import { uploadSongToDrive } from './upload-song.js'
 import { setBackupStatus } from './status.js'
 import { findSongFile } from '../ytdlp.js'
 import { isLossless, type AudioCategory } from './format-detection.js'
+import { captureException } from '../observability.js'
 
 const RETRY_INTERVAL_MS = 5 * 60 * 1000  // 5 min entre passes
 
@@ -170,7 +171,11 @@ async function runPass(orgId: string, status: string): Promise<void> {
           await setBackupStatus(song.id, 'uploaded')
           recordSuccess(song.id)
         } catch (err) {
-          console.warn('[sync-worker] failed to reconcile uploaded status', song.id, err)
+          captureException(err, {
+            feature: 'cloud-backup',
+            step: 'run-pass-reconcile',
+            extras: { songId: song.id, orgId, cloudFileId: song.cloud_file_id },
+          })
         }
         continue
       }
@@ -196,7 +201,16 @@ async function runPass(orgId: string, status: string): Promise<void> {
       } catch (err) {
         // Classifica e registra backoff. Issue #45.
         recordFailure(song.id, err)
-        console.warn('[sync-worker] upload failed for song', song.id, err)
+        captureException(err, {
+          feature: 'cloud-backup',
+          step: 'run-pass-upload',
+          extras: {
+            songId: song.id,
+            orgId,
+            transient: isTransientError(err),
+            attempts: retryState.get(song.id)?.attempts ?? 0,
+          },
+        })
       }
     }
   } finally {
@@ -270,7 +284,15 @@ export async function startInitialSync(orgId: string): Promise<void> {
     const local: Array<{ id: string; filePath: string; ext: string }> = []
     for (const s of candidates) {
       if (s.cloud_file_id) {
-        try { await setBackupStatus(s.id, 'uploaded') } catch { /* segue */ }
+        try {
+          await setBackupStatus(s.id, 'uploaded')
+        } catch (err) {
+          captureException(err, {
+            feature: 'cloud-backup',
+            step: 'initial-sync-reconcile',
+            extras: { songId: s.id, orgId, cloudFileId: s.cloud_file_id },
+          })
+        }
         continue
       }
       const path = await findSongFile(s.id)
@@ -301,7 +323,11 @@ export async function startInitialSync(orgId: string): Promise<void> {
           })
           initialSyncState = { ...initialSyncState, uploaded: initialSyncState.uploaded + 1 }
         } catch (err) {
-          console.warn('[initial-sync] upload failed for song', item.id, err)
+          captureException(err, {
+            feature: 'cloud-backup',
+            step: 'initial-sync-upload',
+            extras: { songId: item.id, orgId, ext: item.ext },
+          })
           initialSyncState = { ...initialSyncState, failed: initialSyncState.failed + 1 }
         }
         notifyInitialSync()
