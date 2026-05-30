@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.16.1](https://github.com/JoaoSipauba/leviticus/compare/v0.16.0...v0.16.1) (2026-05-25)
+
+### Correções
+
+* **ci:** garante cargo no PATH no Mac runner self-hosted ([#165](https://github.com/JoaoSipauba/leviticus/issues/165)) ([b8a23e0](https://github.com/JoaoSipauba/leviticus/commit/b8a23e0364b076b2d3fea46fe3d4c1493db3047a))
+
 ## [0.16.0](https://github.com/JoaoSipauba/leviticus/compare/v0.15.0...v0.16.0) (2026-05-25)
 
 ### Funcionalidades
