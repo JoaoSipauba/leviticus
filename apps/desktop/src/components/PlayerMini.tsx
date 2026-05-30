@@ -16,6 +16,7 @@ import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
 import { trackEvent } from '../lib/analytics.js'
 import * as mediaSession from '../lib/mediaSession.js'
+import { captureException } from '../lib/observability.js'
 
 import { formatDuration as fmt } from '../lib/format-duration.js'
 
@@ -131,8 +132,9 @@ export function PlayerMini() {
         sentinel = await (navigator as any).wakeLock.request('screen')
         if (cancelled && sentinel) { await sentinel.release(); sentinel = null }
       } catch (err) {
-        // navigator.wakeLock pode falhar (permissões, plataforma). Não é fatal.
-        console.warn('[player] wakeLock acquire failed', err)
+        // navigator.wakeLock pode falhar (permissões, plataforma). Não é fatal,
+        // mas correlaciona com slider congelado em culto (#29/#30) — vale logar.
+        captureException(err, { feature: 'audio', step: 'wake-lock-acquire' })
       }
     }
     async function release() {

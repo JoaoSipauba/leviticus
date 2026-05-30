@@ -16,6 +16,7 @@ import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
 import { getSongFilename, isDownloaded } from './ytdlp.js'
 import { trackEvent } from './analytics.js'
+import { captureException } from './observability.js'
 
 export type RepeatMode = 'none' | 'one'
 
@@ -60,7 +61,14 @@ export async function handleSongEnd(): Promise<void> {
       const path = await getSongFilename(next.id)
       playSong(path, { onEnd: () => void handleSongEnd(), volume: state.volume, durationOverride: next.duration_seconds ?? undefined, songId: next.id, playlistId: cp?.id })
       state.resume()
-    } catch {
+    } catch (err) {
+      // Quebra cadeia de culto silenciosamente — precisamos saber quando o
+      // load da próxima música falha (arquivo sumido, asset:// negado, etc.)
+      captureException(err, {
+        feature: 'audio',
+        step: 'autoplay-next',
+        extras: { nextSongId: next.id, playlistId: cp?.id },
+      })
       state.pause()
     }
     return

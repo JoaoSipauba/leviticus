@@ -3,6 +3,7 @@ import { Download, AlertCircle, CheckCircle } from 'lucide-react'
 import { downloadSong } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
+import { captureException } from '../lib/observability.js'
 
 type Props = {
   songId: string
@@ -30,6 +31,11 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
       setDone(true)
       onDownloaded?.()
     } catch (err) {
+      captureException(err, {
+        feature: 'add-song',
+        step: 'download-manual',
+        extras: { songId, youtubeUrl },
+      })
       setError(err instanceof Error ? err.message : 'Falha ao baixar')
     } finally {
       setDownloading(false)

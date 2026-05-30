@@ -1,5 +1,6 @@
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { captureException } from './observability.js'
 
 // O check de update no boot corre contra este timeout pra não segurar o
 // splash quando offline — a chamada de rede pode demorar muito ou nunca
@@ -43,7 +44,7 @@ export async function checkUpdateOnBoot(): Promise<Update | null> {
     const msg = String((e as Error)?.message ?? e)
     // tauri.conf.dev.json tem endpoints:[] — em dev o erro é esperado.
     if (!msg.includes('does not have any endpoints')) {
-      console.warn('[updater] check de boot falhou:', e)
+      captureException(e, { feature: 'updater', step: 'check-boot' })
     }
     return null
   })
