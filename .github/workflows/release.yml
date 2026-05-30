@@ -104,6 +104,49 @@ jobs:
         if: matrix.platform_key == 'windows-x86_64'
         uses: ilammy/msvc-dev-cmd@a102174a2b586eec2ea151a69e6fd14404a8ce7c # v1.13.0
 
+      # Diagnóstico do `cargo metadata` em macOS — release v0.16.1 e v0.17.0
+      # falharam com "failed to run cargo metadata" + stderr VAZIO. Este step
+      # roda cargo metadata standalone pra capturar a mensagem de erro real,
+      # sem o wrapper sccache (que pode ser a causa) e com backtrace completo.
+      # Não falha o job — só registra o output pra investigação. Remover
+      # quando a causa raiz estiver resolvida.
+      - name: Diagnose cargo metadata (macOS)
+        if: matrix.platform_key == 'darwin-aarch64'
+        shell: bash
+        working-directory: apps/desktop/src-tauri
+        env:
+          RUST_BACKTRACE: full
+        run: |
+          set +e
+          echo "::group::which/versions"
+          which cargo && cargo --version
+          which rustc && rustc --version
+          which sccache && sccache --version
+          echo "RUSTC_WRAPPER=$RUSTC_WRAPPER"
+          echo "CARGO_HOME=$CARGO_HOME"
+          echo "PATH=$PATH"
+          echo "::endgroup::"
+
+          echo "::group::cargo metadata (sem wrapper sccache)"
+          env -u RUSTC_WRAPPER cargo metadata --format-version 1 --no-deps 2> /tmp/cmd-no-wrapper.err
+          rc1=$?
+          echo "exit code: $rc1"
+          echo "--- stderr ---"
+          cat /tmp/cmd-no-wrapper.err
+          echo "::endgroup::"
+
+          echo "::group::cargo metadata (com wrapper sccache)"
+          cargo metadata --format-version 1 --no-deps 2> /tmp/cmd-wrapper.err
+          rc2=$?
+          echo "exit code: $rc2"
+          echo "--- stderr ---"
+          cat /tmp/cmd-wrapper.err
+          echo "::endgroup::"
+
+          echo "::group::cargo metadata verbose"
+          cargo -vv metadata --format-version 1 --no-deps 2>&1 | tail -80
+          echo "::endgroup::"
+
       - name: Tauri build (macOS)
         # bash funciona no macOS. GitHub Actions não permite matrix context
         # no campo `shell` (line: 98), então split em 2 steps com if.
