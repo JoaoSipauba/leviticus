@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { CloudStorageAccount, QuotaInfo } from '@leviticus/core'
 import { getDb, getLastSync } from '../lib/db.js'
 import * as cs from '../lib/cloud-storage/client.js'
+import { captureException } from '../lib/observability.js'
 
 export type IntegrationStatus =
   | 'unknown'
@@ -95,8 +96,15 @@ export const useIntegrationsStore = create<IntegrationsState>((set, get) => ({
     } catch (err) {
       const e = err as { code?: string; message: string }
       if (e.code === 'invalid_grant') {
+        // Estado esperado (token expirou) — UI cobre via banner 'token_expired',
+        // não polui Sentry.
         set({ status: 'token_expired', error: e.message })
       } else {
+        captureException(err, {
+          feature: 'cloud-storage',
+          step: 'refresh-quota',
+          extras: { orgId, code: e.code },
+        })
         set({ error: e.message })
       }
     }

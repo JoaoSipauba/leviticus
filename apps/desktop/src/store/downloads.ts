@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { startDownload, DOWNLOAD_CANCELED, deleteSongFile } from '../lib/ytdlp.js'
 import { trackEvent } from '../lib/analytics.js'
+import { captureException } from '../lib/observability.js'
 
 // Estados que o store rastreia. `not_downloaded` e `downloaded` são derivados:
 //  - "ausente do byId" + "arquivo não existe no disco" = not_downloaded
@@ -107,6 +108,11 @@ export const useDownloadsStore = create<DownloadsState>((set, get) => {
           // Falha definitiva (não conta retries transientes que ainda vão
           // re-tentar). Alimenta a métrica de taxa de falha de download.
           trackEvent('download_failed', { songId, metadata: { kind } })
+          captureException(err, {
+            feature: 'add-song',
+            step: 'download-queue-permanent',
+            extras: { songId, kind, retryCount: e.retryCount },
+          })
           return
         }
 

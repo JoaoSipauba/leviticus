@@ -16,6 +16,7 @@ import { getDeviceId } from '../lib/device.js'
 import { pauseAudio, resumeAudio, seekTo, setVolume, playSong } from '../lib/audio.js'
 import { isDownloaded, downloadSong, getSongFilename } from '../lib/ytdlp.js'
 import { getDb } from '../lib/db.js'
+import { captureException } from '../lib/observability.js'
 import type { RemoteCommand } from '@leviticus/core'
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
@@ -65,8 +66,13 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
           }
           const path = await getSongFilename(cmd.song_id)
           playSong(path, { volume: usePlayerStore.getState().volume, songId: cmd.song_id, playlistId: usePlayerStore.getState().currentPlaylist?.id })
-        } catch {
-          // error is swallowed — UI will clear loading state via finally
+        } catch (err) {
+          // Fluxo crítico de palco — sem log a falha de comando remoto fica invisível
+          captureException(err, {
+            feature: 'remote-control',
+            step: 'play-command',
+            extras: { songId: cmd.song_id, userId: user.id },
+          })
         } finally {
           playerStore.setDownloading(false)
         }
