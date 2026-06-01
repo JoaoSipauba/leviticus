@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.0](https://github.com/JoaoSipauba/leviticus/compare/v0.16.1...v0.17.0) (2026-05-30)
+
+### Funcionalidades
+
+* **cloud-backup:** loga falhas de upload no Sentry ([#168](https://github.com/JoaoSipauba/leviticus/issues/168)) ([2276775](https://github.com/JoaoSipauba/leviticus/commit/2276775deaf92635b1193aa3dc7e1b97abcedeae)), closes [29/#30](https://github.com/29/leviticus/issues/30)
+
 ## [0.16.1](https://github.com/JoaoSipauba/leviticus/compare/v0.16.0...v0.16.1) (2026-05-25)
 
 ### Correções
