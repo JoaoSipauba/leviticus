@@ -68,13 +68,13 @@ describe('flushAnalyticsQueue', () => {
 
   it('envia em lote e apaga da fila ao ter sucesso', async () => {
     fakeDb.select.mockResolvedValueOnce([
-      { id: 1, payload: '{"event_type":"app_opened"}' },
-      { id: 2, payload: '{"event_type":"song_played"}' },
+      { id: 1, payload: '{"event_type":"app_opened","user_id":"user-1"}' },
+      { id: 2, payload: '{"event_type":"song_played","user_id":"user-1"}' },
     ])
     await flushAnalyticsQueue()
     expect(insertMock).toHaveBeenCalledWith([
-      { event_type: 'app_opened' },
-      { event_type: 'song_played' },
+      { event_type: 'app_opened', user_id: 'user-1' },
+      { event_type: 'song_played', user_id: 'user-1' },
     ])
     const deleteCall = fakeDb.execute.mock.calls.find(([s]) => String(s).includes('DELETE'))
     expect(deleteCall).toBeTruthy()
@@ -82,10 +82,70 @@ describe('flushAnalyticsQueue', () => {
   })
 
   it('mantém a fila intacta quando o insert falha', async () => {
-    fakeDb.select.mockResolvedValueOnce([{ id: 1, payload: '{"event_type":"app_opened"}' }])
+    fakeDb.select.mockResolvedValueOnce([
+      { id: 1, payload: '{"event_type":"app_opened","user_id":"user-1"}' },
+    ])
     insertMock.mockResolvedValueOnce({ error: { message: 'offline' } })
     await flushAnalyticsQueue()
-    const deleteCall = fakeDb.execute.mock.calls.find(([s]) => String(s).includes('DELETE'))
-    expect(deleteCall).toBeFalsy()
+    const deleteCalls = fakeDb.execute.mock.calls.filter(([s]) => String(s).includes('DELETE'))
+    expect(deleteCalls.length).toBe(0)
+  })
+
+  it('descarta eventos órfãos (user_id != atual) e ainda envia os válidos', async () => {
+    fakeDb.select.mockResolvedValueOnce([
+      { id: 1, payload: '{"event_type":"app_opened","user_id":"user-old"}' },   // órfão
+      { id: 2, payload: '{"event_type":"song_played","user_id":"user-1"}' },    // ok
+      { id: 3, payload: '{"event_type":"song_completed","user_id":"user-old"}' }, // órfão
+    ])
+    await flushAnalyticsQueue()
+
+    // Só os do user atual vão pro insert
+    expect(insertMock).toHaveBeenCalledWith([
+      { event_type: 'song_played', user_id: 'user-1' },
+    ])
+
+    // Dois DELETEs: órfãos primeiro, depois válidos
+    const deleteCalls = fakeDb.execute.mock.calls.filter(([s]) => String(s).includes('DELETE'))
+    expect(deleteCalls).toHaveLength(2)
+    expect(deleteCalls[0]![1]).toEqual([1, 3]) // órfãos
+    expect(deleteCalls[1]![1]).toEqual([2])     // válido após insert ok
+  })
+
+  it('limpa órfãos mesmo quando NENHUM evento válido sobra na fila', async () => {
+    fakeDb.select.mockResolvedValueOnce([
+      { id: 1, payload: '{"event_type":"app_opened","user_id":"user-old"}' },
+      { id: 2, payload: '{"event_type":"song_played","user_id":"user-other"}' },
+    ])
+    await flushAnalyticsQueue()
+
+    expect(insertMock).not.toHaveBeenCalled()
+    const deleteCalls = fakeDb.execute.mock.calls.filter(([s]) => String(s).includes('DELETE'))
+    expect(deleteCalls).toHaveLength(1)
+    expect(deleteCalls[0]![1]).toEqual([1, 2])
+  })
+
+  it('descarta payload corrompido (JSON inválido) como órfão', async () => {
+    fakeDb.select.mockResolvedValueOnce([
+      { id: 1, payload: '{not valid json' },
+      { id: 2, payload: '{"event_type":"song_played","user_id":"user-1"}' },
+    ])
+    await flushAnalyticsQueue()
+
+    expect(insertMock).toHaveBeenCalledWith([
+      { event_type: 'song_played', user_id: 'user-1' },
+    ])
+    const deleteCalls = fakeDb.execute.mock.calls.filter(([s]) => String(s).includes('DELETE'))
+    expect(deleteCalls[0]![1]).toEqual([1])
+  })
+
+  it('não faz nada quando ainda não há usuário (boot pré-auth)', async () => {
+    const { useAuthStore } = await import('../store/auth.js')
+    vi.mocked(useAuthStore.getState).mockReturnValueOnce({ user: null } as never)
+    fakeDb.select.mockResolvedValueOnce([
+      { id: 1, payload: '{"event_type":"app_opened","user_id":"user-1"}' },
+    ])
+    await flushAnalyticsQueue()
+    expect(fakeDb.select).not.toHaveBeenCalled()
+    expect(insertMock).not.toHaveBeenCalled()
   })
 })

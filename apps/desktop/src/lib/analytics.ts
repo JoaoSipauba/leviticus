@@ -81,24 +81,63 @@ let flushing = false
 /**
  * Drena a fila local pro Supabase em lote. Só apaga da fila após sucesso —
  * falha (offline, RLS) mantém os eventos pra próxima tentativa. Nunca lança.
+ *
+ * **Eventos órfãos:** linhas cujo `user_id` não bate com o auth.uid() atual
+ * são DESCARTADAS antes do insert. Isso acontece quando o usuário troca de
+ * conta: a fila local carrega entries antigas com user_id da conta anterior,
+ * o RLS rejeita o batch INTEIRO, e o flush trava em loop indefinidamente
+ * (a próxima rodada lê os mesmos 200 ORDER BY id LIMIT e falha de novo).
+ * Detectado em 2026-06-01: 62 eventos parados desde 24/mai por causa de
+ * 1 evento órfão na cabeça da fila.
  */
 export async function flushAnalyticsQueue(): Promise<void> {
   if (flushing) return
   flushing = true
   try {
+    const currentUserId = useAuthStore.getState().user?.id ?? null
+    if (!currentUserId) return  // sem sessão ainda — próxima rodada tenta
+
     const db = await getDb()
     const rows = await db.select<{ id: number; payload: string }[]>(
       'SELECT id, payload FROM analytics_queue ORDER BY id LIMIT ?',
       [FLUSH_BATCH],
     )
     if (rows.length === 0) return
-    const events = rows.map((r) => JSON.parse(r.payload))
+
+    // Particiona: válidos (mesmo user) vs órfãos (user diferente / payload inválido)
+    const valid: { id: number; payload: Record<string, unknown> }[] = []
+    const orphanIds: number[] = []
+    for (const r of rows) {
+      try {
+        const parsed = JSON.parse(r.payload) as Record<string, unknown>
+        if (parsed.user_id === currentUserId) {
+          valid.push({ id: r.id, payload: parsed })
+        } else {
+          orphanIds.push(r.id)
+        }
+      } catch {
+        // payload corrompido — descarta junto com órfãos
+        orphanIds.push(r.id)
+      }
+    }
+
+    // Limpa órfãos primeiro (idempotente, sem rede) — destrava a cabeça da fila
+    if (orphanIds.length > 0) {
+      const placeholders = orphanIds.map(() => '?').join(',')
+      await db.execute(`DELETE FROM analytics_queue WHERE id IN (${placeholders})`, orphanIds)
+      console.info(`[analytics] descartados ${orphanIds.length} evento(s) órfão(s) (user_id != atual)`)
+    }
+
+    if (valid.length === 0) return
+
+    const events = valid.map((v) => v.payload)
     const { error } = await supabase.from('analytics_events').insert(events)
     if (error) {
       captureException(error, { feature: 'analytics', step: 'flush-insert' })
       return
     }
-    const ids = rows.map((r) => r.id)
+
+    const ids = valid.map((v) => v.id)
     const placeholders = ids.map(() => '?').join(',')
     await db.execute(`DELETE FROM analytics_queue WHERE id IN (${placeholders})`, ids)
   } catch (e) {
