@@ -81,6 +81,16 @@ jobs:
           cache-on-failure: true
           # Save sempre em release — é o único momento que vale popular o
           # cache pras plataformas mac/windows que o CI não usa.
+          # cache-bin: false — sem isso, o post-step do rust-cache LIMPA
+          # ~/.cargo/bin (incluindo o `rustup` binário). Em runners hosted
+          # isso não importa (instalação fresh por job), mas no nosso runner
+          # self-hosted o `rustup` binário some entre builds enquanto os
+          # symlinks (cargo, rustc) ficam apontando pra um arquivo inexistente.
+          # A próxima execução de `cargo` ou `rustc` falha com "command not
+          # found" / "stderr vazio". dtolnay/rust-toolchain vê os symlinks e
+          # pula o reinstall, perpetuando o bug. Diagnosticado em 2026-06-01
+          # após release v0.17.0 falhar.
+          cache-bin: false
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
