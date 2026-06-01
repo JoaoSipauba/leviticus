@@ -37,7 +37,7 @@ jobs:
   test:
     name: Tests
     # Self-hosted Mac — quota Ubuntu hosted esgotou (#73)
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    runs-on: ubuntu-latest
     # Loop guard: ignora o push do próprio commit `chore(release): vX.Y.Z`.
     # Tecnicamente já não dispara via GITHUB_TOKEN, mas defensivo se um dia
     # trocarmos pra PAT. Em workflow_dispatch sempre roda.
@@ -77,7 +77,7 @@ jobs:
     name: Bump release
     needs: test
     # Self-hosted Mac — quota Ubuntu hosted esgotou (#73)
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:

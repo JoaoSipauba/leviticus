@@ -18,7 +18,7 @@ concurrency:
 jobs:
   test:
     name: Typecheck + tests
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -60,7 +60,7 @@ jobs:
     name: CI passed
     needs: [test]
     if: always()
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    runs-on: ubuntu-latest
     steps:
       - name: Aggregate upstream results
         env:
