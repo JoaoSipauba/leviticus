@@ -1,4 +1,4 @@
-import { DOMAIN } from '@/lib/config'
+import { DOMAIN, GITHUB_URL } from '@/lib/config'
 import Logo from '@/components/Logo'
 
 type Props = { version?: string }
@@ -19,6 +19,7 @@ export default function Footer({ version }: Props) {
           <a href="#download">Download</a>
           <a href="#faq">FAQ</a>
           <a href="#doacao">Doar</a>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer">GitHub</a>
           <a href="mailto:appleviticus@gmail.com">Contato</a>
         </div>
       </div>

@@ -58,6 +58,9 @@
   .nav-cta { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; background: var(--primary); color: #ffffff !important; border-radius: 8px; font-size: 13px; font-weight: 600; line-height: 1; box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 4px 14px -4px rgba(59,130,246,0.55); transition: background .15s, box-shadow .15s, transform .15s; }
   .nav-cta:hover { background: var(--primary-2); color: #ffffff !important; box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset, 0 6px 18px -4px rgba(59,130,246,0.7); transform: translateY(-1px); }
   .nav-cta svg { display: block; stroke: #ffffff; color: #ffffff; }
+  .nav-github { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 8px; color: var(--muted); transition: color .15s, background .15s; }
+  .nav-github:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .nav-github svg { display: block; }
 
   /* HERO */
   .hero { position: relative; padding: 100px 0 80px; overflow: hidden; }
