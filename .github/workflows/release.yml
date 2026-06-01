@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - runner: macos-14   # apple silicon (M-series), gratuito até a quota mensal
+          - runner: macos-14   # apple silicon (M-series); custa 10x Linux na quota GHA
             platform_key: darwin-aarch64
             rust_target: aarch64-apple-darwin
             bundles: app,dmg,updater
@@ -222,9 +222,8 @@ jobs:
   publish:
     name: Publish latest.json
     needs: build
-    # Ubuntu-hosted (gratuito + barato). Job é leve (~30s) — só mescla
-    # manifests, cria GH Release e sobe latest.json. Tem bash/curl/jq/node/gh
-    # pré-instalados nos hosted runners.
+    # Ubuntu-hosted. Job é leve (~30s) — só mescla manifests, cria GH Release
+    # e sobe latest.json. Tem bash/curl/jq/node/gh pré-instalados em ubuntu-latest.
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
