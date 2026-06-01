@@ -10,6 +10,7 @@ import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
 import { startNetworkMonitor, stopNetworkMonitor } from './lib/network.js'
 import { setUserContext, captureException } from './lib/observability.js'
 import { checkUpdateOnBoot, installUpdateOnBoot } from './lib/boot-update.js'
+import { resolveSessionForBoot } from './lib/boot-auth.js'
 import * as Sentry from '@sentry/react'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
@@ -44,11 +45,10 @@ async function cleanupAudioOrphans() {
   }
 }
 
-// Timeout pra getSession resolver. Em modo offline (Supabase fora do ar)
-// o cliente tenta refresh do token e isso pode demorar minutos. Sem
-// timeout, o splash fica visível indefinidamente. Se vencer, tratamos
-// como sem sessão e vai pra /login.
-const AUTH_BOOT_TIMEOUT_MS = 3000
+// Timeout pra getSession resolver — encapsulado em resolveSessionForBoot.
+// Quando o timeout vence offline (refresh travando na rede), caímos pra
+// sessão cacheada do localStorage em vez de mandar pra /login. Sem isso,
+// usuário com refresh_token válido era deslogado falsamente.
 
 // Cap pro boot-time backfill de duration. Pra biblioteca grande pode
 // demorar — splash não pode ficar refém. Após o cap, libera UI e o
@@ -70,19 +70,23 @@ export function App() {
   useEffect(() => {
     let cancelled = false
 
-    const sessionPromise = supabase.auth.getSession().then(({ data }) => data.session)
-    const timeoutPromise = new Promise<null>((resolve) =>
-      setTimeout(() => resolve(null), AUTH_BOOT_TIMEOUT_MS)
-    )
-
-    Promise.race([sessionPromise, timeoutPromise])
-      .then((session) => {
+    resolveSessionForBoot()
+      .then(({ session, source }) => {
         if (cancelled) return
         setSession(session)
         if (!session) {
+          // source==='none' — sem sessão real (primeiro boot, ou logout
+          // de verdade). Manda pra /login.
           navigate('/login')
           setBootBackfillDone(true) // sem session, não há música pra backfillar
         } else {
+          // source pode ser 'fresh' (online, getSession resolveu) ou
+          // 'cached' (offline, lemos do localStorage). Em ambos seguimos
+          // o fluxo normal — chamadas a Supabase vão usar o cached
+          // access_token e o auto-refresh pega quando voltar online.
+          if (source === 'cached') {
+            console.info('[boot] sessão restaurada do cache (offline)')
+          }
           const orgId = localStorage.getItem('leviticus_org_id')
           // 1 evento por abertura do app (só com sessão — trackEvent já
           // descarta eventos sem usuário).
@@ -145,7 +149,7 @@ export function App() {
       })
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session)
         // Issue #39: identifica usuário no Sentry pra agrupar erros por
         // pessoa. Limpa contexto no signout.
@@ -155,7 +159,12 @@ export function App() {
         } else {
           setUserContext(null)
         }
-        if (!session) navigate('/login')
+        // Só navega pra /login em SIGNED_OUT EXPLÍCITO (user clicou Sair,
+        // ou supabase rejeitou o refresh_token com invalid_grant). Ignora
+        // outros eventos com session=null — em particular INITIAL_SESSION
+        // pode vir null se getSession ainda está resolvendo, e TOKEN_REFRESHED
+        // falhando offline NÃO dispara SIGNED_OUT (supabase-js retry silencioso).
+        if (event === 'SIGNED_OUT') navigate('/login')
       }
     )
 
