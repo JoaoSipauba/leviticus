@@ -22,20 +22,19 @@ concurrency:
 jobs:
   build:
     name: Build ${{ matrix.platform_key }}
-    # Self-hosted runners (label-based seleção via fromJSON). Rodam nas
-    # máquinas próprias do desenvolvedor — zero quota GHA por release.
-    # Hosted runners (macos-latest, windows-latest) cobravam 10x e 2x
-    # respectivamente vs Linux; em release builds isso somava rápido.
-    runs-on: ${{ fromJSON(matrix.runner) }}
+    # GitHub-hosted runners — fallback temporário pelos runners self-hosted
+    # (Mac + Windows) estarem instáveis. Custo: macOS = 10x Linux, Windows = 2x.
+    # Voltar pra self-hosted quando os runners estiverem confiáveis.
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - runner: '["self-hosted","macOS","ARM64","leviticus"]'
+          - runner: macos-14   # apple silicon (M-series); custa 10x Linux na quota GHA
             platform_key: darwin-aarch64
             rust_target: aarch64-apple-darwin
             bundles: app,dmg,updater
-          - runner: '["self-hosted","Windows","X64","leviticus"]'
+          - runner: windows-latest
             platform_key: windows-x86_64
             rust_target: x86_64-pc-windows-msvc
             bundles: nsis,updater
@@ -223,9 +222,9 @@ jobs:
   publish:
     name: Publish latest.json
     needs: build
-    # Roda no Mac self-hosted (tem bash/curl/jq/node + gh CLI). Job é leve
-    # (~30s), só mescla manifests + cria GH Release + sobe latest.json.
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    # Ubuntu-hosted. Job é leve (~30s) — só mescla manifests, cria GH Release
+    # e sobe latest.json. Tem bash/curl/jq/node/gh pré-instalados em ubuntu-latest.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4

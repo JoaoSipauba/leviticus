@@ -19,8 +19,8 @@ jobs:
     # Só roda se o Release terminou com sucesso (sem isso fecharia issues
     # mesmo quando o build falhou).
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    # Self-hosted Mac runner — quota Ubuntu hosted esgotou (issue #73)
-    runs-on: [self-hosted, macOS, ARM64, leviticus]
+    # Job leve (fecha issues via API) — hosted ubuntu basta.
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
         with:
