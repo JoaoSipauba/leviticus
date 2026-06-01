@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.17.2](https://github.com/JoaoSipauba/leviticus/compare/v0.17.1...v0.17.2) (2026-06-01)
+
+### Correções
+
+* **analytics:** descarta eventos orfaos no flush em vez de travar a fila ([#174](https://github.com/JoaoSipauba/leviticus/issues/174)) ([89d5296](https://github.com/JoaoSipauba/leviticus/commit/89d5296aebb8d008867becfcb2a087289b8e8854))
+
 ## [0.17.1](https://github.com/JoaoSipauba/leviticus/compare/v0.17.0...v0.17.1) (2026-06-01)
 
 ## [0.17.0](https://github.com/JoaoSipauba/leviticus/compare/v0.16.1...v0.17.0) (2026-05-30)
