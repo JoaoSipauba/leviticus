@@ -17,18 +17,18 @@ Leviticus resolve uma dor concreta de quem opera louvor: na hora do culto, qualq
 - ☁️ **Backup automático no Google Drive** — toda música sobe pro seu Drive cifrada
 - 🎹 **Adicionar via YouTube ou upload** — yt-dlp baixa e converte; ou arrasta um `.mp3`/`.m4a`/`.wav`
 - 📊 **Multi-device** — sync via Supabase entre Mac/Windows/dispositivos da equipe
-- ⏯️ **Tocla de mídia** — Play/Pause via teclas globais (mesmo com o app em background)
+- ⏯️ **Teclas de mídia** — Play/Pause via teclas globais (mesmo com o app em background)
 - 🔄 **Auto-updater** assinado — novas versões instalam sozinhas, sem interromper o culto
 
 ## Stack
 
-Monorepo `pnpm` com 3 apps:
+Monorepo `pnpm`. Quatro pacotes principais:
 
-| App | Stack | Função |
+| Pacote | Stack | Função |
 |---|---|---|
 | `apps/desktop/` | **Tauri 2** + React 18 + TypeScript + SQLite (`tauri-plugin-sql`) | App desktop (macOS + Windows) |
 | `apps/landing/` | **Next.js 14** + Tailwind + Vercel | Site público + dashboard admin |
-| `worker/` | Express + tsx | Job queue opcional (yt-dlp background) |
+| `worker/` | Express + tsx | Job queue opcional (yt-dlp em background) |
 | `supabase/` | Postgres + Edge Functions (Deno) | Backend: auth, dados, OAuth Drive proxy |
 
 **Padrões arquiteturais:**
