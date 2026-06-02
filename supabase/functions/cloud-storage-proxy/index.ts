@@ -227,52 +227,30 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
     console.error('[oauth-callback] upsert failed:', upsertErr)
     return new Response(`Upsert failed: ${upsertErr.message}`, { status: 500 })
   }
-  console.log('[oauth-callback] step: upsert ok, redirecting...')
+  console.log('[oauth-callback] step: upsert ok, redirecting via landing...')
 
-  // Redireciona pro app via deep link usando JS em vez de 302 com Location.
-  // Razão: Safari/Chrome bloqueiam 302 pra schemes custom (leviticus://) por
-  // segurança. Navegação via window.location em script é tratada como
-  // user-initiated e dispara o handler do protocolo no SO.
-  const deepLink = `leviticus://oauth-success?org_id=${orgId}`
-  const html = `<!doctype html>
-<html lang="pt-br">
-<head>
-<meta charset="utf-8">
-<title>Conectado ao Leviticus</title>
-<style>
-  body { font-family: -apple-system, system-ui, sans-serif; background: #0a0a0a; color: #fafafa; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; text-align: center; padding: 20px; }
-  .card { max-width: 420px; background: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; }
-  h1 { margin: 0 0 12px; font-size: 20px; }
-  p { margin: 8px 0; color: #a1a1aa; font-size: 14px; line-height: 1.6; }
-  .checkmark { width: 56px; height: 56px; margin: 0 auto 16px; background: #022c22; border: 1px solid #064e3b; border-radius: 16px; display: flex; align-items: center; justify-content: center; }
-  .checkmark svg { width: 28px; height: 28px; }
-  a { color: #a78bfa; text-decoration: none; }
-  a:hover { text-decoration: underline; }
-</style>
-</head>
-<body>
-  <div class="card">
-    <div class="checkmark">
-      <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-    </div>
-    <h1>Conectado ao Google Drive</h1>
-    <p>Estamos voltando você ao Leviticus…</p>
-    <p style="font-size: 12px; margin-top: 20px;">Se o app não abrir automaticamente, <a href="${deepLink}">clique aqui</a>.</p>
-  </div>
-  <script>
-    // Tenta abrir o deep link. Se o app já estiver aberto, o SO entrega o evento.
-    window.location.href = ${JSON.stringify(deepLink)};
-  </script>
-</body>
-</html>`
-  // Usa Headers object explícito — em alguns gateways, plain object como
-  // `headers: {...}` não sobrescreve o default `text/plain` que o runtime
-  // do Supabase Edge adiciona, e a página vem como string em vez de HTML.
-  const responseHeaders = new Headers()
-  responseHeaders.set('Content-Type', 'text/html; charset=utf-8')
-  responseHeaders.set('Cache-Control', 'no-store')
-  responseHeaders.set('X-Content-Type-Options', 'nosniff')
-  return new Response(html, { status: 200, headers: responseHeaders })
+  // Redireciona via 302 pra página de callback na landing
+  // (apps/landing/app/oauth/connected/page.tsx), que então tenta o
+  // deep link leviticus:// e oferece fallback de clique manual.
+  //
+  // Antes tínhamos HTML com <script>window.location.href = leviticus://...</script>
+  // direto daqui — mas o Supabase Edge serve responses em iframe sandboxed
+  // sem allow-scripts, bloqueando qualquer JS. Browsers também restringem
+  // 302 direto pra schemes custom. A solução é redirecionar pra um domínio
+  // próprio (https://leviticus.app.br/oauth/connected), que dispara o deep
+  // link de lá — sem sandbox, sem bloqueio.
+  //
+  // LANDING_URL é configurável via env pra permitir teste local (ex: usar
+  // preview da landing) sem editar código. Default cobre prod.
+  const landingUrl = Deno.env.get('LANDING_URL') ?? 'https://leviticus.app.br'
+  const target = `${landingUrl}/oauth/connected?org_id=${encodeURIComponent(orgId)}`
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: target,
+      'Cache-Control': 'no-store',
+    },
+  })
 }
 
 async function handleQuota(ctx: any): Promise<Response> {
