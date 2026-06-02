@@ -2,7 +2,7 @@
 
 **Player desktop offline-first pra equipes de louvor.** Organize o repertório dos ministérios, monte o setlist do culto e toque no domingo — mesmo sem internet na igreja.
 
-🌐 **Site:** [leviticus-landing.vercel.app](https://leviticus-landing.vercel.app)
+🌐 **Site:** [leviticus.app.br](https://leviticus.app.br)
 📦 **Downloads:** [Releases](https://github.com/JoaoSipauba/leviticus/releases/latest) (`.dmg` pra macOS, `.exe` pra Windows)
 
 ## O que é
