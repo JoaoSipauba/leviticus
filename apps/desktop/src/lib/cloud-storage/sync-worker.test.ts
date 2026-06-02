@@ -17,11 +17,20 @@ vi.mock('../ytdlp.js', () => ({
 import {
   startSyncWorker, stopSyncWorker,
   startInitialSync, getInitialSyncProgress, subscribeInitialSyncProgress,
-  _runPassForTest, _resetRetryStateForTest, isTransientError,
+  _runPassForTest, _resetRetryStateForTest, isTransientError, isInvalidGrantError,
 } from './sync-worker.js'
 import { listPendingBackupSongs } from './pending-queue.js'
 import { uploadSongToDrive } from './upload-song.js'
 import { setBackupStatus } from './status.js'
+import { useIntegrationsStore } from '../../store/integrations.js'
+
+// Edge function propaga o erro pela ProviderError e o client transforma em
+// `Error & {code: 'invalid_grant'}`. Helper pra simular esse shape nos testes.
+function invalidGrantError(): Error {
+  const e = new Error('[google_drive] invalid_grant: Refresh failed: {"error":"invalid_grant"}') as Error & { code: string }
+  e.code = 'invalid_grant'
+  return e
+}
 
 // Helper pra simular offline/online. jsdom default é true.
 function setOnline(value: boolean) {
@@ -296,6 +305,78 @@ describe('sync-worker', () => {
 
       expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
       expect(uploadSongToDrive).toHaveBeenCalledWith(expect.objectContaining({ songId: 's0' }))
+    })
+  })
+
+  describe('invalid_grant: token expirado/revogado', () => {
+    beforeEach(() => {
+      _resetRetryStateForTest()
+      vi.useRealTimers()
+      // Reset store status entre testes — Zustand é singleton; sem reset,
+      // o teste anterior pode ter deixado em 'token_expired'.
+      useIntegrationsStore.getState().setStatus('connected')
+    })
+
+    afterEach(() => {
+      vi.mocked(uploadSongToDrive).mockReset().mockResolvedValue(undefined)
+    })
+
+    it('isInvalidGrantError detecta pelo código e pela mensagem', () => {
+      expect(isInvalidGrantError(invalidGrantError())).toBe(true)
+      expect(isInvalidGrantError(new Error('invalid_grant'))).toBe(true)
+      expect(isInvalidGrantError(new Error('429 Rate limit'))).toBe(false)
+      expect(isInvalidGrantError(null)).toBe(false)
+      expect(isInvalidGrantError(undefined)).toBe(false)
+    })
+
+    it('runPass: invalid_grant aborta o pass e marca status token_expired (sem Sentry)', async () => {
+      const songs = Array.from({ length: 3 }, (_, i) => ({
+        id: `s${i}`, title: `T${i}`, artist: 'X',
+        backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null,
+      }))
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
+      vi.mocked(uploadSongToDrive).mockRejectedValue(invalidGrantError())
+
+      await _runPassForTest('org-1', 'connected')
+
+      // Tentou só a primeira música — abortou ao detectar invalid_grant.
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+      expect(useIntegrationsStore.getState().status).toBe('token_expired')
+    })
+
+    it('runPass: invalid_grant NÃO marca a song como permanent (preserva retry após reconectar)', async () => {
+      const songs = [{ id: 's1', title: 'A', artist: 'X', backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null }]
+      vi.mocked(listPendingBackupSongs).mockResolvedValue(songs)
+      vi.mocked(uploadSongToDrive)
+        .mockRejectedValueOnce(invalidGrantError())
+        .mockResolvedValueOnce(undefined)
+
+      // Pass 1 — invalid_grant aborta.
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(1)
+
+      // Pass 2 — usuário reconectou; a song deve voltar a ser tentada
+      // (não ficou em backoff/permanent).
+      await _runPassForTest('org-1', 'connected')
+      expect(uploadSongToDrive).toHaveBeenCalledTimes(2)
+    })
+
+    it('startInitialSync: invalid_grant aborta todos os workers e marca status token_expired', async () => {
+      const songs = Array.from({ length: 10 }, (_, i) => ({
+        id: `s${i}`, title: `T${i}`, artist: 'X',
+        backup_status: 'pending' as const, original_format: 'mp3', cloud_file_id: null,
+      }))
+      vi.mocked(listPendingBackupSongs).mockResolvedValueOnce(songs)
+      vi.mocked(uploadSongToDrive).mockRejectedValue(invalidGrantError())
+
+      await startInitialSync('org-1')
+
+      expect(useIntegrationsStore.getState().status).toBe('token_expired')
+      // Workers param ao detectar o flag — não chega a tentar todas as 10.
+      // Concorrência = 3, então no pior caso 3 tentaram antes do flag pegar.
+      expect(vi.mocked(uploadSongToDrive).mock.calls.length).toBeLessThanOrEqual(3)
+      // E o estado de progresso não fica preso em inProgress=true.
+      expect(getInitialSyncProgress().inProgress).toBe(false)
     })
   })
 })

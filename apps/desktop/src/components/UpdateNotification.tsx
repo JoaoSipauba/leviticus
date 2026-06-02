@@ -5,6 +5,7 @@ import { ArrowUpCircle, Loader2 } from 'lucide-react'
 import { usePlayerStore } from '../store/player.js'
 import { captureException } from '../lib/observability.js'
 import { withTimeout } from '../lib/boot-update.js'
+import { markRelaunchForFocus } from '../lib/post-relaunch-focus.js'
 
 type Status =
   | { kind: 'idle' }
@@ -55,6 +56,8 @@ export function UpdateNotification() {
       setStatus({ kind: 'installing' })
       try {
         await update.install()
+        // Issue #159: marca flag pro próximo boot trazer a janela pra frente.
+        markRelaunchForFocus()
         await relaunch()
       } catch (e) {
         captureException(e, {

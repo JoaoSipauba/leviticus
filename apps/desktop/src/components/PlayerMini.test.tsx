@@ -482,27 +482,7 @@ describe('PlayerMini', () => {
   })
 })
 
-// ── Analytics events ──────────────────────────────────────────────────────────
-
-describe('analytics events', () => {
-  beforeEach(() => {
-    trackEventMock.mockClear()
-    handleSongEndMock.mockClear()
-    playerState.currentSong = null
-    playerState.currentPlaylist = null
-    playerState.isPlaying = false
-    playerState.playlistSongs = []
-    playerState.playlistPosition = null
-  })
-
-  it('emite song_played quando uma música começa a tocar', () => {
-    playerState.currentSong = { ...baseSong }
-    playerState.currentPlaylist = { id: 'culto-1' }
-    render(<PlayerMini />)
-
-    expect(trackEventMock).toHaveBeenCalledWith(
-      'song_played',
-      expect.objectContaining({ songId: 'song-1', playlistId: 'culto-1' }),
-    )
-  })
-})
+// `song_played` é emitido em audio.ts:playSong (não mais aqui no PlayerMini).
+// Mover pra audio.ts garante que replay da mesma música conte — antes o
+// useEffect dependia de currentSong.id mudar. Cobertura do novo local fica
+// em audio.test.ts.
