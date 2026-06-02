@@ -5,7 +5,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { Skeleton } from '../components/Skeleton.js'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
-  Pencil, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
+  Pencil, Copy, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
 } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
@@ -43,6 +43,8 @@ export function Playlists() {
   const [services, setServices] = useState<ServiceWithStatus[]>([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Playlist | null>(null)
+  // Issue #155: quando preenchido, modal abre em modo duplicação.
+  const [duplicating, setDuplicating] = useState<Playlist | null>(null)
   const [showPast, setShowPast] = useState(false)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
   const online = useOnlineStatus()
@@ -88,6 +90,12 @@ export function Playlists() {
 
   function handleEdit(playlist: Playlist) {
     setEditing(playlist)
+    setDuplicating(null)
+    setShowModal(true)
+  }
+  function handleDuplicate(playlist: Playlist) {
+    setDuplicating(playlist)
+    setEditing(null)
     setShowModal(true)
   }
   async function handleDelete(playlist: Playlist) {
@@ -157,7 +165,7 @@ export function Playlists() {
           <div className="space-y-3">
             {today.map((s) => (
               <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
             ))}
           </div>
         </section>
@@ -169,7 +177,7 @@ export function Playlists() {
           <div className="space-y-2">
             {upcoming.map((s) => (
               <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
             ))}
           </div>
         </section>
@@ -192,7 +200,7 @@ export function Playlists() {
             <div className="space-y-2" style={{ opacity: 0.55 }}>
               {past.map((s) => (
                 <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                  onEdit={() => handleEdit(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                  onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
               ))}
             </div>
           )}
@@ -202,8 +210,14 @@ export function Playlists() {
       <PlaylistFormModal
         open={showModal}
         editing={editing}
-        onClose={() => { setShowModal(false); setEditing(null) }}
-        onSaved={() => { void loadServices() }}
+        duplicating={duplicating}
+        onClose={() => { setShowModal(false); setEditing(null); setDuplicating(null) }}
+        onSaved={(newId) => {
+          void loadServices()
+          // Issue #155: ao duplicar, navega pro culto novo pra usuário ver
+          // o resultado (seções/músicas copiadas) e ajustar se quiser.
+          if (duplicating) navigate(`/services/${newId}`)
+        }}
       />
     </div>
   )
@@ -226,10 +240,11 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
   )
 }
 
-function TodayCard({ service, onClick, onEdit, onDelete, online, canManage }: {
+function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
@@ -267,15 +282,16 @@ function TodayCard({ service, onClick, onEdit, onDelete, online, canManage }: {
           )}
         </div>
       </div>
-      {canManage && <ActionsMenu onEdit={onEdit} onDelete={onDelete} dark online={online} />}
+      {canManage && <ActionsMenu onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} dark online={online} />}
     </div>
   )
 }
 
-function CompactCard({ service, onClick, onEdit, onDelete, online, canManage }: {
+function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
@@ -308,13 +324,14 @@ function CompactCard({ service, onClick, onEdit, onDelete, online, canManage }: 
           )}
         </div>
       </div>
-      {canManage && <ActionsMenu onEdit={onEdit} onDelete={onDelete} online={online} />}
+      {canManage && <ActionsMenu onEdit={onEdit} onDuplicate={onDuplicate} onDelete={onDelete} online={online} />}
     </div>
   )
 }
 
-function ActionsMenu({ onEdit, onDelete, dark, online }: {
+function ActionsMenu({ onEdit, onDuplicate, onDelete, dark, online }: {
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => Promise<void>
   dark?: boolean
   online: boolean
@@ -438,6 +455,17 @@ function ActionsMenu({ onEdit, onDelete, dark, online }: {
                 style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
               >
                 <Pencil size={14} strokeWidth={2} /> Editar
+              </button>
+              <button
+                onClick={online ? (e) => { e.stopPropagation(); setOpen(false); onDuplicate() } : undefined}
+                disabled={!online}
+                title={online ? undefined : 'Sem conexão'}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading text-left transition-colors ${
+                  online ? 'hover:bg-white/[0.06]' : ''
+                }`}
+                style={{ opacity: online ? 1 : 0.35, cursor: online ? 'pointer' : 'not-allowed' }}
+              >
+                <Copy size={14} strokeWidth={2} /> Duplicar
               </button>
               <button
                 onClick={online ? (e) => { e.stopPropagation(); setConfirming(true) } : undefined}

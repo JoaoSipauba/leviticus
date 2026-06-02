@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } fr
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
-  ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Trash2,
+  ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Copy, Trash2,
   Loader2, AlertTriangle, GripVertical, CloudDownload,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
@@ -70,6 +70,9 @@ export function PlaylistDetail() {
   const unmarkPlayed = usePlayedStore((s) => s.unmarkPlayed)
 
   const [editingPlaylist, setEditingPlaylist] = useState(false)
+  // Issue #155: ao duplicar, modal abre em modo duplicação com a playlist atual
+  // pré-preenchida. Ao salvar, navega pra cópia recém-criada.
+  const [duplicatingPlaylist, setDuplicatingPlaylist] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deletingPlaylist, setDeletingPlaylist] = useState(false)
   const online = useOnlineStatus()
@@ -678,6 +681,7 @@ export function PlaylistDetail() {
               {canManagePlaylists && (
               <PlaylistMenu
                 onEdit={() => setEditingPlaylist(true)}
+                onDuplicate={() => setDuplicatingPlaylist(true)}
                 onDelete={() => setConfirmingDelete(true)}
                 confirmingDelete={confirmingDelete}
                 deletingPlaylist={deletingPlaylist}
@@ -819,11 +823,17 @@ export function PlaylistDetail() {
       </div>
 
       <PlaylistFormModal
-        open={editingPlaylist}
+        open={editingPlaylist || duplicatingPlaylist}
         editing={editingPlaylist ? playlist : null}
-        onClose={() => setEditingPlaylist(false)}
-        onSaved={() => {
-          load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
+        duplicating={duplicatingPlaylist ? playlist : null}
+        onClose={() => { setEditingPlaylist(false); setDuplicatingPlaylist(false) }}
+        onSaved={(newId) => {
+          if (duplicatingPlaylist) {
+            // Issue #155: navega pra cópia recém-criada
+            navigate(`/services/${newId}`)
+          } else {
+            load().catch((e) => captureException(e, { feature: 'playlist', step: 'load' }))
+          }
         }}
       />
       <AddSectionModal
@@ -1163,9 +1173,10 @@ function SectionHeader({
 }
 
 function PlaylistMenu({
-  onEdit, onDelete, confirmingDelete, deletingPlaylist, onConfirmDelete, onCancelDelete,
+  onEdit, onDuplicate, onDelete, confirmingDelete, deletingPlaylist, onConfirmDelete, onCancelDelete,
 }: {
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => void
   confirmingDelete: boolean
   deletingPlaylist: boolean
@@ -1262,6 +1273,10 @@ function PlaylistMenu({
               <button onClick={() => { setOpen(false); onEdit() }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] text-left cursor-pointer">
                 <Pencil size={14} /> Editar culto
+              </button>
+              <button onClick={() => { setOpen(false); onDuplicate() }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-heading hover:bg-white/[0.06] text-left cursor-pointer">
+                <Copy size={14} /> Duplicar culto
               </button>
               <button onClick={() => { onDelete() }}
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-red-500/[0.08] text-left cursor-pointer">
