@@ -116,6 +116,12 @@ pub fn run() {
                             sql: include_str!("../migrations/007_analytics_queue.sql"),
                             kind: tauri_plugin_sql::MigrationKind::Up,
                         },
+                        tauri_plugin_sql::Migration {
+                            version: 8,
+                            description: "playback_sessions",
+                            sql: include_str!("../migrations/008_playback_sessions.sql"),
+                            kind: tauri_plugin_sql::MigrationKind::Up,
+                        },
                     ],
                 )
                 .build(),
