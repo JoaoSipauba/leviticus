@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.1](https://github.com/JoaoSipauba/leviticus/compare/v0.18.0...v0.18.1) (2026-06-02)
+
+### Correções
+
+* **observability:** roteia eventos Sentry via transport do Rust (tauri-plugin-sentry) ([#183](https://github.com/JoaoSipauba/leviticus/issues/183)) ([351ff3c](https://github.com/JoaoSipauba/leviticus/commit/351ff3c64a28ea869b1e3689e2d09554c1736cca))
+
 ## [0.18.0](https://github.com/JoaoSipauba/leviticus/compare/v0.17.3...v0.18.0) (2026-06-02)
 
 ### Funcionalidades
