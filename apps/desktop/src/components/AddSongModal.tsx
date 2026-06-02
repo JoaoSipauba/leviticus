@@ -296,6 +296,13 @@ function isMSEAvailable(): boolean {
 // chunk vem em 1-2s) com download eficiente (30 chunks pra um arquivo de 60MB).
 const PREVIEW_CHUNK_BYTES = 2 * 1024 * 1024
 
+// Limite client-side pra "Adicionar via Arquivo". Antes era 100 MB, o que
+// bloqueava PADs longos de fundo (~1h). Subido pra 1 GB pra cobrir 1h de WAV
+// 44.1kHz/16-bit estéreo (~635 MB) com folga. Upload pro Drive é chunked em
+// 8 MiB e suporta TB — esse limite é só pra evitar carga pesada no
+// arrayBuffer() local (linha do writeFile). Issue #156.
+export const MAX_LOCAL_FILE_BYTES = 1024 * 1024 * 1024 // 1 GiB
+
 type MSEStreamHandle = {
   /** Aborta tudo (fetches em curso + loop principal) */
   abort: () => void
@@ -1100,9 +1107,12 @@ export function AddSongModal() {
 
   async function handleFileSelected(file: File) {
     setFileError(null)
-    // Tamanho — limite 100 MB
-    if (file.size > 100 * 1024 * 1024) {
-      setFileError('Arquivo grande demais. Limite: 100 MB.')
+    // Tamanho — limite 1 GB pra cobrir PADs longos (até ~1h de WAV
+    // 44.1kHz/16-bit estéreo = ~635 MB) e instrumentais grandes (issue #156).
+    // Antes era 100 MB, o que bloqueava PADs de culto. Upload pro Drive já é
+    // chunked em 8 MiB (upload.ts), então o tamanho não trava por aí.
+    if (file.size > MAX_LOCAL_FILE_BYTES) {
+      setFileError('Arquivo grande demais. Limite: 1 GB.')
       setSelectedFile(null)
       setDetectedFormat(null)
       return
