@@ -47,4 +47,20 @@ describe('FileTab', () => {
     fireEvent.drop(dropzone, { dataTransfer: { files: [file] } })
     expect(onFileSelected).toHaveBeenCalledWith(file)
   })
+
+  it('drag-and-drop: dragEnter e dragOver chamam preventDefault (issue #154)', () => {
+    // Sem preventDefault em ambos os eventos, WebKit (Tauri/macOS) rejeita
+    // o drop silenciosamente. O teste lock-in garante que o contrato se
+    // mantém — quebrar isso quebra a feature em produção.
+    render(<FileTab onFileSelected={onFileSelected} />)
+    const dropzone = screen.getByTestId('file-dropzone')
+
+    const enterEvent = new Event('dragenter', { bubbles: true, cancelable: true })
+    dropzone.dispatchEvent(enterEvent)
+    expect(enterEvent.defaultPrevented).toBe(true)
+
+    const overEvent = new Event('dragover', { bubbles: true, cancelable: true })
+    dropzone.dispatchEvent(overEvent)
+    expect(overEvent.defaultPrevented).toBe(true)
+  })
 })
