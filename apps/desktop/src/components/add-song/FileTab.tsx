@@ -23,6 +23,16 @@ export function FileTab({ onFileSelected }: Props) {
     if (inputRef.current) inputRef.current.value = ''
   }
 
+  // Em alguns WebViews (notavelmente WKWebView do Tauri/macOS), dropEffect
+  // só funciona se preventDefault for chamado tanto em dragEnter quanto
+  // em dragOver — caso contrário o navegador rejeita o drop silenciosamente.
+  // Issue #154: combinar isso com dragDropEnabled:false em tauri.conf.json
+  // (que tira a captura nativa do OS) destrava o drop no FileTab.
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
   function handleDragOver(e: React.DragEvent) {
     e.preventDefault()
     setIsDragging(true)
@@ -42,6 +52,7 @@ export function FileTab({ onFileSelected }: Props) {
   return (
     <div
       data-testid="file-dropzone"
+      onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
