@@ -571,12 +571,18 @@ export function PlaylistDetail() {
   function playAll() {
     // Toca tudo desde o começo, na ordem do banco. Não pula tocadas — usuário
     // que clica "Tocar tudo" geralmente quer recomeçar do zero.
+    // Liga autoplay automaticamente — quem clica "Tocar tudo" quer que toque
+    // tudo, não só a primeira (issue #157).
+    usePlayerStore.getState().setAutoplay(true)
     const all = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
     if (playlist) trackEvent('culto_started', { playlistId: playlist.id })
     playSongs(all.map((ps) => ps.song)).catch((e) => captureException(e, { feature: 'playlist', step: 'play-all' }))
   }
 
   function playSection(section: SectionView) {
+    // Issue #157: ligar autoplay também ao tocar uma seção — mesma intenção
+    // do "Tocar tudo", só que com escopo reduzido à seção.
+    usePlayerStore.getState().setAutoplay(true)
     playSongs(section.songs.map((ps) => ps.song)).catch((e) => captureException(e, { feature: 'playlist', step: 'play-section' }))
   }
 

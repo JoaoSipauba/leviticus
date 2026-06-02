@@ -11,6 +11,11 @@ type PlayerState = {
   volume: number
   isDownloading: boolean
   downloadProgress: number
+  // Autoplay mora no store (não na useState do PlayerMini) pra que
+  // PlaylistDetail consiga ligá-lo automaticamente ao iniciar "Tocar tudo"
+  // / "Tocar seção" — sem o PlayerMini, o usuário precisava saber do toggle
+  // e ligar manualmente, e o "Tocar tudo" não tocava tudo. Issue #157.
+  autoplay: boolean
   play: (song: Song, playlist?: { playlist: Playlist; songs: Song[]; position: number }) => void
   pause: () => void
   resume: () => void
@@ -18,6 +23,7 @@ type PlayerState = {
   setVolume: (vol: number) => void
   setDownloading: (loading: boolean, progress?: number) => void
   setPlaylistSongs: (songs: Song[]) => void
+  setAutoplay: (on: boolean) => void
   nextInPlaylist: () => Song | null
   previousInPlaylist: () => Song | null
 }
@@ -32,6 +38,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   volume: 1,
   isDownloading: false,
   downloadProgress: 0,
+  autoplay: false,
   play: (song, playlistCtx) =>
     set({
       currentSong: song,
@@ -47,6 +54,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVolume: (volume) => set({ volume }),
   setDownloading: (isDownloading, downloadProgress = 0) =>
     set({ isDownloading, downloadProgress }),
+  setAutoplay: (autoplay) => set({ autoplay }),
   setPlaylistSongs: (songs) => {
     const { currentSong } = get()
     const newPos = currentSong ? songs.findIndex((s) => s.id === currentSong.id) : -1
