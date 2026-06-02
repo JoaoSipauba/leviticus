@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.18.0](https://github.com/JoaoSipauba/leviticus/compare/v0.17.3...v0.18.0) (2026-06-02)
+
+### Funcionalidades
+
+* **landing:** adiciona link pro GitHub no nav (icone) e footer (texto) ([#180](https://github.com/JoaoSipauba/leviticus/issues/180)) ([6db64f3](https://github.com/JoaoSipauba/leviticus/commit/6db64f3994ddabdadedd0ec0314d9344252287e0))
+
 ## [0.17.3](https://github.com/JoaoSipauba/leviticus/compare/v0.17.2...v0.17.3) (2026-06-01)
 
 ## [0.17.2](https://github.com/JoaoSipauba/leviticus/compare/v0.17.1...v0.17.2) (2026-06-01)
