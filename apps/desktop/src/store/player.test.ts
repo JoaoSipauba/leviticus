@@ -97,4 +97,16 @@ describe('player store — setPlaylistSongs (issue #32)', () => {
     usePlayerStore.setState({ currentSong: a, currentPlaylist: null, playlistSongs: [], playlistPosition: null })
     expect(usePlayerStore.getState().nextInPlaylist()).toBeNull()
   })
+
+  it('autoplay começa desligado e pode ser ligado/desligado via setAutoplay (issue #157)', () => {
+    // Reset porque outros testes podem ter mexido (Zustand é singleton)
+    usePlayerStore.setState({ autoplay: false })
+    expect(usePlayerStore.getState().autoplay).toBe(false)
+
+    usePlayerStore.getState().setAutoplay(true)
+    expect(usePlayerStore.getState().autoplay).toBe(true)
+
+    usePlayerStore.getState().setAutoplay(false)
+    expect(usePlayerStore.getState().autoplay).toBe(false)
+  })
 })

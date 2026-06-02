@@ -23,7 +23,7 @@ export function PlayerMini() {
   const {
     currentSong, currentPlaylist, isPlaying, volume,
     pause, resume, setPosition, setVolume: storeSetVolume,
-    nextInPlaylist,
+    nextInPlaylist, autoplay, setAutoplay,
   } = usePlayerStore()
 
   const [expanded, setExpanded] = useState(false)
@@ -37,10 +37,11 @@ export function PlayerMini() {
   const [muted, setMuted] = useState(false)
   const [lastVolume, setLastVolume] = useState(1)
   const [repeat, setRepeat] = useState<RepeatMode>('none')
-  const [autoplay, setAutoplay] = useState(false)
 
   // Sincroniza o estado de repeat/autoplay com o módulo central de playback
-  // (lê valores atuais sempre que onEnd é invocado, evitando closures stale)
+  // (lê valores atuais sempre que onEnd é invocado, evitando closures stale).
+  // `autoplay` vive no store agora (issue #157) — PlaylistDetail.playAll/
+  // playSection precisam ligar antes de iniciar a fila.
   useEffect(() => { setRepeatMode(repeat) }, [repeat])
   useEffect(() => { setAutoplayMode(autoplay) }, [autoplay])
 
@@ -358,7 +359,7 @@ export function PlayerMini() {
           setRepeat(r => r === 'one' ? 'none' : 'one')
           break
         case 's': case 'S':
-          setAutoplay(v => !v)
+          setAutoplay(!autoplay)
           break
       }
     }
@@ -471,7 +472,7 @@ export function PlayerMini() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {/* Autoplay */}
             <button
-              onClick={() => setAutoplay(v => !v)}
+              onClick={() => setAutoplay(!autoplay)}
               title="Reprodução automática (S)"
               style={iconBtn(autoplay)}
               className={iconBtnClass}
@@ -603,7 +604,7 @@ export function PlayerMini() {
           autoplay={autoplay}
           muted={muted}
           onCycleRepeat={cycleRepeat}
-          onToggleAutoplay={() => setAutoplay(v => !v)}
+          onToggleAutoplay={() => setAutoplay(!autoplay)}
           onMute={handleMute}
           onVolumeChange={handleVolumeChange}
         />
