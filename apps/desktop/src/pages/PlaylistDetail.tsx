@@ -11,8 +11,11 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import {
   formatPlaylistDate, formatPlaylistTimeRange,
-  groupSongsBySection, getGroupColor, type SectionView, type GroupRef,
+  groupSongsBySection, getGroupColor,
+  reorderSongOptimistic, reorderSectionOptimistic,
+  type SectionView, type GroupRef,
 } from '../lib/playlist.js'
+import { toastError } from '../store/toasts.js'
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { AddSongToPlaylistModal } from '../components/AddSongToPlaylistModal.js'
 import { AddSectionModal } from '../components/AddSectionModal.js'
@@ -458,11 +461,9 @@ export function PlaylistDetail() {
       const [moved] = reordered.splice(movedIdx, 1)
       let insertIdx: number
       if (target.beforeSongId) {
-        // Insere antes desse song no array sem o movido.
         insertIdx = reordered.findIndex((s) => s.section_id === target.sectionId && s.song_id === target.beforeSongId)
         if (insertIdx < 0) return
       } else {
-        // Sem beforeSongId → fim da seção alvo (insere após a última música dela).
         const lastInTarget = reordered.map((s, i) => ({ s, i })).filter(({ s }) => s.section_id === target.sectionId).pop()
         insertIdx = lastInTarget ? lastInTarget.i + 1 : reordered.length
       }
@@ -470,6 +471,13 @@ export function PlaylistDetail() {
       const toPosition = reordered.findIndex((s) => s.section_id === state.sectionId && s.song_id === state.songId) + 1
       // Detecta no-op: se a música já está exatamente nesse rank, não faz round-trip.
       if (movedIdx + 1 === toPosition && state.sectionId === target.sectionId) return
+
+      // Optimistic update — aplica visualmente antes do round-trip.
+      // Em caso de falha do RPC, rollback pra prevSections + toast.
+      const prevSections = sections
+      const optimistic = reorderSongOptimistic(sections, groups, state, target)
+      if (optimistic) setSections(optimistic)
+
       const { error: e } = await supabase.rpc('move_playlist_song', {
         p_playlist_id: id,
         p_song_id: state.songId,
@@ -477,7 +485,15 @@ export function PlaylistDetail() {
         p_to_section_id: target.sectionId,
         p_to_position: toPosition,
       })
-      if (e) captureException(e, { feature: 'playlist', step: 'move-song' })
+      if (e) {
+        setSections(prevSections)
+        toastError('Não foi possível mover a música. Posição revertida.')
+        captureException(e, { feature: 'playlist', step: 'move-song' })
+        return
+      }
+      // Reconcilia com servidor (normaliza positions, captura mudanças
+      // concorrentes de outros devices). Se o resultado bater com o
+      // otimista, React reconcile evita re-render visual.
       if (orgId) await syncOrg(orgId)
       await load()
       return
@@ -510,9 +526,16 @@ export function PlaylistDetail() {
           : null
 
       if (mergeTarget) {
+        // Fusão exige confirmação modal — não dá pra ser otimista
+        // (usuário pode cancelar). Mantém fluxo original.
         setPendingMerge({ sourceSection, targetSection: mergeTarget, targetIndex: targetIdx + 1 })
         return
       }
+
+      // Optimistic update — reordena array de SectionView imediatamente.
+      const prevSections = sections
+      const optimistic = reorderSectionOptimistic(sections, state.sectionId, targetIdx)
+      if (optimistic) setSections(optimistic)
 
       const { error: e } = await supabase.rpc('move_playlist_section', {
         p_playlist_id: id,
@@ -520,7 +543,12 @@ export function PlaylistDetail() {
         p_target_index: targetIdx + 1, // 1-based no RPC
         p_merge_into_section_id: null,
       })
-      if (e) captureException(e, { feature: 'playlist', step: 'move-section' })
+      if (e) {
+        setSections(prevSections)
+        toastError('Não foi possível mover a seção. Posição revertida.')
+        captureException(e, { feature: 'playlist', step: 'move-section' })
+        return
+      }
       if (orgId) await syncOrg(orgId)
       await load()
     }
