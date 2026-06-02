@@ -68,7 +68,7 @@ export function FileTab({ onFileSelected }: Props) {
         Arraste o arquivo aqui
       </div>
       <div className="mb-3 text-[12px]" style={{ color: '#71717a' }}>
-        MP3, M4A, WAV, FLAC, OGG · até 100 MB
+        MP3, M4A, WAV, FLAC, OGG · até 1 GB
       </div>
       <button
         type="button"
