@@ -4,6 +4,7 @@ import { setBackupStatus } from './status.js'
 import { findSongFile } from '../ytdlp.js'
 import { isLossless, type AudioCategory } from './format-detection.js'
 import { captureException } from '../observability.js'
+import { useIntegrationsStore } from '../../store/integrations.js'
 
 const RETRY_INTERVAL_MS = 5 * 60 * 1000  // 5 min entre passes
 
@@ -56,6 +57,23 @@ const retryState = new Map<string, RetryState>()
  *   - HTTP 4xx (exceto 429) — bad request, forbidden, not found, payload too large
  *   - Qualquer outra coisa que não case com transient acima
  */
+/**
+ * Detecta o erro `invalid_grant` propagado pela edge function `cloud-storage-proxy`
+ * quando o refresh token do Google Drive foi revogado/expirou. É estado
+ * esperado e recuperável pelo usuário (reconectar o Drive) — não é bug.
+ *
+ * Sem este check, cada upload tentado dispara captureException → Sentry
+ * vira poluído com 1 evento por música pendente, e recordFailure marca
+ * todas como `permanent` (porque a mensagem não contém código 4xx), o que
+ * faz com que mesmo após reconectar, o sync-worker dessa sessão não retome.
+ */
+export function isInvalidGrantError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code
+  if (code === 'invalid_grant') return true
+  const msg = err instanceof Error ? err.message : String(err)
+  return msg.includes('invalid_grant')
+}
+
 export function isTransientError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   const lower = msg.toLowerCase()
@@ -199,6 +217,14 @@ async function runPass(orgId: string, status: string): Promise<void> {
         })
         recordSuccess(song.id)
       } catch (err) {
+        // Token revogado/expirou: estado esperado, recuperável pelo usuário.
+        // Marca a integração como token_expired (UI mostra banner pra reconectar)
+        // e aborta o resto do pass — todas as músicas pendentes falhariam
+        // com o mesmo erro. Sem Sentry, sem backoff (que marcaria permanent).
+        if (isInvalidGrantError(err)) {
+          useIntegrationsStore.getState().setStatus('token_expired')
+          return
+        }
         // Classifica e registra backoff. Issue #45.
         recordFailure(song.id, err)
         captureException(err, {
@@ -308,8 +334,13 @@ export async function startInitialSync(orgId: string): Promise<void> {
 
     // Semáforo manual: N workers consomem da queue compartilhada.
     const queue = [...local]
+    // Quando um worker descobre invalid_grant, todos os outros precisam parar
+    // (mesma conta Drive, mesmo token — todos vão falhar igual). Flag
+    // compartilhada checada no início de cada iteração.
+    let tokenExpired = false
     const workers = Array.from({ length: Math.min(INITIAL_SYNC_CONCURRENCY, local.length) }, async () => {
       while (queue.length > 0) {
+        if (tokenExpired) break
         const item = queue.shift()
         if (!item) break
         try {
@@ -323,6 +354,14 @@ export async function startInitialSync(orgId: string): Promise<void> {
           })
           initialSyncState = { ...initialSyncState, uploaded: initialSyncState.uploaded + 1 }
         } catch (err) {
+          // Token revogado/expirou: aborta o initial sync inteiro. UI mostra
+          // banner pra reconectar via status 'token_expired'. Sem Sentry —
+          // estado esperado e recuperável.
+          if (isInvalidGrantError(err)) {
+            tokenExpired = true
+            useIntegrationsStore.getState().setStatus('token_expired')
+            break
+          }
           captureException(err, {
             feature: 'cloud-backup',
             step: 'initial-sync-upload',
