@@ -14,7 +14,6 @@ import {
 import { PlayerExpanded } from './PlayerExpanded.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
-import { trackEvent } from '../lib/analytics.js'
 import * as mediaSession from '../lib/mediaSession.js'
 import { captureException } from '../lib/observability.js'
 
@@ -92,17 +91,9 @@ export function PlayerMini() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, duration, currentSong?.id, currentPlaylist?.id])
 
-  // Emite evento de analytics ao iniciar a reprodução de uma música.
-  // playlistId vai junto quando há contexto de culto; "cultos executados"
-  // é derivado disso no dashboard (música tocada na janela do culto).
-  useEffect(() => {
-    if (!currentSong) return
-    trackEvent('song_played', {
-      songId: currentSong.id,
-      playlistId: currentPlaylist?.id,
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSong?.id])
+  // O evento `song_played` é emitido em audio.ts:playSong (única fonte da
+  // verdade — captura inclusive replay da mesma música, que aqui passaria
+  // batido por não mudar currentSong.id).
 
   // Referências estáveis para uso nos listeners de mídia (evita closures stale)
   const isPlayingRef = useRef(isPlaying)

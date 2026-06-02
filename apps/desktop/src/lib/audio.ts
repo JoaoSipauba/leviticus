@@ -161,6 +161,18 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
   _currentPlaylistId = callbacks?.playlistId ?? null
   _endedNaturally = false
 
+  // Evento `song_played` — emitido aqui (ÚNICA fonte da verdade) pra contar
+  // toda nova reprodução, incluindo replay da MESMA música (que não muda
+  // currentSong.id no store e por isso passava batido no useEffect do
+  // PlayerMini). Issue: usuário tocava de novo a mesma música e o dashboard
+  // não incrementava.
+  if (callbacks?.songId) {
+    trackEvent('song_played', {
+      songId: callbacks.songId,
+      playlistId: callbacks.playlistId,
+    })
+  }
+
   const src = convertFileSrc(filePath)
   const format = inferFormat(filePath)
   _currentSrc = src
