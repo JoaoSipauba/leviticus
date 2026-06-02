@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.2](https://github.com/JoaoSipauba/leviticus/compare/v0.18.1...v0.18.2) (2026-06-02)
+
+### Correções
+
+* **analytics:** conta song_played em replay da mesma música ([#188](https://github.com/JoaoSipauba/leviticus/issues/188)) ([177520c](https://github.com/JoaoSipauba/leviticus/commit/177520c43bf9d7e60c1d0c0f67de66099dfaa4d6))
+* **cloud-backup:** trata invalid_grant sem poluir Sentry nem travar retry ([#186](https://github.com/JoaoSipauba/leviticus/issues/186)) ([#187](https://github.com/JoaoSipauba/leviticus/issues/187)) ([b6c2839](https://github.com/JoaoSipauba/leviticus/commit/b6c28395f16194a41bfc4ef8d08128b67c1276f8))
+* **oauth-drive:** landing intermedia o deep link pra escapar do sandbox do Supabase Edge ([#190](https://github.com/JoaoSipauba/leviticus/issues/190)) ([21b365b](https://github.com/JoaoSipauba/leviticus/commit/21b365b90788ee0fdc6e4632080cbf00c8c86e9a))
+* **updater:** traz janela pra frente após relaunch pós-update ([#159](https://github.com/JoaoSipauba/leviticus/issues/159)) ([#185](https://github.com/JoaoSipauba/leviticus/issues/185)) ([8a7581c](https://github.com/JoaoSipauba/leviticus/commit/8a7581cb897e81cb1ad3d8b9bfccbfee0f8b7ce4))
+
 ## [0.18.1](https://github.com/JoaoSipauba/leviticus/compare/v0.18.0...v0.18.1) (2026-06-02)
 
 ### Correções
