@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react'
+import { defaultOptions as tauriSentryOptions } from 'tauri-plugin-sentry-api'
 import { env } from '../env.js'
 
 // Wrapper único em volta do Sentry pra:
@@ -26,6 +27,14 @@ export function initObservability(): void {
     return
   }
   Sentry.init({
+    // CRÍTICO: spread de tauriSentryOptions ANTES da nossa config — define
+    // transport custom que envia via `invoke('plugin:sentry|envelope', ...)`
+    // pro processo Rust (tauri-plugin-sentry). Sem isso, o SDK tentaria
+    // POST direto pro ingest do Sentry via fetch nativo do WebKit, e o
+    // CORS bloqueia silenciosamente (origin tauri://localhost não
+    // autorizado). Issue #39, segunda fase. Ver:
+    // https://github.com/timfish/sentry-tauri
+    ...tauriSentryOptions,
     dsn: env.sentryDsn,
     environment: env.mode,
     // Sample rate baixo em prod pra não estourar quota free (5k/mês).
