@@ -1,6 +1,7 @@
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { captureException } from './observability.js'
+import { markRelaunchForFocus } from './post-relaunch-focus.js'
 
 // O check de update no boot corre contra este timeout pra não segurar o
 // splash quando offline — a chamada de rede pode demorar muito ou nunca
@@ -69,5 +70,8 @@ export async function installUpdateOnBoot(update: Update): Promise<void> {
   // macOS: install() apenas substitui o .app — precisa de relaunch
   // explícito. Windows: o instalador NSIS (installMode "quiet") reinicia
   // sozinho e mata o app antes do relaunch abaixo chegar a rodar.
+  // Issue #159: marca a flag pro próximo boot trazer a janela pra frente,
+  // já que o processo pós-relaunch não recebe foreground automático.
+  markRelaunchForFocus()
   await relaunch()
 }

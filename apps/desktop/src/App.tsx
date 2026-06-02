@@ -10,6 +10,7 @@ import { startOrgDataSync, stopOrgDataSync } from './lib/data-sync.js'
 import { startNetworkMonitor, stopNetworkMonitor } from './lib/network.js'
 import { setUserContext, captureException } from './lib/observability.js'
 import { checkUpdateOnBoot, installUpdateOnBoot } from './lib/boot-update.js'
+import { focusIfRelaunched } from './lib/post-relaunch-focus.js'
 import * as Sentry from '@sentry/react'
 import { cleanupOrphanedAudio } from './lib/ytdlp.js'
 import { getDb } from './lib/db.js'
@@ -69,6 +70,11 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false
+
+    // Issue #159: se este boot é resultado de um relaunch pós-update,
+    // traz a janela pra frente. No-op em boots manuais. Fire-and-forget —
+    // não bloqueia auth/sync.
+    void focusIfRelaunched()
 
     const sessionPromise = supabase.auth.getSession().then(({ data }) => data.session)
     const timeoutPromise = new Promise<null>((resolve) =>
