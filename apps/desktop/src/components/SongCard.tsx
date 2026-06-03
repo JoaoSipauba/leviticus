@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, Check, FileDown, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Check, FileDown, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, Waves, X } from 'lucide-react'
 import { isDownloaded, getSongFilename, deleteSongFile, exportSongToMp3 } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -23,10 +23,11 @@ import { BackupStatusBadge } from './library/BackupStatusBadge.js'
 import { formatDuration as fmtDuration } from '../lib/format-duration.js'
 
 const TYPE_CONFIG: Record<SongType, { label: string; hex: string; icon: React.ReactNode }> = {
-  normal:       { label: 'Normal',       hex: '#9ca3af', icon: <Music size={9} strokeWidth={2.5} /> },
-  playback:     { label: 'Playback',     hex: '#60a5fa', icon: <Headphones size={9} strokeWidth={2.5} /> },
-  instrumental: { label: 'Instrumental', hex: '#a78bfa', icon: <Music size={9} strokeWidth={2.5} /> },
-  vs:           { label: 'VS',           hex: '#fb923c', icon: <Mic size={9} strokeWidth={2.5} /> },
+  normal:       { label: 'Normal',        hex: '#9ca3af', icon: <Music size={9} strokeWidth={2.5} /> },
+  playback:     { label: 'Playback',      hex: '#60a5fa', icon: <Headphones size={9} strokeWidth={2.5} /> },
+  instrumental: { label: 'Instrumental',  hex: '#a78bfa', icon: <Music size={9} strokeWidth={2.5} /> },
+  vs:           { label: 'VS',            hex: '#fb923c', icon: <Mic size={9} strokeWidth={2.5} /> },
+  fundo:        { label: 'Fundo Musical', hex: '#2dd4bf', icon: <Waves size={9} strokeWidth={2.5} /> },
 }
 
 function SongTypePill({ type }: { type: SongType }) {

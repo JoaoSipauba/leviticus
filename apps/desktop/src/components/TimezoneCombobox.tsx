@@ -191,6 +191,7 @@ export function TimezoneCombobox({ value, onChange, disabled, id }: Props) {
           </div>
           <ul
             role="listbox"
+            className="styled-scroll"
             style={{
               listStyle: 'none',
               margin: 0,

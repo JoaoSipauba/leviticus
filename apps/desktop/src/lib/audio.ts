@@ -2,6 +2,9 @@ import { Howl, Howler } from 'howler'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { captureException } from './observability.js'
 import { trackEvent, flushAnalyticsQueue } from './analytics.js'
+import {
+  startSession, endSession, tickSession, getCurrentPlayedSeconds,
+} from './playback-session.js'
 
 // Howler mantém um pool de elementos HTML5Audio (default: 10). Quando o
 // pool esgota, ele reusa um Audio "potencialmente travado" e logga
@@ -70,14 +73,23 @@ function inferFormat(filePath: string): string[] {
  */
 function flushStoppedIfNeeded(): void {
   if (!_currentSongId) return
-  if (_endedNaturally) return // song_completed já foi (ou vai ser) emitido
-  const pos = getPosition()
-  if (pos <= 5) return // toque curto — skip imediato, não conta
-  trackEvent('song_stopped', {
-    songId: _currentSongId,
-    playlistId: _currentPlaylistId ?? undefined,
-    metadata: { played_seconds: Math.round(pos) },
-  })
+  // played_seconds: prefere o acumulado da sessão (resiliente a seek e
+  // a momentos onde o Howler reporta pos zerado). Cai pra getPosition()
+  // se a sessão não chegou a registrar (raríssimo — só se a primeira
+  // chamada de tickSession ainda não ocorreu).
+  const played = getCurrentPlayedSeconds() || Math.round(getPosition())
+
+  if (!_endedNaturally && played > 5) {
+    // toque curto — skip imediato, não conta
+    trackEvent('song_stopped', {
+      songId: _currentSongId,
+      playlistId: _currentPlaylistId ?? undefined,
+      metadata: { played_seconds: played },
+    })
+  }
+  // Sempre fecha a sessão local — mesmo em fim natural (a linha em
+  // playback_sessions já não é mais necessária).
+  void endSession()
 }
 
 /**
@@ -138,6 +150,9 @@ function createHowl(src: string, format: string[], callbacks: AudioCallbacks | u
       if (node.ended) { fireEnd(); return }
       const d = node.duration
       if (Number.isFinite(d) && d > 0 && node.currentTime >= d - 0.15) fireEnd()
+      // Heartbeat da sessão local — atualiza in-memory sempre e escreve
+      // no SQLite com throttle interno (ver playback-session.ts).
+      void tickSession(node.currentTime)
     })
   })
 
@@ -171,6 +186,9 @@ export function playSong(filePath: string, callbacks?: AudioCallbacks): Howl {
       songId: callbacks.songId,
       playlistId: callbacks.playlistId,
     })
+    // Inicia sessão local pra contabilizar minutos tocados de forma
+    // resiliente a crash/force-quit (ver playback-session.ts).
+    void startSession(callbacks.songId, callbacks.playlistId)
   }
 
   const src = convertFileSrc(filePath)

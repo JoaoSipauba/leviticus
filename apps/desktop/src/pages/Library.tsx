@@ -9,7 +9,10 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useNavigate } from 'react-router-dom'
 import { LibraryBackupBanner } from '../components/library/LibraryBackupBanner.js'
 import { startInitialSync } from '../lib/cloud-storage/sync-worker.js'
-import { BackupFilterChip } from '../components/library/BackupFilterChip.js'
+import {
+  LibraryFilters, applyFilters, loadFilters, saveFilters, hasActiveFilters,
+  EMPTY_FILTERS, type LibraryFilterState,
+} from '../components/library/LibraryFilters.js'
 import { useIntegrationsStore } from '../store/integrations.js'
 import { usePermission } from '../store/permissions.js'
 import { backfillDurationFromFile } from '../lib/audio-meta.js'
@@ -19,7 +22,6 @@ export function Library() {
   const [songs, setSongs] = useState<Song[]>([])
   const [songGroupMap, setSongGroupMap] = useState<Map<string, string[]>>(new Map())
   const [search, setSearch] = useState('')
-  const [groupFilter, setGroupFilter] = useState<string>('')
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
   const orgId = localStorage.getItem('leviticus_org_id') ?? ''
@@ -33,7 +35,14 @@ export function Library() {
   const hasLoadedRef = useRef(false)
   const navigate = useNavigate()
   const cloudStatus = useIntegrationsStore((s) => s.status)
-  const [showOnlyPending, setShowOnlyPending] = useState(false)
+  // Issue #40: estado unificado dos filtros, persistido em localStorage por
+  // org. Search fica de fora (não persiste — comportamento esperado de busca).
+  const [filters, setFilters] = useState<LibraryFilterState>(EMPTY_FILTERS)
+  useEffect(() => { setFilters(loadFilters(orgId)) }, [orgId])
+  function updateFilters(next: LibraryFilterState) {
+    setFilters(next)
+    saveFilters(orgId, next)
+  }
 
   useEffect(() => {
     async function load(silent: boolean) {
@@ -115,15 +124,13 @@ export function Library() {
   // ("salvas apenas no dispositivo") em vez do banner de retry.
   const hasLocalOnlySongs = songs.some((s) => s.backup_status !== 'uploaded')
 
-  const filtered = songs.filter((s) => {
-    const matchesSearch =
-      !search ||
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.artist.toLowerCase().includes(search.toLowerCase())
-    const matchesGroup =
-      !groupFilter || (songGroupMap.get(s.id) ?? []).includes(groupFilter)
-    const matchesBackup = !showOnlyPending || s.backup_status === 'failed'
-    return matchesSearch && matchesGroup && matchesBackup
+  // Filtros aplicados em 2 passos pra clareza: primeiro chips (issue #40),
+  // depois search livre.
+  const chipFiltered = applyFilters(songs, songGroupMap, filters)
+  const filtered = chipFiltered.filter((s) => {
+    if (!search) return true
+    const q = search.toLowerCase()
+    return s.title.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)
   })
 
   // Issue #65: em vez de spinner centralizado (que cria layout shift quando
@@ -154,7 +161,7 @@ export function Library() {
   // centralizada pra eliminar fricção de descoberta. Issue #34.
   const isLibraryEmpty = songs.length === 0
   const hasFilteredResults = filtered.length > 0
-  const hasActiveFilters = !!search || !!groupFilter || showOnlyPending
+  const hasAnyFilter = !!search || hasActiveFilters(filters)
 
   return (
     <div className="px-6 pt-6 flex flex-col h-full">
@@ -210,15 +217,17 @@ export function Library() {
 
       {/* Search + filtros só aparecem quando há músicas — sem música, não
           existe o que buscar; mostrar campo confunde (usuária real tentou
-          adicionar música DIGITANDO na busca). Issue #34. */}
+          adicionar música DIGITANDO na busca). Issue #34.
+          Issue #40: filtros viraram chips combináveis (LibraryFilters),
+          abaixo da busca. */}
       {!isLibraryEmpty && (
-        <div className="flex gap-3 mb-4">
+        <>
           <input
             type="search"
             placeholder="Buscar nas suas músicas…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 outline-none text-sm"
+            className="outline-none text-sm mb-3"
             style={{
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(255,255,255,0.08)',
@@ -226,28 +235,15 @@ export function Library() {
               color: '#f3f4f6', minHeight: 44,
             }}
           />
-          <select
-            value={groupFilter}
-            onChange={(e) => setGroupFilter(e.target.value)}
-            className="text-sm outline-none"
-            style={{
-              background: 'rgba(255,255,255,0.04)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 10, padding: '11px 12px',
-              color: '#f3f4f6', minHeight: 44,
-            }}
-          >
-            <option value="">Todos os ministérios</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-          <BackupFilterChip
-            count={failedCount}
-            active={showOnlyPending}
-            onToggle={() => setShowOnlyPending((v) => !v)}
-          />
-        </div>
+          <div className="mb-4">
+            <LibraryFilters
+              state={filters}
+              onChange={updateFilters}
+              groups={groups}
+              failedBackupCount={failedCount}
+            />
+          </div>
+        </>
       )}
 
       {/* Empty state da BIBLIOTECA (caso de primeiro uso): card grande
@@ -324,9 +320,9 @@ export function Library() {
                 <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
                   Nenhuma música encontrada
                 </p>
-                {hasActiveFilters && (
+                {hasAnyFilter && (
                   <button
-                    onClick={() => { setSearch(''); setGroupFilter(''); setShowOnlyPending(false) }}
+                    onClick={() => { setSearch(''); updateFilters(EMPTY_FILTERS) }}
                     className="text-sm mt-1"
                     style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                   >

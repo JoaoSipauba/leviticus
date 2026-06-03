@@ -17,6 +17,7 @@ import {
   Square,
   Volume2,
   VolumeX,
+  Waves,
   X,
 } from 'lucide-react'
 import type { SongType } from '@leviticus/core'
@@ -635,6 +636,15 @@ const SONG_TYPE_OPTIONS: { value: SongType; label: string; color: string; active
     activeBg: 'rgba(234,88,12,0.22)',
     activeBorder: 'rgba(234,88,12,0.5)',
     icon: <Mic size={11} strokeWidth={2.5} />,
+  },
+  {
+    value: 'fundo',
+    label: 'Fundo Musical',
+    color: '#6b7280',
+    activeColor: '#2dd4bf',
+    activeBg: 'rgba(20,184,166,0.22)',
+    activeBorder: 'rgba(20,184,166,0.5)',
+    icon: <Waves size={11} strokeWidth={2.5} />,
   },
 ]
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  ChevronLeft, ListEnd, ListMusic, Play, Repeat1,
+  ChevronLeft, ListEnd, ListMusic, Play, Repeat, Repeat1,
   Volume2, VolumeX, X,
 } from 'lucide-react'
 import type { Song } from '@leviticus/core'
@@ -11,7 +11,7 @@ import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
 import { getSongFilename, isDownloaded } from '../lib/ytdlp.js'
 
-type RepeatMode = 'none' | 'one'
+type RepeatMode = 'none' | 'one' | 'queue'
 
 type Props = {
   pos: number
@@ -288,16 +288,22 @@ export function PlayerExpanded({
             </button>
           </Tooltip>
 
-          <Tooltip text={repeat === 'one' ? 'Desativar repetição (R)' : 'Repetir atual (R)'}>
+          <Tooltip text={
+            repeat === 'one'   ? 'Repetindo a música (R pra próximo)' :
+            repeat === 'queue' ? 'Repetindo a fila (R pra desativar)' :
+                                 'Repetir (R)'
+          }>
             <button
               onClick={onCycleRepeat}
               className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer hover:bg-white/[0.08]"
               style={{
-                color: repeat === 'one' ? '#3b82f6' : '#9ca3af',
-                opacity: repeat === 'one' ? 1 : 0.55,
+                color: repeat !== 'none' ? '#3b82f6' : '#9ca3af',
+                opacity: repeat !== 'none' ? 1 : 0.55,
               }}
             >
-              <Repeat1 size={18} strokeWidth={2} />
+              {repeat === 'one'
+                ? <Repeat1 size={18} strokeWidth={2} />
+                : <Repeat size={18} strokeWidth={2} />}
             </button>
           </Tooltip>
         </div>

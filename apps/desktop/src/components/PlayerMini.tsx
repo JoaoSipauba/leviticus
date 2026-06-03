@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
-import { Music, Volume2, VolumeX, Maximize2, Repeat1, ListEnd } from 'lucide-react'
+import { Music, Volume2, VolumeX, Maximize2, Repeat, Repeat1, ListEnd } from 'lucide-react'
 import { Slider } from './Slider.js'
 import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
@@ -356,7 +356,8 @@ export function PlayerMini() {
           handleMute()
           break
         case 'r': case 'R':
-          setRepeat(r => r === 'one' ? 'none' : 'one')
+          // Cicla none → one → queue → none (issue #158)
+          setRepeat(r => r === 'none' ? 'one' : r === 'one' ? 'queue' : 'none')
           break
         case 's': case 'S':
           setAutoplay(!autoplay)
@@ -398,7 +399,9 @@ export function PlayerMini() {
   }
 
   function cycleRepeat() {
-    setRepeat(r => r === 'one' ? 'none' : 'one')
+    // 3 estados: none → one (repete música) → queue (repete fila) → none.
+    // Issue #158.
+    setRepeat(r => r === 'none' ? 'one' : r === 'one' ? 'queue' : 'none')
   }
 
   const iconBtn = (active = false) => ({
@@ -530,14 +533,25 @@ export function PlayerMini() {
               </svg>
             </button>
 
-            {/* Repeat */}
+            {/* Repeat — cicla 3 estados (issue #158):
+                  none  → ícone cinza neutro Repeat
+                  one   → ícone azul Repeat1 (loop só a música atual)
+                  queue → ícone azul Repeat (loop a fila inteira) */}
             <button
               onClick={cycleRepeat}
-              title={repeat === 'one' ? 'Desativar repetição (R)' : 'Repetir atual (R)'}
+              title={
+                repeat === 'one'    ? 'Repetindo a música (R pra próximo)' :
+                repeat === 'queue'  ? 'Repetindo a fila (R pra desativar)' :
+                                      'Repetir (R)'
+              }
               style={iconBtn(repeat !== 'none')}
               className={iconBtnClass}
             >
-              <Repeat1 size={16} color={repeat === 'one' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
+              {repeat === 'one' ? (
+                <Repeat1 size={16} color="#3b82f6" strokeWidth={2} />
+              ) : (
+                <Repeat size={16} color={repeat === 'queue' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
+              )}
             </button>
 
           </div>

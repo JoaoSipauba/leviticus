@@ -73,13 +73,20 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
 
+      # Issue #193: o post-step automatico desta action (Post Cache cargo
+      # target) ja falhou em release antes, marcando o job inteiro como
+      # failure e cancelando o publish-latest-json subsequente. O build em si
+      # tinha sucedido. continue-on-error: true faz a falha do save do cache
+      # virar warning sem quebrar o pipeline. Cache miss no proximo build
+      # recompila - penalidade aceitavel vs publish travado.
       - name: Cache cargo target
         uses: Swatinem/rust-cache@23869a5bd66c73db3c0ac40331f3206eb23791dc # v2.9.1
+        continue-on-error: true
         with:
           workspaces: apps/desktop/src-tauri -> target
           cache-on-failure: true
-          # Save sempre em release — é o único momento que vale popular o
-          # cache pras plataformas mac/windows que o CI não usa.
+          # Save sempre em release - eh o unico momento que vale popular o
+          # cache pras plataformas mac/windows que o CI nao usa.
           # cache-bin: false — sem isso, o post-step do rust-cache LIMPA
           # ~/.cargo/bin (incluindo o `rustup` binário). Em runners hosted
           # isso não importa (instalação fresh por job), mas no nosso runner

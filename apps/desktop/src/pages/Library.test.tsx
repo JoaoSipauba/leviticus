@@ -48,14 +48,6 @@ vi.mock('../components/library/LibraryBackupBanner.js', () => ({
       : null,
 }))
 
-vi.mock('../components/library/BackupFilterChip.js', () => ({
-  BackupFilterChip: ({ active, onToggle }: any) => (
-    <button data-testid="backup-chip" data-active={active} onClick={onToggle}>
-      Filtro backup
-    </button>
-  ),
-}))
-
 // tauri plugin stubs
 vi.mock('../lib/audio-meta.js', () => ({
   backfillDurationFromFile: vi.fn().mockResolvedValue(null),
@@ -245,7 +237,9 @@ describe('Library', () => {
       expect(screen.getAllByTestId('song-card')).toHaveLength(3)
     })
 
-    const chip = screen.getByTestId('backup-chip')
+    // Issue #40: BackupFilterChip foi absorvido por LibraryFilters como
+    // chip inline — encontra pelo label visível "Sem backup (N)".
+    const chip = screen.getByText(/Sem backup \(\d+\)/)
     fireEvent.click(chip)
 
     // Só a música 'failed' aparece — 'pending' (na fila) não é "sem backup".
