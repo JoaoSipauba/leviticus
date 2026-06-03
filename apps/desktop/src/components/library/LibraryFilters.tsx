@@ -276,6 +276,7 @@ const SONG_TYPE_OPTIONS: ReadonlyArray<DropdownOption<SongType>> = [
   { value: 'playback', label: 'Playback' },
   { value: 'instrumental', label: 'Instrumental' },
   { value: 'vs', label: 'VS' },
+  { value: 'fundo', label: 'Fundo Musical' },
 ]
 
 const DURATION_OPTIONS: ReadonlyArray<DropdownOption<DurationBucket>> = [
