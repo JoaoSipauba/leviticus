@@ -1,6 +1,8 @@
 import type { BackupStatus, SongSource } from './cloud-storage.js'
 
-export type SongType = 'normal' | 'playback' | 'instrumental' | 'vs'
+// 'fundo' = fundo musical, faixa de ambiente em loop pra rodar durante
+// pregação/oração. Adicionada em 2026-06.
+export type SongType = 'normal' | 'playback' | 'instrumental' | 'vs' | 'fundo'
 
 export type Song = {
   id: string
