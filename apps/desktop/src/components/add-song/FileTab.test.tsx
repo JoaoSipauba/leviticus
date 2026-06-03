@@ -63,4 +63,49 @@ describe('FileTab', () => {
     dropzone.dispatchEvent(overEvent)
     expect(overEvent.defaultPrevented).toBe(true)
   })
+
+  it('drag-and-drop: arquivo com extensão não permitida é rejeitado SEM chamar callback', () => {
+    render(<FileTab onFileSelected={onFileSelected} />)
+    const dropzone = screen.getByTestId('file-dropzone')
+    const badFile = new File(['fake'], 'video.mp4', { type: 'video/mp4' })
+
+    fireEvent.drop(dropzone, { dataTransfer: { files: [badFile] } })
+
+    expect(onFileSelected).not.toHaveBeenCalled()
+    expect(screen.getByText(/Tipo não permitido.*video\.mp4/)).toBeInTheDocument()
+  })
+
+  it('drag-and-drop: PDF é rejeitado com mensagem amigável', () => {
+    render(<FileTab onFileSelected={onFileSelected} />)
+    const dropzone = screen.getByTestId('file-dropzone')
+    const pdf = new File(['fake'], 'docs.pdf', { type: 'application/pdf' })
+
+    fireEvent.drop(dropzone, { dataTransfer: { files: [pdf] } })
+
+    expect(onFileSelected).not.toHaveBeenCalled()
+    expect(screen.getByText(/Tipo não permitido.*docs\.pdf/)).toBeInTheDocument()
+  })
+
+  it('drag-and-drop: arquivo SEM extensão mas com MIME audio/* é aceito', () => {
+    // Alguns gravadores salvam blob sem extensão padrão mas com mime correto.
+    render(<FileTab onFileSelected={onFileSelected} />)
+    const dropzone = screen.getByTestId('file-dropzone')
+    const blob = new File(['fake'], 'rec', { type: 'audio/wav' })
+
+    fireEvent.drop(dropzone, { dataTransfer: { files: [blob] } })
+
+    expect(onFileSelected).toHaveBeenCalledWith(blob)
+  })
+
+  it('file picker: tipo não permitido via input também é rejeitado', () => {
+    const { container } = render(<FileTab onFileSelected={onFileSelected} />)
+    const input = container.querySelector('input[type=file]') as HTMLInputElement
+    const badFile = new File(['fake'], 'foto.jpg', { type: 'image/jpeg' })
+
+    Object.defineProperty(input, 'files', { value: [badFile], configurable: true })
+    fireEvent.change(input)
+
+    expect(onFileSelected).not.toHaveBeenCalled()
+    expect(screen.getByText(/Tipo não permitido.*foto\.jpg/)).toBeInTheDocument()
+  })
 })
