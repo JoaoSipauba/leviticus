@@ -6,6 +6,8 @@ import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
+import { DatePicker } from './DatePicker.js'
+import { TimePicker } from './TimePicker.js'
 
 type Props = {
   open: boolean
@@ -214,44 +216,26 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
             />
           </label>
 
-          <label className="block">
+          <div className="block">
             <span className="text-body text-xs uppercase tracking-wide font-semibold flex items-center gap-1.5">
               <Calendar size={12} /> Data
             </span>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 w-full px-3 py-2 rounded-lg text-heading"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-            />
-          </label>
+            <DatePicker value={date} onChange={setDate} />
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="block">
+            <div className="block">
               <span className="text-body text-xs uppercase tracking-wide font-semibold flex items-center gap-1.5">
                 <Clock size={12} /> Início
               </span>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg text-heading"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-              />
-            </label>
-            <label className="block">
+              <TimePicker value={startTime} onChange={setStartTime} />
+            </div>
+            <div className="block">
               <span className="text-body text-xs uppercase tracking-wide font-semibold flex items-center gap-1.5">
                 <Clock size={12} /> Término
               </span>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg text-heading"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
-              />
-            </label>
+              <TimePicker value={endTime} onChange={setEndTime} />
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-400">{error}</p>}

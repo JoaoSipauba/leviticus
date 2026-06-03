@@ -92,9 +92,9 @@ describe('PlaylistFormModal', () => {
     await userEvent.clear(nameInput)
     await userEvent.type(nameInput, 'Culto de Domingo')
 
-    const dateInput = screen.getByDisplayValue(/^\d{4}-\d{2}-\d{2}$/)
-    await userEvent.clear(dateInput)
-    await userEvent.type(dateInput, FUTURE_DATE)
+    // Data já é "hoje" no init do modal (issue #108: DatePicker substitui
+    // input nativo). Hoje passa na validação "não criar em dia passado".
+    void FUTURE_DATE
 
     await userEvent.click(screen.getByRole('button', { name: /^Criar$/i }))
 
