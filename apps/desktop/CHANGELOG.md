@@ -1,5 +1,7 @@
 # Changelog
 
+## [0.19.1](https://github.com/JoaoSipauba/leviticus/compare/v0.19.0...v0.19.1) (2026-06-03)
+
 ## [0.19.0](https://github.com/JoaoSipauba/leviticus/compare/v0.18.2...v0.19.0) (2026-06-03)
 
 ### Funcionalidades
