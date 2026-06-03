@@ -70,6 +70,78 @@ export function groupSongsBySection(
   return Array.from(bySection.values()).sort((a, b) => a.minPosition - b.minPosition)
 }
 
+// ─── Reordenação otimista (drag-drop) ──────────────────────────────────
+//
+// Estes helpers calculam o estado de `sections` após um move de música ou
+// seção, SEM round-trip ao servidor. PlaylistDetail aplica via setSections
+// imediatamente e faz rollback se o RPC subsequente falhar.
+
+/**
+ * Move uma música pra outra posição (mesma seção ou seção diferente).
+ * Retorna o novo array de SectionView, ou null se o move é inválido (música
+ * não encontrada, etc) — caller mantém estado atual.
+ *
+ * @param sections Estado atual de seções
+ * @param groups Lista de grupos pra resolver labels/cores
+ * @param source { sectionId, songId } da música sendo movida
+ * @param target { sectionId, beforeSongId } onde inserir (beforeSongId=null = fim da seção)
+ */
+export function reorderSongOptimistic(
+  sections: SectionView[],
+  groups: GroupRef[],
+  source: { sectionId: string; songId: string },
+  target: { sectionId: string; beforeSongId: string | null },
+): SectionView[] | null {
+  const flat = sections.flatMap((s) => s.songs).sort((a, b) => a.position - b.position)
+  const movedIdx = flat.findIndex((s) => s.section_id === source.sectionId && s.song_id === source.songId)
+  if (movedIdx < 0) return null
+
+  const reordered = [...flat]
+  const [moved] = reordered.splice(movedIdx, 1)
+  // Atualiza o section_id da música movida (pode estar trocando de seção)
+  const movedNew = { ...moved, section_id: target.sectionId }
+
+  let insertIdx: number
+  if (target.beforeSongId) {
+    insertIdx = reordered.findIndex((s) => s.section_id === target.sectionId && s.song_id === target.beforeSongId)
+    if (insertIdx < 0) return null
+  } else {
+    // Sem beforeSongId = fim da seção alvo. Encontra a última música da seção
+    // no array sem a movida; insere logo após.
+    const lastInTarget = reordered.map((s, i) => ({ s, i })).filter(({ s }) => s.section_id === target.sectionId).pop()
+    insertIdx = lastInTarget ? lastInTarget.i + 1 : reordered.length
+  }
+  reordered.splice(insertIdx, 0, movedNew)
+
+  // Re-numera posições 1-based (igual ao que o servidor faz após normalização)
+  const renumbered = reordered.map((s, i) => ({ ...s, position: i + 1 }))
+  return groupSongsBySection(renumbered, groups)
+}
+
+/**
+ * Move uma seção pra outra posição na lista de seções.
+ * Retorna o novo array de SectionView ou null se inválido.
+ *
+ * @param sections Estado atual
+ * @param sourceSectionId Seção sendo movida
+ * @param targetIdxIn0Based Índice destino em relação ao array SEM a fonte
+ *                          (mesmo cálculo de targetIdx do endDrag)
+ */
+export function reorderSectionOptimistic(
+  sections: SectionView[],
+  sourceSectionId: string,
+  targetIdxIn0Based: number,
+): SectionView[] | null {
+  const sourceIdx = sections.findIndex((s) => s.sectionId === sourceSectionId)
+  if (sourceIdx < 0) return null
+  if (targetIdxIn0Based < 0 || targetIdxIn0Based > sections.length - 1) return null
+
+  const next = [...sections]
+  const [moved] = next.splice(sourceIdx, 1)
+  next.splice(targetIdxIn0Based, 0, moved)
+  return next
+}
+
 const WEEKDAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 

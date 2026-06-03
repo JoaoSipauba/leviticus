@@ -13,8 +13,14 @@ vi.mock('./db.js', () => ({
 vi.mock('./supabase.js', () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn(),
   },
 }))
+
+const SERVER_NOW = '2026-03-01T12:00:00.000Z'
+
+// Argumentos de `since` passados às queries incrementais (.gte('updated_at', X)).
+const gteCalls: string[] = []
 
 function makeChain(result = { data: [] as any[], error: null as any }) {
   const chain: any = {}
@@ -24,7 +30,10 @@ function makeChain(result = { data: [] as any[], error: null as any }) {
   chain.maybeSingle = vi.fn().mockResolvedValue(result)
   chain.eq = vi.fn().mockImplementation(() => {
     const sub: any = {}
-    sub.gte = vi.fn().mockResolvedValue(result)
+    sub.gte = vi.fn().mockImplementation((_col: string, since: string) => {
+      gteCalls.push(since)
+      return Promise.resolve(result)
+    })
     sub.single = vi.fn().mockResolvedValue(result)
     sub.maybeSingle = vi.fn().mockResolvedValue(result)
     sub.then = (resolve: any) => Promise.resolve(result).then(resolve)
@@ -45,11 +54,13 @@ function makeNullChain() {
 describe('syncOrg', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
+    gteCalls.length = 0
     const { supabase } = await import('./supabase.js')
     vi.mocked(supabase.from).mockImplementation((table: string) => {
       if (table === 'cloud_storage_accounts_public') return makeNullChain()
       return makeChain()
     })
+    vi.mocked(supabase.rpc).mockResolvedValue({ data: SERVER_NOW, error: null } as any)
   })
 
   it('completes without throwing when data is empty', async () => {
@@ -112,27 +123,46 @@ describe('syncOrg', () => {
     )
   })
 
-  it('grava last_sync com o timestamp do INÍCIO do sync, não do fim', async () => {
-    // Uma row criada DURANTE a execução do sync (que as queries podem não ter
-    // pego) ficaria órfã se o last_sync fosse o tempo do fim. Gravar o início
-    // garante que o próximo sync re-cobre a janela inteira.
+  it('grava last_sync com o relógio do SERVIDOR, não o do cliente (#139)', async () => {
+    // Um relógio de cliente adiantado não pode contaminar o last_sync. A fonte
+    // da verdade é o RPC server_now() — last_sync e updated_at no mesmo relógio.
     vi.useFakeTimers()
     try {
-      const startedAt = '2026-01-01T00:00:00.000Z'
-      vi.setSystemTime(new Date(startedAt))
-      const { supabase } = await import('./supabase.js')
-      vi.mocked(supabase.from).mockImplementation((table: string) => {
-        // Simula tempo passando durante o sync (queries + writes).
-        vi.setSystemTime(new Date('2026-01-01T00:05:00.000Z'))
-        if (table === 'cloud_storage_accounts_public') return makeNullChain()
-        return makeChain()
-      })
-      await syncOrg('org-1')
+      vi.setSystemTime(new Date('2026-03-01T18:30:00.000Z')) // cliente adiantado
       const { setLastSync } = await import('./db.js')
-      expect(vi.mocked(setLastSync)).toHaveBeenCalledWith('org-1', startedAt)
+      await syncOrg('org-1')
+      expect(vi.mocked(setLastSync)).toHaveBeenCalledWith('org-1', SERVER_NOW)
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('normaliza o timestamp do servidor pra ISO com Z', async () => {
+    const { supabase } = await import('./supabase.js')
+    const { setLastSync } = await import('./db.js')
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: '2026-03-01T12:00:00+00:00',
+      error: null,
+    } as any)
+    await syncOrg('org-1')
+    expect(vi.mocked(setLastSync)).toHaveBeenCalledWith('org-1', '2026-03-01T12:00:00.000Z')
+  })
+
+  it('usa o last_sync gravado como `since` quando ele é válido (no passado)', async () => {
+    const { getLastSync } = await import('./db.js')
+    vi.mocked(getLastSync).mockResolvedValueOnce('2026-02-01T00:00:00.000Z')
+    await syncOrg('org-1')
+    expect(gteCalls.length).toBeGreaterThan(0)
+    expect(gteCalls.every((s) => s === '2026-02-01T00:00:00.000Z')).toBe(true)
+  })
+
+  it('reseta `since` pra epoch quando o last_sync gravado está no futuro (#139)', async () => {
+    // last_sync corrompido por relógio adiantado: força um resync completo.
+    const { getLastSync } = await import('./db.js')
+    vi.mocked(getLastSync).mockResolvedValueOnce('2026-12-31T00:00:00.000Z')
+    await syncOrg('org-1')
+    expect(gteCalls.length).toBeGreaterThan(0)
+    expect(gteCalls.every((s) => s === '1970-01-01T00:00:00Z')).toBe(true)
   })
 
   it('throws when supabase returns an error', async () => {
@@ -142,5 +172,14 @@ describe('syncOrg', () => {
       makeChain({ data: null as any, error: { message: 'network error' } })
     )
     await expect(syncOrg('org-1')).rejects.toThrow('sync songs failed: network error')
+  })
+
+  it('throws when server_now RPC fails', async () => {
+    const { supabase } = await import('./supabase.js')
+    vi.mocked(supabase.rpc).mockResolvedValueOnce({
+      data: null,
+      error: { message: 'rpc down' },
+    } as any)
+    await expect(syncOrg('org-1')).rejects.toThrow('sync server_now failed: rpc down')
   })
 })

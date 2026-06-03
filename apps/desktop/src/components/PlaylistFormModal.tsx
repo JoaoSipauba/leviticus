@@ -13,6 +13,11 @@ type Props = {
   onSaved: (playlistId: string) => void
   // Quando preenchido, modal age em modo edição.
   editing?: Playlist | null
+  // Quando preenchido, modal age em modo duplicação — nome e horário
+  // pré-preenchidos a partir do culto fonte, e ao salvar chama o RPC
+  // duplicate_playlist (que copia seções e músicas) em vez de create_playlist.
+  // Issue #155.
+  duplicating?: Playlist | null
 }
 
 // Pega "YYYY-MM-DD" da timezone local (não UTC).
@@ -23,7 +28,7 @@ function isoTimeLocal(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
+export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating }: Props) {
   const [name, setName] = useState('')
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('09:00')
@@ -41,6 +46,17 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
       setDate(isoDateLocal(start))
       setStartTime(isoTimeLocal(start))
       setEndTime(isoTimeLocal(end))
+    } else if (duplicating) {
+      // Modo duplicação — herda nome + horário do original, com sufixo "(cópia)".
+      // Se a data original já passou, validação no save vai pedir pro usuário
+      // ajustar — o que é o comportamento certo pra um culto antigo virando
+      // base de um novo.
+      const start = new Date(duplicating.scheduled_at)
+      const end = new Date(duplicating.scheduled_end)
+      setName(`${duplicating.name} (cópia)`)
+      setDate(isoDateLocal(start))
+      setStartTime(isoTimeLocal(start))
+      setEndTime(isoTimeLocal(end))
     } else {
       const today = new Date()
       setName('')
@@ -49,7 +65,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
       setEndTime('11:00')
     }
     setError(null)
-  }, [open, editing])
+  }, [open, editing, duplicating])
 
   async function handleSave() {
     if (!online) {
@@ -73,6 +89,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
     }
     const todayMidnight = new Date()
     todayMidnight.setHours(0, 0, 0, 0)
+    // Edição preserva data passada; criação e duplicação exigem futuro.
     if (!editing && start < todayMidnight) {
       setError('Não dá para criar um culto em um dia que já passou.')
       return
@@ -103,6 +120,27 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
         }
         await syncOrg(orgId)
         onSaved(editing.id)
+      } else if (duplicating) {
+        // Issue #155: cria culto novo + copia seções/músicas do original.
+        const { data, error: e } = await supabase.rpc('duplicate_playlist', {
+          p_source_id: duplicating.id,
+          p_new_name: name.trim(),
+          p_scheduled_at: start.toISOString(),
+          p_scheduled_end: end.toISOString(),
+        })
+        if (e) {
+          captureException(e, { feature: 'playlist-form-modal', step: 'duplicate-error' })
+          throw new Error('Não foi possível duplicar. Tente novamente.')
+        }
+        const r = data as { ok: boolean; id?: string; error?: string } | null
+        if (!r?.ok || !r.id) {
+          if (r?.error === 'forbidden') throw new Error('Você não tem permissão para duplicar este culto.')
+          if (r?.error === 'invalid_time_range') throw new Error('A hora de término precisa ser depois da hora de início.')
+          if (r?.error === 'not_found') throw new Error('O culto original não foi encontrado.')
+          throw new Error('Não foi possível duplicar. Tente novamente.')
+        }
+        await syncOrg(orgId)
+        onSaved(r.id)
       } else {
         const { data, error: e } = await supabase.rpc('create_playlist', {
           p_org_id: orgId,
@@ -154,7 +192,9 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-h2 text-heading">{editing ? 'Editar culto' : 'Novo culto'}</h2>
+          <h2 className="text-h2 text-heading">
+            {editing ? 'Editar culto' : duplicating ? 'Duplicar culto' : 'Novo culto'}
+          </h2>
           <button onClick={onClose} className="text-body hover:text-heading transition-colors" aria-label="Fechar">
             <X size={18} />
           </button>
@@ -237,7 +277,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing }: Props) {
               }}
             >
               {saving ? <Loader2 size={14} className="animate-spin-smooth" /> : null}
-              {saving ? 'Salvando…' : editing ? 'Salvar' : 'Criar'}
+              {saving ? 'Salvando…' : editing ? 'Salvar' : duplicating ? 'Duplicar' : 'Criar'}
             </button>
           </div>
         </div>
