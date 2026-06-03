@@ -469,16 +469,25 @@ describe('PlayerMini', () => {
 
   // ── Repeat ────────────────────────────────────────────────────────────────
 
-  it('clica Repetir → cicla repeat (none → one)', async () => {
+  it('clica Repetir → cicla repeat (none → one → queue → none) — issue #158', async () => {
     playerState.currentSong = { ...baseSong }
     render(<PlayerMini />)
 
-    const repeatBtn = screen.getByTitle('Repetir atual (R)')
+    // Estado inicial: none
+    const repeatBtn = screen.getByTitle('Repetir (R)')
     expect(repeatBtn).toBeInTheDocument()
-    await userEvent.click(repeatBtn)
 
-    // After toggle, title changes
-    expect(screen.getByTitle('Desativar repetição (R)')).toBeInTheDocument()
+    // none → one
+    await userEvent.click(repeatBtn)
+    expect(screen.getByTitle(/Repetindo a música/)).toBeInTheDocument()
+
+    // one → queue
+    await userEvent.click(screen.getByTitle(/Repetindo a música/))
+    expect(screen.getByTitle(/Repetindo a fila/)).toBeInTheDocument()
+
+    // queue → none (volta pro início)
+    await userEvent.click(screen.getByTitle(/Repetindo a fila/))
+    expect(screen.getByTitle('Repetir (R)')).toBeInTheDocument()
   })
 })
 
