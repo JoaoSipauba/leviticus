@@ -16,6 +16,7 @@ import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
 import { getSongFilename, isDownloaded } from './ytdlp.js'
 import { trackEvent } from './analytics.js'
+import { getCurrentPlayedSeconds, endSession, startSession } from './playback-session.js'
 import { captureException } from './observability.js'
 
 export type RepeatMode = 'none' | 'one'
@@ -34,29 +35,41 @@ export async function handleSongEnd(): Promise<void> {
   // Marca como tocada (auto-trigger ao chegar no fim natural)
   if (cs && cp) usePlayedStore.getState().markPlayed(cp.id, cs.id)
 
-  // Evento de analytics — música chegou ao fim. played_seconds usa a duração
-  // da DB (fim natural ≈ duração total); cai pra posição atual se faltar.
+  // Evento de analytics — música chegou ao fim. played_seconds vem da
+  // sessão local (heartbeat de timeupdate), refletindo o tempo realmente
+  // ouvido (sem inflar por seek pra perto do fim). Cai pra duração da DB
+  // ou posição atual quando a sessão ainda não registrou.
   if (cs) {
+    const sessionPlayed = getCurrentPlayedSeconds()
+    const played = sessionPlayed > 0
+      ? sessionPlayed
+      : Math.round(cs.duration_seconds ?? state.position ?? 0)
     trackEvent('song_completed', {
       songId: cs.id,
       playlistId: cp?.id,
       metadata: {
-        played_seconds: Math.round(cs.duration_seconds ?? state.position ?? 0),
+        played_seconds: played,
         duration_seconds: Math.round(cs.duration_seconds ?? 0),
       },
     })
   }
 
   if (repeatMode === 'one') {
+    // repeat-one usa restartCurrent (não passa por playSong/flushStoppedIfNeeded),
+    // então temos que encerrar a sessão atual e abrir uma nova manualmente —
+    // senão o session row vira órfão e seria recuperado como song_stopped no
+    // próximo boot, contando duas vezes a mesma música.
+    await endSession()
     restartCurrent()
+    if (cs) await startSession(cs.id, cp?.id)
     state.setPosition(0)
     return
   }
 
   if (autoplayMode) {
     const next = state.nextInPlaylist()
-    if (!next) { state.pause(); return }
-    if (!(await isDownloaded(next.id))) { state.pause(); return }
+    if (!next) { await endSession(); state.pause(); return }
+    if (!(await isDownloaded(next.id))) { await endSession(); state.pause(); return }
     try {
       const path = await getSongFilename(next.id)
       playSong(path, { onEnd: () => void handleSongEnd(), volume: state.volume, durationOverride: next.duration_seconds ?? undefined, songId: next.id, playlistId: cp?.id })
@@ -69,10 +82,14 @@ export async function handleSongEnd(): Promise<void> {
         step: 'autoplay-next',
         extras: { nextSongId: next.id, playlistId: cp?.id },
       })
+      await endSession()
       state.pause()
     }
     return
   }
+
+  // Fim natural sem repeat nem autoplay — encerra a sessão local.
+  await endSession()
 
   state.pause()
 }

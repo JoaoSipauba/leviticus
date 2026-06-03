@@ -20,6 +20,7 @@ import { usePermissionsStore } from './store/permissions.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
 import { flushAnalyticsQueue, trackEvent } from './lib/analytics.js'
+import { recoverOrphanSessions } from './lib/playback-session.js'
 import { flushAudioBeforeUnload } from './lib/audio.js'
 
 // v2: bumped após adicionar ffmpeg como fonte de verdade pra duração.
@@ -232,8 +233,11 @@ export function App() {
 
   // Drena a fila de analytics no boot e a cada 1 min enquanto o app está
   // aberto. Eventos gerados offline ficam na fila e sobem quando há rede.
+  // Antes de drenar, recupera sessões de reprodução órfãs (deixadas por
+  // crash/force-quit) — emite song_stopped retroativo com o último
+  // played_seconds salvo (~15s de precisão).
   useEffect(() => {
-    void flushAnalyticsQueue()
+    void recoverOrphanSessions().then(() => flushAnalyticsQueue())
     const interval = setInterval(() => void flushAnalyticsQueue(), 60_000)
     return () => clearInterval(interval)
   }, [])

@@ -6,6 +6,23 @@ vi.mock('./analytics.js', () => ({
   flushAnalyticsQueue: vi.fn(),
 }))
 
+const { startSessionMock, endSessionMock, tickSessionMock, getCurrentPlayedSecondsMock } = vi.hoisted(() => ({
+  startSessionMock: vi.fn().mockResolvedValue(undefined),
+  endSessionMock: vi.fn().mockResolvedValue(undefined),
+  tickSessionMock: vi.fn().mockResolvedValue(undefined),
+  getCurrentPlayedSecondsMock: vi.fn().mockReturnValue(0),
+}))
+vi.mock('./playback-session.js', () => ({
+  startSession: startSessionMock,
+  endSession: endSessionMock,
+  tickSession: tickSessionMock,
+  getCurrentPlayedSeconds: getCurrentPlayedSecondsMock,
+}))
+
+vi.mock('./observability.js', () => ({
+  captureException: vi.fn(),
+}))
+
 // Howler é dependência transitiva pesada — stub mínimo. A Howl mockada
 // expõe métodos chamados em playSong/restart (stop, unload, seek, etc.)
 // e os hooks `onend`/`load` que audio.ts liga via construtor e `once`.
@@ -33,6 +50,10 @@ import { playSong } from './audio.js'
 describe('audio.playSong — emissão de song_played', () => {
   beforeEach(() => {
     trackEventMock.mockClear()
+    startSessionMock.mockClear()
+    endSessionMock.mockClear()
+    tickSessionMock.mockClear()
+    getCurrentPlayedSecondsMock.mockReset().mockReturnValue(0)
   })
 
   it('emite song_played com songId e playlistId quando playSong é chamado', () => {
@@ -67,5 +88,19 @@ describe('audio.playSong — emissão de song_played', () => {
       songId: 'song-2',
       playlistId: undefined,
     })
+  })
+
+  it('inicia sessão local pra contabilizar minutos resilientes a crash', () => {
+    playSong('/local/song-a.mp3', { songId: 'song-a', playlistId: 'culto-1' })
+
+    expect(startSessionMock).toHaveBeenCalledWith('song-a', 'culto-1')
+  })
+
+  it('encerra sessão da faixa anterior ao trocar de música', () => {
+    playSong('/local/a.mp3', { songId: 'a' })
+    playSong('/local/b.mp3', { songId: 'b' })
+
+    // A segunda chamada de playSong dispara flushStoppedIfNeeded → endSession
+    expect(endSessionMock).toHaveBeenCalled()
   })
 })
