@@ -85,7 +85,7 @@ export function TransferOwnershipModal({
               {candidates.length === 0 ? (
                 <p style={{ fontSize: 13, color: '#9ca3af', padding: '12px 0' }}>Não há outros membros pra transferir. Convide alguém primeiro.</p>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 256, overflowY: 'auto' }}>
+                <div className="styled-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 256, overflowY: 'auto' }}>
                   {candidates.map((c) => (
                     <button key={c.user_id} onClick={() => setPick(c.user_id)}
                       style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 9, cursor: 'pointer', textAlign: 'left', background: pick === c.user_id ? 'rgba(30,58,138,0.19)' : 'rgba(255,255,255,0.03)', border: `1px solid ${pick === c.user_id ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.06)'}` }}>
