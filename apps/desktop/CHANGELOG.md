@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.19.0](https://github.com/JoaoSipauba/leviticus/compare/v0.18.2...v0.19.0) (2026-06-03)
+
+### Funcionalidades
+
+* **playlist:** atualização otimista no drag-drop de música e seção ([#199](https://github.com/JoaoSipauba/leviticus/issues/199)) ([2f5e151](https://github.com/JoaoSipauba/leviticus/commit/2f5e151e8f18d8129a3fcdb1008eeb6ce001adf0))
+* **playlist:** duplicar culto existente ([#200](https://github.com/JoaoSipauba/leviticus/issues/200)) ([fb9645a](https://github.com/JoaoSipauba/leviticus/commit/fb9645a395b4fe800d3693e27d1b089f0cf3705e)), closes [#155](https://github.com/JoaoSipauba/leviticus/issues/155) [#155](https://github.com/JoaoSipauba/leviticus/issues/155) [#155](https://github.com/JoaoSipauba/leviticus/issues/155)
+
+### Correções
+
+* **add-song:** destrava drag-and-drop de arquivo no FileTab ([#154](https://github.com/JoaoSipauba/leviticus/issues/154)) ([#196](https://github.com/JoaoSipauba/leviticus/issues/196)) ([188f9f8](https://github.com/JoaoSipauba/leviticus/commit/188f9f8c6c7b2c2de503b2bd410abef20efc5686))
+* **add-song:** sobe limite de arquivo local de 100 MB pra 1 GB ([#156](https://github.com/JoaoSipauba/leviticus/issues/156)) ([#195](https://github.com/JoaoSipauba/leviticus/issues/195)) ([b41d3c5](https://github.com/JoaoSipauba/leviticus/commit/b41d3c5d069aa80dfe3844952c36fbd1821709dc))
+* **playback:** "Tocar tudo" e "Tocar seção" ligam autoplay automaticamente ([#157](https://github.com/JoaoSipauba/leviticus/issues/157)) ([#194](https://github.com/JoaoSipauba/leviticus/issues/194)) ([b5ec636](https://github.com/JoaoSipauba/leviticus/commit/b5ec6365c146781e13b7503c6e4e9646fffe61b3))
+* **sync:** usa relógio do servidor pro last_sync, não do cliente ([#140](https://github.com/JoaoSipauba/leviticus/issues/140)) ([3a15923](https://github.com/JoaoSipauba/leviticus/commit/3a159235498bf9a9b105cfc1a314c60c42479cd2)), closes [#139](https://github.com/JoaoSipauba/leviticus/issues/139)
+
 ## [0.18.2](https://github.com/JoaoSipauba/leviticus/compare/v0.18.1...v0.18.2) (2026-06-02)
 
 ### Correções
