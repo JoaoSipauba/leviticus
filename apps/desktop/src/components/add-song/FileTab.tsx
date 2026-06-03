@@ -5,12 +5,33 @@ type Props = {
   onFileSelected: (file: File) => void
 }
 
-const ACCEPT_EXTS = '.mp3,.m4a,.aac,.wav,.flac,.aiff,.aif,.ogg,.opus'
+const ALLOWED_EXTS = ['mp3', 'm4a', 'aac', 'wav', 'flac', 'aiff', 'aif', 'ogg', 'opus']
+const ACCEPT_EXTS = ALLOWED_EXTS.map((e) => `.${e}`).join(',')
 const ACCEPT_MIME = 'audio/*'
+
+// Drag-drop bypassa o atributo `accept` do <input>. Sem este filtro, qualquer
+// arquivo (vídeo, PDF, imagem) chega ao handler do modal — onde só seria
+// rejeitado depois de ler magic bytes, o que confunde o usuário ("por que
+// abriu a UI e depois deu erro?"). Filtro client-side por extensão é a
+// camada barata; o magic-byte check no AddSongModal continua sendo a
+// fonte da verdade pra renames maliciosos.
+function isAllowedFile(file: File): boolean {
+  const name = file.name.toLowerCase()
+  const dot = name.lastIndexOf('.')
+  if (dot >= 0) {
+    const ext = name.slice(dot + 1)
+    if (ALLOWED_EXTS.includes(ext)) return true
+  }
+  // Fallback: aceita se MIME claramente é áudio (alguns gravadores salvam
+  // sem extensão padrão mas com mime correto). Magic-byte check do modal
+  // continua sendo a fonte da verdade — aqui só evita rejeição precipitada.
+  return file.type.startsWith('audio/')
+}
 
 export function FileTab({ onFileSelected }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [rejectMsg, setRejectMsg] = useState<string | null>(null)
 
   function handleClick() {
     inputRef.current?.click()
@@ -18,7 +39,16 @@ export function FileTab({ onFileSelected }: Props) {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    if (file) onFileSelected(file)
+    if (file) {
+      // O file picker já filtra pelo `accept`, mas alguns usuários trocam
+      // o filtro pra "Todos os arquivos" — defensivo manter o check aqui.
+      if (!isAllowedFile(file)) {
+        setRejectMsg(`Tipo não permitido: ${file.name}. Use MP3, M4A, WAV, FLAC, OGG.`)
+      } else {
+        setRejectMsg(null)
+        onFileSelected(file)
+      }
+    }
     // Reset pra permitir selecionar o mesmo arquivo novamente
     if (inputRef.current) inputRef.current.value = ''
   }
@@ -46,7 +76,17 @@ export function FileTab({ onFileSelected }: Props) {
     e.preventDefault()
     setIsDragging(false)
     const file = e.dataTransfer.files[0]
-    if (file) onFileSelected(file)
+    if (!file) return
+    // Filtro de tipo na dropzone — o input do file picker já tinha `accept`,
+    // mas drag-drop bypassa isso. Sem este check, qualquer arquivo (vídeo,
+    // PDF, imagem) chegaria ao handleFileSelected do modal e seria rejeitado
+    // só depois de ler magic bytes — UX confusa.
+    if (!isAllowedFile(file)) {
+      setRejectMsg(`Tipo não permitido: ${file.name}. Use MP3, M4A, WAV, FLAC, OGG.`)
+      return
+    }
+    setRejectMsg(null)
+    onFileSelected(file)
   }
 
   return (
@@ -89,6 +129,11 @@ export function FileTab({ onFileSelected }: Props) {
       >
         Selecionar arquivo
       </button>
+      {rejectMsg && (
+        <div className="mt-3 text-[12px]" style={{ color: '#f87171' }}>
+          {rejectMsg}
+        </div>
+      )}
     </div>
   )
 }
