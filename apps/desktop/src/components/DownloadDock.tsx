@@ -123,7 +123,7 @@ export function DownloadDock() {
       {/* Lista expandida */}
       {expanded && (
         <div
-          className="animate-dock-list-in"
+          className="animate-dock-list-in styled-scroll"
           style={{ borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 240, overflowY: 'auto' }}
         >
           {agg.entries.map((e) => (
