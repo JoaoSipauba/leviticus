@@ -109,4 +109,24 @@ describe('player store — setPlaylistSongs (issue #32)', () => {
     usePlayerStore.getState().setAutoplay(false)
     expect(usePlayerStore.getState().autoplay).toBe(false)
   })
+
+  // ─── Issue #158: wrap pra primeira música ──────────────────────────
+  it('wrapToFirstInPlaylist volta pra primeira música e ajusta position=0', () => {
+    const a = makeSong('a'), b = makeSong('b'), c = makeSong('c')
+    usePlayerStore.getState().play(b, { playlist, songs: [a, b, c], position: 1 })
+    // Simula chegou no fim
+    usePlayerStore.setState({ playlistPosition: 2, currentSong: c, position: 180 })
+
+    const next = usePlayerStore.getState().wrapToFirstInPlaylist()
+
+    expect(next?.id).toBe('a')
+    expect(usePlayerStore.getState().playlistPosition).toBe(0)
+    expect(usePlayerStore.getState().currentSong?.id).toBe('a')
+    expect(usePlayerStore.getState().position).toBe(0)
+  })
+
+  it('wrapToFirstInPlaylist retorna null quando playlistSongs está vazia', () => {
+    usePlayerStore.setState({ playlistSongs: [], currentSong: null, playlistPosition: null })
+    expect(usePlayerStore.getState().wrapToFirstInPlaylist()).toBeNull()
+  })
 })

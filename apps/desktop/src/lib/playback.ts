@@ -19,7 +19,10 @@ import { trackEvent } from './analytics.js'
 import { getCurrentPlayedSeconds, endSession, startSession } from './playback-session.js'
 import { captureException } from './observability.js'
 
-export type RepeatMode = 'none' | 'one'
+// Issue #158: 'queue' faz a fila tocar em loop — quando chega no fim,
+// volta pra primeira música. Distinto de autoplay (que vai linear até o
+// fim e para). Distinto de 'one' (que repete só a música atual).
+export type RepeatMode = 'none' | 'one' | 'queue'
 
 let repeatMode: RepeatMode = 'none'
 let autoplayMode = false
@@ -63,6 +66,31 @@ export async function handleSongEnd(): Promise<void> {
     restartCurrent()
     if (cs) await startSession(cs.id, cp?.id)
     state.setPosition(0)
+    return
+  }
+
+  // queue: pula pra próxima como autoplay; ao chegar no fim, volta pra
+  // primeira pra continuar em loop. Issue #158.
+  if (repeatMode === 'queue') {
+    let next = state.nextInPlaylist()
+    if (!next) {
+      next = state.wrapToFirstInPlaylist()
+      if (!next) { await endSession(); state.pause(); return }
+    }
+    if (!(await isDownloaded(next.id))) { await endSession(); state.pause(); return }
+    try {
+      const path = await getSongFilename(next.id)
+      playSong(path, { onEnd: () => void handleSongEnd(), volume: state.volume, durationOverride: next.duration_seconds ?? undefined, songId: next.id, playlistId: cp?.id })
+      state.resume()
+    } catch (err) {
+      captureException(err, {
+        feature: 'audio',
+        step: 'queue-next',
+        extras: { nextSongId: next.id, playlistId: cp?.id },
+      })
+      await endSession()
+      state.pause()
+    }
     return
   }
 

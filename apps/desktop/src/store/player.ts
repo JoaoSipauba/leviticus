@@ -25,6 +25,10 @@ type PlayerState = {
   setPlaylistSongs: (songs: Song[]) => void
   setAutoplay: (on: boolean) => void
   nextInPlaylist: () => Song | null
+  // Issue #158: usado pelo repeatMode='queue' quando chega no fim da fila —
+  // volta pra primeira música pra continuar tocando em loop. Distinto de
+  // nextInPlaylist pra não mudar a semântica daquele (chamado em outros lugares).
+  wrapToFirstInPlaylist: () => Song | null
   previousInPlaylist: () => Song | null
 }
 
@@ -76,6 +80,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (next >= playlistSongs.length) return null
     set({ playlistPosition: next, currentSong: playlistSongs[next] })
     return playlistSongs[next]
+  },
+  wrapToFirstInPlaylist: () => {
+    const { playlistSongs } = get()
+    if (playlistSongs.length === 0) return null
+    set({ playlistPosition: 0, currentSong: playlistSongs[0], position: 0 })
+    return playlistSongs[0]
   },
   previousInPlaylist: () => {
     const { playlistSongs, playlistPosition } = get()

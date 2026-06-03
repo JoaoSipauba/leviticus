@@ -12,6 +12,7 @@ const playerState = {
   pause: vi.fn(),
   resume: vi.fn(),
   nextInPlaylist: vi.fn().mockReturnValue(null),
+  wrapToFirstInPlaylist: vi.fn().mockReturnValue(null),
 }
 vi.mock('../store/player.js', () => ({
   usePlayerStore: { getState: () => playerState },
@@ -47,6 +48,8 @@ beforeEach(() => {
   playerState.currentSong = null
   playerState.currentPlaylist = null
   playerState.position = 0
+  playerState.nextInPlaylist.mockReset().mockReturnValue(null)
+  playerState.wrapToFirstInPlaylist.mockReset().mockReturnValue(null)
   setRepeatMode('none')
   setAutoplayMode(false)
 })
@@ -109,5 +112,69 @@ describe('handleSongEnd — analytics', () => {
 
     expect(endSessionMock).toHaveBeenCalled()
     expect(startSessionMock).toHaveBeenCalledWith('song-5', 'culto-2')
+  })
+
+  // ─── Issue #158: repeat-queue ────────────────────────────────────────────
+  describe('repeat-queue', () => {
+    it('avança pra próxima música quando há próxima', async () => {
+      playerState.currentSong = { id: 'a' }
+      playerState.currentPlaylist = { id: 'culto' }
+      playerState.nextInPlaylist.mockReturnValueOnce({ id: 'b', duration_seconds: 100 })
+      setRepeatMode('queue')
+
+      await handleSongEnd()
+
+      const audio = await import('./audio.js')
+      expect(audio.playSong).toHaveBeenCalledWith(
+        '/fake.mp3',
+        expect.objectContaining({ songId: 'b' }),
+      )
+      expect(playerState.wrapToFirstInPlaylist).not.toHaveBeenCalled()
+      expect(playerState.resume).toHaveBeenCalled()
+    })
+
+    it('quando chega no fim da fila, volta pra primeira (wrap)', async () => {
+      playerState.currentSong = { id: 'last' }
+      playerState.currentPlaylist = { id: 'culto' }
+      playerState.nextInPlaylist.mockReturnValueOnce(null)
+      playerState.wrapToFirstInPlaylist.mockReturnValueOnce({ id: 'first', duration_seconds: 100 })
+      setRepeatMode('queue')
+
+      await handleSongEnd()
+
+      const audio = await import('./audio.js')
+      expect(playerState.wrapToFirstInPlaylist).toHaveBeenCalled()
+      expect(audio.playSong).toHaveBeenCalledWith(
+        '/fake.mp3',
+        expect.objectContaining({ songId: 'first' }),
+      )
+      expect(playerState.resume).toHaveBeenCalled()
+    })
+
+    it('quando fila vazia (nem próxima nem wrap), pausa e encerra sessão', async () => {
+      playerState.currentSong = { id: 'lonely' }
+      playerState.nextInPlaylist.mockReturnValueOnce(null)
+      playerState.wrapToFirstInPlaylist.mockReturnValueOnce(null)
+      setRepeatMode('queue')
+
+      await handleSongEnd()
+
+      expect(playerState.pause).toHaveBeenCalled()
+      expect(endSessionMock).toHaveBeenCalled()
+    })
+
+    it('queue tem prioridade sobre autoplay (não cai no ramo de autoplay)', async () => {
+      playerState.currentSong = { id: 'last' }
+      playerState.currentPlaylist = { id: 'culto' }
+      playerState.nextInPlaylist.mockReturnValueOnce(null)
+      playerState.wrapToFirstInPlaylist.mockReturnValueOnce({ id: 'first', duration_seconds: 100 })
+      setRepeatMode('queue')
+      setAutoplayMode(true) // autoplay também ligado — queue manda
+
+      await handleSongEnd()
+
+      // wrap foi chamado (caminho queue) — autoplay não wrapearia, só pausaria
+      expect(playerState.wrapToFirstInPlaylist).toHaveBeenCalled()
+    })
   })
 })
