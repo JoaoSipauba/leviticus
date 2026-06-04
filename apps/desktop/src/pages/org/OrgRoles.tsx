@@ -10,7 +10,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton } from '../../components/Skeleton.js'
 import { ConfirmModal } from '../../components/ConfirmModal.js'
-import { Button } from '../../components/ui/index.js'
+import { Button, CrossFade } from '../../components/ui/index.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -186,26 +186,25 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
     return isDono ? true : perms.has(perm)
   }
 
-  if (loading) {
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
-        <div className="flex flex-col gap-2">
-          <Skeleton h={36} w="100%" rounded="lg" mb={4} />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} h={48} w="100%" rounded="lg" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-2">
-          <Skeleton h={28} w={220} mb={8} />
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} h={36} w="100%" rounded="md" />
-          ))}
-        </div>
+  const rolesSkeleton = (
+    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+      <div className="flex flex-col gap-2">
+        <Skeleton h={36} w="100%" rounded="lg" mb={4} />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} h={48} w="100%" rounded="lg" />
+        ))}
       </div>
-    )
-  }
+      <div className="flex flex-col gap-2">
+        <Skeleton h={28} w={220} mb={8} />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} h={36} w="100%" rounded="md" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={rolesSkeleton}>
     <div>
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
 
@@ -323,5 +322,6 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
         onClose={() => setShowDeleteConfirm(false)}
       />
     </div>
+    </CrossFade>
   )
 }

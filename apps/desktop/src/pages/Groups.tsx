@@ -9,7 +9,7 @@ import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
 import { Skeleton } from '../components/Skeleton.js'
-import { Button } from '../components/ui/index.js'
+import { Button, CrossFade } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -101,26 +101,25 @@ export function Groups() {
     boxSizing: 'border-box' as const,
   }
 
-  if (loading) {
-    return (
-      <div className="px-6 pt-6 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={20} w={140} />
-            <Skeleton h={12} w={220} />
-          </div>
-          <Skeleton h={36} w={140} rounded="lg" />
+  const groupsSkeleton = (
+    <div className="px-6 pt-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={20} w={140} />
+          <Skeleton h={12} w={220} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} h={84} w="100%" rounded="xl" />
-          ))}
-        </div>
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} h={84} w="100%" rounded="xl" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={groupsSkeleton}>
     <div className="px-6 pt-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -290,5 +289,6 @@ export function Groups() {
         </div>
       )}
     </div>
+    </CrossFade>
   )
 }

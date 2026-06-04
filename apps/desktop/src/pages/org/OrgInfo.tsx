@@ -9,7 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
 import { TimezoneCombobox } from '../../components/TimezoneCombobox.js'
-import { Button } from '../../components/ui/index.js'
+import { Button, CrossFade } from '../../components/ui/index.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -85,23 +85,22 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
     { label: 'Cultos cadastrados', value: stats.playlists, bg: 'linear-gradient(135deg,#4c1d95,#7c3aed)', stroke: '#c4b5fd', Icon: CalendarDays },
   ]
 
-  if (loading) {
-    return (
-      <div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} h={88} w="100%" rounded="xl" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-3">
-          <CardSkeleton lines={2} />
-          <CardSkeleton lines={2} />
-        </div>
+  const orgInfoSkeleton = (
+    <div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} h={88} w="100%" rounded="xl" />
+        ))}
       </div>
-    )
-  }
+      <div className="flex flex-col gap-3">
+        <CardSkeleton lines={2} />
+        <CardSkeleton lines={2} />
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={orgInfoSkeleton}>
     <div>
       <div className="grid grid-cols-3 gap-3 mb-4">
         {STAT_CARDS.map((c) => (
@@ -188,5 +187,6 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
         )}
       </div>
     </div>
+    </CrossFade>
   )
 }

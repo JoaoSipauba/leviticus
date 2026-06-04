@@ -19,7 +19,7 @@ import {
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
-import { Button } from '../components/ui/index.js'
+import { Button, CrossFade } from '../components/ui/index.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -116,26 +116,25 @@ export function Playlists() {
     await loadServices()
   }
 
-  if (loading) {
-    return (
-      <div className="px-8 pt-6 max-w-[1100px] mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={10} w={70} />
-            <Skeleton h={24} w={200} />
-          </div>
-          <Skeleton h={36} w={140} rounded="lg" />
+  const playlistsSkeleton = (
+    <div className="px-8 pt-6 max-w-[1100px] mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={10} w={70} />
+          <Skeleton h={24} w={200} />
         </div>
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} h={100} w="100%" rounded="xl" />
-          ))}
-        </div>
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} h={100} w="100%" rounded="xl" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={playlistsSkeleton}>
     <div className="px-8 pt-6 max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -219,6 +218,7 @@ export function Playlists() {
         }}
       />
     </div>
+    </CrossFade>
   )
 }
 
