@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, LayoutGrid, CalendarDays, Home } from 'lucide-react'
+import { Users, LayoutGrid, CalendarDays, Home, Check } from 'lucide-react'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -22,7 +22,14 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
   const [original, setOriginal] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
   const canEdit = usePermission('manage_members')
   const [saving, setSaving] = useState(false)
+  const [savedOk, setSavedOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!savedOk) return
+    const t = setTimeout(() => setSavedOk(false), 1200)
+    return () => clearTimeout(t)
+  }, [savedOk])
 
   async function load(opts?: { silent?: boolean }) {
     const db = await getDb()
@@ -76,6 +83,7 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
     await syncOrg(orgId)
     await load()
     toastSuccess('Informações salvas')
+    setSavedOk(true)
     setSaving(false)
   }
 
@@ -183,6 +191,11 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
             >
               {saving ? 'Salvando…' : 'Salvar alterações'}
             </Button>
+            {savedOk && (
+              <span className="animate-pop-in" style={{ color: '#22c55e', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                <Check size={14} /> Salvo!
+              </span>
+            )}
           </div>
         )}
       </div>
