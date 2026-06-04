@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
 
 type Expiry = '24h' | '7d' | '30d' | 'never'
 
@@ -53,19 +53,8 @@ export function InviteCodeModal({
     onCreated(); onClose()
   }
 
-  const { onBackdropClick } = useModalDismiss({
-    onClose,
-    canDismissOutside: label.trim() === '',
-    busy: saving,
-    enabled: open,
-  })
-
-  if (!open) return null
-
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={label.trim() === ''} busy={saving}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0 }}>Novo código de convite</h2>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
@@ -108,7 +97,6 @@ export function InviteCodeModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

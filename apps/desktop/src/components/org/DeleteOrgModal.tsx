@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, AlertTriangle } from 'lucide-react'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
 import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
 
 export function DeleteOrgModal({
   open, orgId, orgName, onClose,
@@ -18,14 +18,6 @@ export function DeleteOrgModal({
   const [typed, setTyped] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Type-to-confirm: clique-fora só é seguro com o input vazio. `pending` trava durante a deleção.
-  const { onBackdropClick } = useModalDismiss({
-    onClose,
-    canDismissOutside: typed.trim() === '',
-    busy: pending,
-    enabled: open,
-  })
-  if (!open) return null
 
   async function handleDelete() {
     setPending(true); setError(null)
@@ -46,9 +38,7 @@ export function DeleteOrgModal({
   const canDelete = typed.trim() === orgName.trim() && !pending
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(220,38,38,0.3)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={typed.trim() === ''} busy={pending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#fca5a5', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={16} color="#f87171" />Deletar organização
@@ -76,7 +66,6 @@ export function DeleteOrgModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

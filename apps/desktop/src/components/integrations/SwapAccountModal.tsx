@@ -1,5 +1,5 @@
 import { RefreshCw, AlertTriangle } from 'lucide-react'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
 
 type Props = {
   open: boolean
@@ -25,17 +25,12 @@ function estimateMin(bytes: number): number {
 }
 
 export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, onConfirm, onCancel, migrating = false }: Props) {
-  // Confirmação sem formulário: clique-fora seguro. Trava durante a migração.
-  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, busy: migrating, enabled: open })
-  if (!open) return null
   const minutes = estimateMin(totalBytes)
   const sizeLabel = fmtBytes(totalBytes)
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onBackdropClick}>
-      <div className="w-full max-w-md rounded-xl p-6"
-        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onCancel} busy={migrating}>
+      <div className="p-6">
         <div className="mb-3.5 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ background: '#1e1b4b' }}>
@@ -76,7 +71,7 @@ export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, o
           </button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }
 

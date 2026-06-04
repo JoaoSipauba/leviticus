@@ -1,6 +1,5 @@
-import { useRef } from 'react'
 import { LogOut, Home } from 'lucide-react'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 type Props = {
   open: boolean
@@ -21,48 +20,9 @@ type Props = {
  * Issue #33.
  */
 export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose }: Props) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-
-  // Esc + clique-fora unificados via useModalDismiss (#91). Sem formulário,
-  // então clique-fora é sempre seguro.
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, enabled: open })
-
-  if (!open) return null
-
   return (
-    // Overlay decorativo — fecha em click fora. Tecla Escape cuidada pelo
-    // useModalDismiss; aqui só mantemos o onClick pro backdrop.
-    <div
-      role="presentation"
-      onClick={onBackdropClick}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(3,7,18,0.7)',
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="logout-modal-title"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: 420,
-          width: '100%',
-          background: '#18181b',
-          border: '1px solid #27272a',
-          borderRadius: 16,
-          padding: 24,
-        }}
-      >
+    <AnimatedModal open={open} onClose={onClose} size="sm" labelledBy="logout-modal-title">
+      <div style={{ padding: 24 }}>
         <h2
           id="logout-modal-title"
           style={{
@@ -138,6 +98,6 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
           </button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

@@ -5,7 +5,7 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
 
 type Ministry = { id: string; name: string }
 
@@ -104,19 +104,8 @@ export function ManageMinistriesModal({
 
   const dirty = selected.size !== original.size || [...selected].some((id) => !original.has(id))
 
-  const { onBackdropClick } = useModalDismiss({
-    onClose,
-    canDismissOutside: !dirty,
-    busy: saving,
-    enabled: open,
-  })
-
-  if (!open) return null
-
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={!dirty} busy={saving}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0 }}>Ministérios de {memberName}</h2>
           <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
@@ -150,7 +139,6 @@ export function ManageMinistriesModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

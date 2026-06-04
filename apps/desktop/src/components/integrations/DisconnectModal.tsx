@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
 
 type Props = {
   open: boolean
@@ -21,23 +21,11 @@ export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel, 
     if (!open) setTyped('')
   }, [open])
 
-  // Type-to-confirm: clique-fora só é seguro com o input vazio. Trava durante a desconexão.
-  const { onBackdropClick } = useModalDismiss({
-    onClose: onCancel,
-    canDismissOutside: typed.trim() === '',
-    busy: disconnecting,
-    enabled: open,
-  })
-
-  if (!open) return null
-
   const canConfirm = typed.trim().toLowerCase() === CONFIRM_PHRASE
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onBackdropClick}>
-      <div className="w-full max-w-md rounded-xl p-6"
-        style={{ background: 'var(--bg-secondary, #18181b)', border: '1px solid #3f3f46', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onCancel} closeOnBackdrop={typed.trim() === ''} busy={disconnecting}>
+      <div className="p-6">
         <div className="mb-3 flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg"
             style={{ background: '#450a0a' }}>
@@ -80,6 +68,6 @@ export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel, 
           </button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }
