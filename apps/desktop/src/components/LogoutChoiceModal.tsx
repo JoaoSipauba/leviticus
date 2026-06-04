@@ -41,47 +41,49 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={onExitOrg}
-            className="rounded-xl px-4 py-3 text-left flex items-center gap-3 transition-colors"
+            fullWidth
+            className="justify-start"
             style={{
-              background: '#1e3a8a',
-              border: '1px solid #2563eb',
-              color: '#dbeafe',
-              cursor: 'pointer',
+              padding: '12px 16px',
+              height: 'auto',
+              fontSize: 14,
+              textAlign: 'left',
             }}
           >
-            <Home size={20} color="#93c5fd" strokeWidth={2} className="flex-shrink-0" />
+            <Home size={20} strokeWidth={2} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Trocar de organização</div>
-              <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 2 }}>
+              <div style={{ fontWeight: 600 }}>Trocar de organização</div>
+              <div style={{ fontSize: 12, marginTop: 2, opacity: 0.85 }}>
                 {orgName
                   ? `Sair de "${orgName}" e voltar pro seletor`
                   : 'Voltar pro seletor de organização'}
               </div>
             </div>
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onSignOut}
-            className="rounded-xl px-4 py-3 text-left flex items-center gap-3 transition-colors"
+            fullWidth
+            className="justify-start"
             style={{
-              background: '#1c1917',
-              border: '1px solid #44403c',
-              color: '#fafafa',
-              cursor: 'pointer',
+              padding: '12px 16px',
+              height: 'auto',
+              fontSize: 14,
+              textAlign: 'left',
             }}
           >
-            <LogOut size={20} color="#ef4444" strokeWidth={2} className="flex-shrink-0" />
+            <LogOut size={20} strokeWidth={2} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Sair da conta</div>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 2 }}>
+              <div style={{ fontWeight: 600 }}>Sair da conta</div>
+              <div style={{ fontSize: 12, marginTop: 2, opacity: 0.85 }}>
                 Encerrar sessão e voltar pra tela de login
               </div>
             </div>
-          </button>
+          </Button>
 
           <Button
             onClick={onClose}
