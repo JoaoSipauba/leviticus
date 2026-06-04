@@ -104,6 +104,8 @@ export function PlaylistDetail() {
   const dropTargetRef = useRef<DropTarget>(null)
   const [drag, setDrag] = useState<DragState>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
+  // Posição do mouse durante drag — usada só pro ghost element.
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   // Ref que aponta para o endDrag mais recente — atualizado a cada render
   // para que o mouseup global sempre use a versão com sections atualizado.
   const endDragRef = useRef<() => Promise<void>>(async () => {})
@@ -272,6 +274,7 @@ export function PlaylistDetail() {
     function onMove(e: MouseEvent) {
       const state = dragRef.current
       if (!state) return
+      setMousePos({ x: e.clientX, y: e.clientY })
       const y = e.clientY
 
       if (state.kind === 'section') {
@@ -427,6 +430,7 @@ export function PlaylistDetail() {
     dropTargetRef.current = null
     setDrag(state)
     setDropTarget(null)
+    setMousePos(null)
   }
 
   function setDragOver(target: DropTarget) {
@@ -451,6 +455,7 @@ export function PlaylistDetail() {
     dropTargetRef.current = null
     setDrag(null)
     setDropTarget(null)
+    setMousePos(null)
 
     if (!state || !target || !id) return
     if (!online) return // sem conexão não tem como persistir reorder
@@ -816,6 +821,47 @@ export function PlaylistDetail() {
         )}
       </div>
 
+      {/* Ghost element — segue o cursor durante drag */}
+      {drag !== null && mousePos !== null && (() => {
+        let ghostLabel: string | null = null
+        if (drag.kind === 'song') {
+          const section = sections.find((s) => s.sectionId === drag.sectionId)
+          const ps = section?.songs.find((s) => s.song_id === drag.songId)
+          ghostLabel = ps?.song.title ?? null
+        } else if (drag.kind === 'section') {
+          const section = allSections.find((s) => s.sectionId === drag.sectionId)
+          ghostLabel = section?.label ?? null
+        }
+        if (!ghostLabel) return null
+        return (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              left: mousePos.x + 14,
+              top: mousePos.y - 14,
+              pointerEvents: 'none',
+              zIndex: 9999,
+              background: 'rgba(19,19,31,0.92)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 8,
+              padding: '5px 12px',
+              fontSize: 13,
+              color: '#e5e7eb',
+              opacity: 0.88,
+              backdropFilter: 'blur(8px)',
+              maxWidth: 220,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}
+          >
+            {ghostLabel}
+          </div>
+        )
+      })()}
+
       <PlaylistFormModal
         open={editingPlaylist || duplicatingPlaylist}
         editing={editingPlaylist ? playlist : null}
@@ -945,13 +991,23 @@ function PlaylistSection({
             },
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
+          const isDropTarget = dropTarget?.kind === 'song'
+            && dropTarget.sectionId === section.sectionId
+            && dropTarget.beforeSongId === ps.song_id
           return (
             <div
               key={`${ps.section_id}-${ps.song_id}`}
               data-song-id={ps.song_id}
               data-section-id={ps.section_id}
               className="animate-fade-slide-in"
-              style={{ opacity: isBeingDragged ? 0.4 : 1, animationDelay: `${Math.min(i, 10) * 30}ms` }}
+              style={{
+                opacity: isBeingDragged ? 0.4 : 1,
+                animationDelay: `${Math.min(i, 10) * 30}ms`,
+                borderRadius: 8,
+                background: isDropTarget ? 'rgba(59,130,246,0.08)' : undefined,
+                outline: isDropTarget ? '1px solid rgba(59,130,246,0.35)' : undefined,
+                transition: 'background 0.08s, outline 0.08s',
+              }}
             >
               <div
                 style={{
