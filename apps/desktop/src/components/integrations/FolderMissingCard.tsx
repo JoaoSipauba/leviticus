@@ -1,4 +1,5 @@
 import { FolderX } from 'lucide-react'
+import { Button } from '../ui/index.js'
 
 type Props = {
   email: string
@@ -29,14 +30,15 @@ export function FolderMissingCard({ email, canManage, onRecreate }: Props) {
       <p className="text-[12px] leading-relaxed mb-3" style={{ color: 'var(--text-muted, #a1a1aa)' }}>
         Clique pra recriar a pasta. As músicas que estavam dentro foram perdidas — vamos refazer os uploads automaticamente.
       </p>
-      <button
+      <Button
+        variant="primary"
+        size="sm"
         onClick={onRecreate}
         disabled={!canManage}
-        className="rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{ background: '#a78bfa', color: '#09090b', border: 'none' }}
+        style={{ background: '#a78bfa', ['--lv-hover-bg' as string]: '#8b5cf6' }}
       >
         Recriar pasta
-      </button>
+      </Button>
     </div>
   )
 }

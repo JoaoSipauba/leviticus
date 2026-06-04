@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Pencil, Trash2, AlertTriangle, Check, Loader2, Music } from 'lucide-react'
+import { ChevronLeft, Pencil, Trash2, AlertTriangle, Check, Loader2, Users } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { supabase } from '../lib/supabase.js'
@@ -11,6 +11,7 @@ import { useUIStore } from '../store/ui.js'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
+import { Button, EmptyState } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -146,12 +147,13 @@ export function GroupDetail() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <p style={{ color: '#6b7280' }}>Ministério não encontrado.</p>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate('/ministries')}
-          style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
         >
           Voltar
-        </button>
+        </Button>
       </div>
     )
   }
@@ -194,38 +196,26 @@ export function GroupDetail() {
         </div>
         {canManageGroups && (
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={online ? () => { setEditName(group.name); setEditColorIdx(group.color_index); setShowEdit(true) } : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 transition-colors hover:bg-white/10 disabled:cursor-not-allowed"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#9ca3af', cursor: online ? 'pointer' : 'not-allowed',
-              opacity: online ? 1 : 0.5,
-            }}
           >
             <Pencil size={13} strokeWidth={2} />
             Editar
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
             onClick={online ? () => setShowDelete(true) : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 transition-colors hover:bg-red-950/60 disabled:cursor-not-allowed"
-            style={{
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.18)',
-              borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#f87171', cursor: online ? 'pointer' : 'not-allowed',
-              opacity: online ? 1 : 0.5,
-            }}
           >
             <Trash2 size={13} strokeWidth={2} />
             Excluir
-          </button>
+          </Button>
         </div>
         )}
       </div>
@@ -238,14 +228,13 @@ export function GroupDetail() {
       </p>
 
       {/* Song list */}
-      <div className="space-y-2 flex-1 overflow-y-auto styled-scroll">
+      <div className="space-y-2 flex-1 overflow-y-auto styled-scroll" style={{ contain: 'layout' }}>
         {songs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <Music size={40} color="#4b5563" strokeWidth={1.5} />
-            <p className="font-semibold text-center" style={{ color: '#6b7280', fontSize: 15 }}>
-              Nenhuma música neste ministério ainda
-            </p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="Nenhuma música neste ministério ainda"
+            description="Adicione músicas ao ministério pela aba de edição de cada música na Biblioteca."
+          />
         ) : (
           songs.map((song) => (
             <SongCard
@@ -260,7 +249,7 @@ export function GroupDetail() {
       {/* Edit modal */}
       {showEdit && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false) }}
         >
@@ -323,31 +312,24 @@ export function GroupDetail() {
             )}
 
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 onClick={() => { setShowEdit(false); setEditError(null) }}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: 'pointer',
-                }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleSaveEdit}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                loading={saving}
                 disabled={saving || !editName.trim()}
-                style={{
-                  flex: 1,
-                  background: (saving || !editName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: (saving || !editName.trim()) ? 'default' : 'pointer',
-                }}
+                onClick={handleSaveEdit}
               >
                 {saving ? 'Salvando…' : 'Salvar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -356,7 +338,7 @@ export function GroupDetail() {
       {/* Delete confirmation modal */}
       {showDelete && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
           onClick={(e) => { if (e.target === e.currentTarget && !deleting) setShowDelete(false) }}
         >
@@ -392,32 +374,25 @@ export function GroupDetail() {
             )}
 
             <div className="flex gap-2">
-              <button
-                onClick={() => { setShowDelete(false); setDeleteError(null) }}
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 disabled={deleting}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: deleting ? 'default' : 'pointer',
-                }}
+                onClick={() => { setShowDelete(false); setDeleteError(null) }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                fullWidth
+                loading={deleting}
                 disabled={deleting}
-                style={{
-                  flex: 1,
-                  background: deleting ? 'rgba(239,68,68,0.4)' : '#dc2626',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: deleting ? 'default' : 'pointer',
-                }}
+                onClick={handleDelete}
               >
                 {deleting ? 'Excluindo…' : 'Excluir'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { Music, Volume2, VolumeX, Maximize2, Repeat, Repeat1, ListEnd } from 'lucide-react'
 import { Slider } from './Slider.js'
+import { IconButton } from './ui/index.js'
 import { usePlayerStore } from '../store/player.js'
 import { usePlayedStore } from '../store/played.js'
 import {
@@ -404,16 +405,6 @@ export function PlayerMini() {
     setRepeat(r => r === 'none' ? 'one' : r === 'one' ? 'queue' : 'none')
   }
 
-  const iconBtn = (active = false) => ({
-    background: 'none', border: 'none', cursor: 'pointer',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 36, height: 36, padding: 0, flexShrink: 0,
-    borderRadius: 8,
-    transition: 'opacity 0.15s, background 0.15s',
-    opacity: active ? 1 : 0.55,
-  } as const)
-  const iconBtnClass = 'hover:bg-white/[0.08] hover:opacity-100'
-
   // Sem música tocando: não renderiza nada — o main da Layout ocupa
   // toda a altura, evitando uma faixa preta inútil no rodapé.
   if (!currentSong) return null
@@ -474,40 +465,42 @@ export function PlayerMini() {
           {/* Botões */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {/* Autoplay */}
-            <button
-              onClick={() => setAutoplay(!autoplay)}
+            <IconButton
+              label="Reprodução automática (S)"
               title="Reprodução automática (S)"
-              style={iconBtn(autoplay)}
-              className={iconBtnClass}
+              size="sm"
+              onClick={() => setAutoplay(!autoplay)}
+              style={{ opacity: autoplay ? 1 : 0.55, flexShrink: 0 }}
             >
               <ListEnd size={16} color={autoplay ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
-            </button>
+            </IconButton>
 
             {/* Previous */}
-            <button
-              onClick={() => {
-                usePlayerStore.getState().previousInPlaylist()
-              }}
+            <IconButton
+              label="Anterior (←)"
               title="Anterior (←)"
-              style={iconBtn()}
-              className={iconBtnClass}
+              size="sm"
+              onClick={() => { usePlayerStore.getState().previousInPlaylist() }}
+              style={{ opacity: 0.55, flexShrink: 0 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="19,20 9,12 19,4" /><line x1="5" y1="19" x2="5" y2="5" />
               </svg>
-            </button>
+            </IconButton>
 
-            {/* Play / Pause */}
-            <button
-              onClick={handlePlayPause}
+            {/* Play / Pause — circular, estilo único; usa size="sm" para evitar
+                active:scale do lv-btn-md (perceived performance). */}
+            <IconButton
+              label="Play/Pause (Espaço)"
               title="Play/Pause (Espaço)"
+              size="sm"
+              onClick={handlePlayPause}
+              className="hover:scale-105"
               style={{
                 width: 36, height: 36, borderRadius: '50%',
-                background: '#fff', border: 'none', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: '#fff', color: '#0b0b18',
                 flexShrink: 0, transition: 'transform 0.1s ease',
               }}
-              className="hover:scale-105"
             >
               {isPlaying ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="#0b0b18">
@@ -519,40 +512,46 @@ export function PlayerMini() {
                   <polygon points="6,3 20,12 6,21" />
                 </svg>
               )}
-            </button>
+            </IconButton>
 
             {/* Next */}
-            <button
-              onClick={() => playNext()}
+            <IconButton
+              label="Próxima (→)"
               title="Próxima (→)"
-              style={iconBtn()}
-              className={iconBtnClass}
+              size="sm"
+              onClick={() => playNext()}
+              style={{ opacity: 0.55, flexShrink: 0 }}
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="5,4 15,12 5,20" /><line x1="19" y1="5" x2="19" y2="19" />
               </svg>
-            </button>
+            </IconButton>
 
             {/* Repeat — cicla 3 estados (issue #158):
                   none  → ícone cinza neutro Repeat
                   one   → ícone azul Repeat1 (loop só a música atual)
                   queue → ícone azul Repeat (loop a fila inteira) */}
-            <button
-              onClick={cycleRepeat}
-              title={
-                repeat === 'one'    ? 'Repetindo a música (R pra próximo)' :
-                repeat === 'queue'  ? 'Repetindo a fila (R pra desativar)' :
-                                      'Repetir (R)'
+            <IconButton
+              label={
+                repeat === 'one'   ? 'Repetindo a música (R pra próximo)' :
+                repeat === 'queue' ? 'Repetindo a fila (R pra desativar)' :
+                                     'Repetir (R)'
               }
-              style={iconBtn(repeat !== 'none')}
-              className={iconBtnClass}
+              title={
+                repeat === 'one'   ? 'Repetindo a música (R pra próximo)' :
+                repeat === 'queue' ? 'Repetindo a fila (R pra desativar)' :
+                                     'Repetir (R)'
+              }
+              size="sm"
+              onClick={cycleRepeat}
+              style={{ opacity: repeat !== 'none' ? 1 : 0.55, flexShrink: 0 }}
             >
               {repeat === 'one' ? (
                 <Repeat1 size={16} color="#3b82f6" strokeWidth={2} />
               ) : (
                 <Repeat size={16} color={repeat === 'queue' ? '#3b82f6' : '#9ca3af'} strokeWidth={2} />
               )}
-            </button>
+            </IconButton>
 
           </div>
 
@@ -580,31 +579,33 @@ export function PlayerMini() {
 
         {/* ── Coluna direita: volume + expand ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 200, flexShrink: 0, justifyContent: 'flex-end', paddingRight: 16 }}>
-          <button
-            onClick={handleMute}
+          <IconButton
+            label="Mudo (M)"
             title="Mudo (M)"
-            style={iconBtn()}
-            className={iconBtnClass}
+            size="sm"
+            onClick={handleMute}
+            style={{ opacity: 0.55, flexShrink: 0 }}
           >
             {muted
               ? <VolumeX size={16} color="#9ca3af" strokeWidth={2} />
               : <Volume2 size={16} color="#9ca3af" strokeWidth={2} />
             }
-          </button>
+          </IconButton>
           <Slider
             value={muted ? 0 : volume}
             onChange={handleVolumeChange}
             formatTooltip={(v) => `${Math.round(v * 100)}%`}
             style={{ width: 88 }}
           />
-          <button
-            onClick={() => setExpanded(true)}
+          <IconButton
+            label="Expandir (F)"
             title="Expandir (F)"
-            style={iconBtn()}
-            className={iconBtnClass}
+            size="sm"
+            onClick={() => setExpanded(true)}
+            style={{ opacity: 0.55, flexShrink: 0 }}
           >
             <Maximize2 size={14} color="#9ca3af" strokeWidth={2} />
-          </button>
+          </IconButton>
         </div>
       </div>
 

@@ -48,9 +48,10 @@ describe('ConfirmModal', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
-  it('pending desabilita os botões e mostra "Aguarde…"', () => {
+  it('pending desabilita os botões e mostra spinner no botão de confirmar', () => {
     setup({ pending: true })
-    expect(screen.getByRole('button', { name: /Aguarde/ })).toBeDisabled()
+    const confirmBtn = screen.getByRole('button', { name: 'Revogar' })
+    expect(confirmBtn).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeDisabled()
   })
 })

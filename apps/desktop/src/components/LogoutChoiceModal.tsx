@@ -1,6 +1,6 @@
-import { useRef } from 'react'
 import { LogOut, Home } from 'lucide-react'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
 
 type Props = {
   open: boolean
@@ -21,48 +21,9 @@ type Props = {
  * Issue #33.
  */
 export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose }: Props) {
-  const dialogRef = useRef<HTMLDivElement>(null)
-
-  // Esc + clique-fora unificados via useModalDismiss (#91). Sem formulário,
-  // então clique-fora é sempre seguro.
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, enabled: open })
-
-  if (!open) return null
-
   return (
-    // Overlay decorativo — fecha em click fora. Tecla Escape cuidada pelo
-    // useModalDismiss; aqui só mantemos o onClick pro backdrop.
-    <div
-      role="presentation"
-      onClick={onBackdropClick}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 60,
-        background: 'rgba(3,7,18,0.7)',
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 20,
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="logout-modal-title"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          maxWidth: 420,
-          width: '100%',
-          background: '#18181b',
-          border: '1px solid #27272a',
-          borderRadius: 16,
-          padding: 24,
-        }}
-      >
+    <AnimatedModal open={open} onClose={onClose} size="sm" labelledBy="logout-modal-title">
+      <div style={{ padding: 24 }}>
         <h2
           id="logout-modal-title"
           style={{
@@ -80,64 +41,60 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={onExitOrg}
-            className="rounded-xl px-4 py-3 text-left flex items-center gap-3 transition-colors"
+            fullWidth
+            className="justify-start"
             style={{
-              background: '#1e3a8a',
-              border: '1px solid #2563eb',
-              color: '#dbeafe',
-              cursor: 'pointer',
+              padding: '12px 16px',
+              height: 'auto',
+              fontSize: 14,
+              textAlign: 'left',
             }}
           >
-            <Home size={20} color="#93c5fd" strokeWidth={2} className="flex-shrink-0" />
+            <Home size={20} strokeWidth={2} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Trocar de organização</div>
-              <div style={{ fontSize: 12, color: '#bfdbfe', marginTop: 2 }}>
+              <div style={{ fontWeight: 600 }}>Trocar de organização</div>
+              <div style={{ fontSize: 12, marginTop: 2, opacity: 0.85 }}>
                 {orgName
                   ? `Sair de "${orgName}" e voltar pro seletor`
                   : 'Voltar pro seletor de organização'}
               </div>
             </div>
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
+            variant="secondary"
             onClick={onSignOut}
-            className="rounded-xl px-4 py-3 text-left flex items-center gap-3 transition-colors"
+            fullWidth
+            className="justify-start"
             style={{
-              background: '#1c1917',
-              border: '1px solid #44403c',
-              color: '#fafafa',
-              cursor: 'pointer',
+              padding: '12px 16px',
+              height: 'auto',
+              fontSize: 14,
+              textAlign: 'left',
             }}
           >
-            <LogOut size={20} color="#ef4444" strokeWidth={2} className="flex-shrink-0" />
+            <LogOut size={20} strokeWidth={2} className="flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Sair da conta</div>
-              <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 2 }}>
+              <div style={{ fontWeight: 600 }}>Sair da conta</div>
+              <div style={{ fontSize: 12, marginTop: 2, opacity: 0.85 }}>
                 Encerrar sessão e voltar pra tela de login
               </div>
             </div>
-          </button>
+          </Button>
 
-          <button
-            type="button"
+          <Button
             onClick={onClose}
-            className="rounded-xl px-4 py-2.5 text-center transition-colors mt-2"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#a1a1aa',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
+            variant="ghost"
+            fullWidth
+            style={{ marginTop: 8 }}
           >
             Cancelar
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Copy } from 'lucide-react'
+import { Plus, Copy, Link2 } from 'lucide-react'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
 import { supabase } from '../../lib/supabase.js'
@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
 import { ConfirmModal } from '../../components/ConfirmModal.js'
 import { captureException } from '../../lib/observability.js'
+import { Button, CrossFade, EmptyState, IconButton } from '../../components/ui/index.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
 type DisplayRow = Row & { status: 'active' | 'expired' | 'revoked'; creatorName: string }
@@ -90,47 +91,49 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
     await load()
   }
 
-  if (loading) {
-    return (
-      <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <Skeleton h={14} w="60%" />
-          <Skeleton h={36} w={140} rounded="lg" />
-        </div>
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <SongCardSkeleton key={i} variant="list" />
-          ))}
-        </div>
+  const invitesSkeleton = (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <Skeleton h={14} w="60%" />
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <SongCardSkeleton key={i} variant="list" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={invitesSkeleton}>
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <div style={{ flex: 1, fontSize: 13, color: '#9ca3af' }}>Compartilhe um código pra novos membros entrarem na organização.</div>
-        <button onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#2563eb', border: 'none', boxShadow: '0 4px 12px -4px rgba(37,99,235,0.5)', cursor: 'pointer' }}>
+        <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
           <Plus size={14} strokeWidth={2.5} />Novo código
-        </button>
+        </Button>
       </div>
 
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
 
       <div style={{ background: '#13131f', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden' }}>
         {rows.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Nenhum código criado ainda.</div>
-        ) : rows.map((r) => (
+          <EmptyState
+            icon={Link2}
+            title="Nenhum código criado ainda"
+            description="Gere um código de convite para compartilhar com novos membros."
+          />
+        ) : rows.map((r, i) => (
           <div key={r.id}
-            style={{ display: 'grid', gridTemplateColumns: '220px 1fr 130px 90px', gap: 16, alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', opacity: r.status === 'active' ? 1 : 0.6 }}>
+            className="animate-fade-slide-in"
+            style={{ display: 'grid', gridTemplateColumns: '220px 1fr 130px 90px', gap: 16, alignItems: 'center', padding: '14px 18px', borderBottom: '1px solid rgba(255,255,255,0.06)', opacity: r.status === 'active' ? 1 : 0.6, animationDelay: `${Math.min(i, 10) * 30}ms` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontFamily: 'SF Mono, Menlo, monospace', fontSize: 13, fontWeight: 600, letterSpacing: '0.06em', padding: '4px 8px', borderRadius: 6, background: 'rgba(59,130,246,0.08)', color: '#f3f4f6', border: '1px solid rgba(59,130,246,0.18)' }}>{r.code}</span>
               {r.status === 'active' && (
-                <button onClick={() => handleCopy(r.code)}
-                  style={{ padding: 4, borderRadius: 4, color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Copiar">
+                <IconButton size="sm" label="Copiar código" onClick={() => handleCopy(r.code)} style={{ width: 26, height: 26, borderRadius: 4 }}>
                   <Copy size={14} />
-                </button>
+                </IconButton>
               )}
               {copiedCode === r.code && <span style={{ fontSize: 10, color: '#86efac', fontWeight: 600 }}>copiado</span>}
             </div>
@@ -154,11 +157,12 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
             </div>
 
             <div>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setRevokeId(r.id)}
                 disabled={r.status !== 'active'}
-                style={{ padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: r.status === 'active' ? 'pointer' : 'default', opacity: r.status === 'active' ? 1 : 0.4 }}
-              >Revogar</button>
+              >Revogar</Button>
             </div>
           </div>
         ))}
@@ -176,5 +180,6 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
         onClose={() => setRevokeId(null)}
       />
     </div>
+    </CrossFade>
   )
 }

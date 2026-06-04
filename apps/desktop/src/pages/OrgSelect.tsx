@@ -8,6 +8,7 @@ import { Logo } from '../components/brand/Logo.js'
 import { GlowBackdrop } from '../components/brand/GlowBackdrop.js'
 import { GlassCard } from '../components/brand/GlassCard.js'
 import { captureException } from '../lib/observability.js'
+import { Button } from '../components/ui/index.js'
 
 type Org = { id: string; name: string }
 
@@ -113,10 +114,6 @@ export function OrgSelect() {
 
   const inputClass =
     'w-full bg-white/[0.04] border border-white/[0.08] rounded-lg px-3.5 py-2.5 text-heading text-sm outline-none focus:border-brand/60 focus:bg-white/[0.06] transition-colors backdrop-blur-sm'
-  const ghostBtn =
-    'w-full flex items-center gap-2 justify-center font-medium transition-colors rounded-lg py-2.5 min-h-[44px] text-sm bg-white/[0.04] border border-hairline text-body hover:bg-white/[0.07] hover:text-heading cursor-pointer'
-  const primaryBtn =
-    'w-full flex items-center gap-2 justify-center font-semibold text-heading rounded-lg py-2.5 min-h-[44px] text-sm bg-brand-active hover:bg-brand transition-colors cursor-pointer disabled:bg-brand-active/40 disabled:cursor-default'
 
   return (
     <div className="min-h-screen bg-bg-app relative flex items-center justify-center p-6 overflow-hidden">
@@ -152,18 +149,25 @@ export function OrgSelect() {
                 </div>
               )}
               <div className="space-y-2">
-                <button onClick={() => setMode('join')} className={ghostBtn}>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  fullWidth
+                  onClick={() => setMode('join')}
+                >
                   <Hash size={15} strokeWidth={2} />
                   Entrar com código
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
                   onClick={() => setMode('create')}
-                  className={primaryBtn}
                   style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
                 >
                   <Plus size={15} strokeWidth={2.5} />
                   Criar organização
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -178,20 +182,25 @@ export function OrgSelect() {
                 className={`${inputClass} text-center tracking-[0.15em] font-mono text-base`}
               />
               {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-              <button
-                onClick={handleJoin}
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                loading={loading}
                 disabled={loading || !code}
-                className={primaryBtn}
+                onClick={handleJoin}
                 style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
               >
                 Entrar
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                fullWidth
                 onClick={() => setMode('list')}
-                className="w-full text-sm bg-transparent border-0 text-muted hover:text-body cursor-pointer"
               >
                 Voltar
-              </button>
+              </Button>
             </div>
           )}
 
@@ -204,20 +213,25 @@ export function OrgSelect() {
                 className={inputClass}
               />
               {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
-              <button
-                onClick={handleCreate}
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                loading={loading}
                 disabled={loading || !newOrgName.trim()}
-                className={primaryBtn}
+                onClick={handleCreate}
                 style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
               >
                 Criar
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                fullWidth
                 onClick={() => setMode('list')}
-                className="w-full text-sm bg-transparent border-0 text-muted hover:text-body cursor-pointer"
               >
                 Voltar
-              </button>
+              </Button>
             </div>
           )}
         </GlassCard>

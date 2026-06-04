@@ -10,6 +10,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton } from '../../components/Skeleton.js'
 import { ConfirmModal } from '../../components/ConfirmModal.js'
+import { Button, CrossFade } from '../../components/ui/index.js'
 
 type Role = { id: string; name: string; memberCount: number }
 type PermGroup = { title: string; items: Array<{ perm: Permission; label: string; desc: string }> }
@@ -185,26 +186,25 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
     return isDono ? true : perms.has(perm)
   }
 
-  if (loading) {
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
-        <div className="flex flex-col gap-2">
-          <Skeleton h={36} w="100%" rounded="lg" mb={4} />
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} h={48} w="100%" rounded="lg" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-2">
-          <Skeleton h={28} w={220} mb={8} />
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} h={36} w="100%" rounded="md" />
-          ))}
-        </div>
+  const rolesSkeleton = (
+    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16 }}>
+      <div className="flex flex-col gap-2">
+        <Skeleton h={36} w="100%" rounded="lg" mb={4} />
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} h={48} w="100%" rounded="lg" />
+        ))}
       </div>
-    )
-  }
+      <div className="flex flex-col gap-2">
+        <Skeleton h={28} w={220} mb={8} />
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} h={36} w="100%" rounded="md" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={rolesSkeleton}>
     <div>
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
 
@@ -235,17 +235,14 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                 onKeyDown={(e) => { if (e.key === 'Enter') void createRole(); if (e.key === 'Escape') { setShowNew(false); setNewName('') } }}
                 style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '8px 12px', fontSize: 13, color: '#f3f4f6', outline: 'none' }} />
               <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <button onClick={() => { setShowNew(false); setNewName('') }}
-                  style={{ flex: 1, padding: '6px 12px', borderRadius: 6, fontSize: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={() => void createRole()} disabled={!newName.trim()}
-                  style={{ flex: 1, padding: '6px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#fff', background: '#2563eb', border: 'none', cursor: newName.trim() ? 'pointer' : 'default', opacity: newName.trim() ? 1 : 0.4 }}>Criar</button>
+                <Button variant="secondary" size="sm" fullWidth onClick={() => { setShowNew(false); setNewName('') }}>Cancelar</Button>
+                <Button variant="primary" size="sm" fullWidth onClick={() => void createRole()} disabled={!newName.trim()}>Criar</Button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setShowNew(true)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 12px', borderRadius: 9, cursor: 'pointer', background: 'transparent', border: 'none', color: '#3b82f6' }}>
+            <Button variant="ghost" size="sm" fullWidth onClick={() => setShowNew(true)} style={{ justifyContent: 'flex-start', color: '#3b82f6' }}>
               <Plus size={13} strokeWidth={2.5} />Novo papel
-            </button>
+            </Button>
           )}
         </div>
 
@@ -261,8 +258,7 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                         data-testid="role-rename-input"
                         onKeyDown={(e) => { if (e.key === 'Enter') void renameRole(); if (e.key === 'Escape') setEditingName(false) }}
                         style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 6, padding: '4px 8px', fontSize: 15, color: '#f3f4f6', outline: 'none' }} />
-                      <button onClick={() => void renameRole()}
-                        style={{ fontSize: 12, color: '#3b82f6', cursor: 'pointer', background: 'transparent', border: 'none' }}>salvar</button>
+                      <Button variant="ghost" size="sm" onClick={() => void renameRole()} style={{ color: '#3b82f6', padding: '4px 8px' }}>salvar</Button>
                     </div>
                   ) : (
                     <h3 style={{ fontSize: 17, fontWeight: 700, color: '#f3f4f6', margin: 0 }}>{selected.name}</h3>
@@ -273,14 +269,12 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
                 </div>
                 {!isDono && (
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { setEditingName(true); setRenameValue(selected.name) }}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>
+                    <Button variant="secondary" size="sm" onClick={() => { setEditingName(true); setRenameValue(selected.name) }}>
                       <Pencil size={11} />Renomear
-                    </button>
-                    <button onClick={requestDeleteRole}
-                      style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 10px', borderRadius: 6, fontSize: 12, background: 'rgba(127,29,29,0.2)', border: '1px solid rgba(220,38,38,0.3)', color: '#fca5a5', cursor: 'pointer' }}>
+                    </Button>
+                    <Button variant="danger" size="sm" onClick={requestDeleteRole}>
                       <Trash2 size={11} />Deletar
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -328,5 +322,6 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
         onClose={() => setShowDeleteConfirm(false)}
       />
     </div>
+    </CrossFade>
   )
 }

@@ -45,7 +45,7 @@ describe('AddSectionModal', () => {
     const onClose = vi.fn()
     const onConfirm = vi.fn()
     render(<AddSectionModal open onClose={onClose} onConfirm={onConfirm} />)
-    await userEvent.click(screen.getByRole('button', { name: '' })) // X icon button
+    await userEvent.click(screen.getByRole('button', { name: 'Fechar' }))
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onConfirm).not.toHaveBeenCalled()
   })

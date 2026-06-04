@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Music, Plus } from 'lucide-react'
 import { Skeleton, SongCardSkeleton } from '../components/Skeleton.js'
+import { Button, CrossFade, EmptyState } from '../components/ui/index.js'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
@@ -136,25 +137,23 @@ export function Library() {
   // Issue #65: em vez de spinner centralizado (que cria layout shift quando
   // troca pelo conteúdo), mostra skeleton da própria estrutura. Usuário
   // já vê o header + a área das cards no formato final.
-  if (loading) {
-    return (
-      <div className="px-6 pt-6 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={10} w={80} />
-            <Skeleton h={24} w={180} />
-          </div>
-          <Skeleton h={32} w={120} rounded="lg" />
+  const librarySkeleton = (
+    <div className="px-6 pt-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={10} w={80} />
+          <Skeleton h={24} w={180} />
         </div>
-        <Skeleton h={36} w="100%" rounded="lg" mb={16} />
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SongCardSkeleton key={i} variant="list" />
-          ))}
-        </div>
+        <Skeleton h={32} w={120} rounded="lg" />
       </div>
-    )
-  }
+      <Skeleton h={36} w="100%" rounded="lg" mb={16} />
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SongCardSkeleton key={i} variant="list" />
+        ))}
+      </div>
+    </div>
+  )
 
   // Biblioteca completamente vazia: caso de primeiro uso. Search/filtros não
   // fazem sentido aqui — escondemos eles e mostramos uma CTA grande
@@ -164,6 +163,7 @@ export function Library() {
   const hasAnyFilter = !!search || hasActiveFilters(filters)
 
   return (
+    <CrossFade loading={loading} skeleton={librarySkeleton}>
     <div className="px-6 pt-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex flex-col gap-0.5">
@@ -175,23 +175,20 @@ export function Library() {
         {/* Adicionar só aparece no header quando há músicas — em biblioteca
             vazia a CTA grande é o caminho principal (não competir com ela). */}
         {!isLibraryEmpty && canAddSongs && (
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={online ? () => openAddSong() : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand"
             style={{
               borderRadius: 10,
-              padding: '8px 14px', fontSize: 13,
-              border: 'none',
               boxShadow: online ? '0 8px 24px -8px rgba(37,99,235,0.5)' : 'none',
-              opacity: online ? 1 : 0.35,
-              cursor: online ? 'pointer' : 'not-allowed',
             }}
           >
             <Plus size={13} strokeWidth={2.5} />
             Adicionar
-          </button>
+          </Button>
         )}
       </div>
 
@@ -250,90 +247,39 @@ export function Library() {
           centralizado com CTA proeminente — não compete com search bar
           (que sequer está renderizada aqui). Issue #34. */}
       {isLibraryEmpty ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <div
-            className="w-full max-w-md text-center rounded-2xl"
-            style={{
-              padding: '40px 32px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div
-              className="mx-auto flex items-center justify-center mb-5"
-              style={{
-                width: 64, height: 64,
-                background: 'rgba(37,99,235,0.12)',
-                border: '1px solid rgba(37,99,235,0.25)',
-                borderRadius: 18,
-              }}
-            >
-              <Music size={28} color="#60a5fa" strokeWidth={1.8} />
-            </div>
-            <h3 className="font-semibold text-heading mb-2" style={{ fontSize: 19 }}>
-              Sua biblioteca está vazia
-            </h3>
-            <p className="text-body mb-6" style={{ fontSize: 13.5, lineHeight: 1.55 }}>
-              Adicione suas músicas para organizar setlists, ministérios e cultos da igreja.
-            </p>
-            {canAddSongs && (
-              <button
-                onClick={online ? () => openAddSong() : undefined}
-                disabled={!online}
-                title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
-                className="inline-flex items-center gap-2 font-semibold text-white transition-colors bg-brand-active hover:bg-brand"
-                style={{
-                  borderRadius: 12,
-                  padding: '12px 22px', fontSize: 14,
-                  border: 'none',
-                  boxShadow: online ? '0 12px 32px -10px rgba(37,99,235,0.65)' : 'none',
-                  opacity: online ? 1 : 0.4,
-                  cursor: online ? 'pointer' : 'not-allowed',
-                }}
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                Adicionar primeira música
-              </button>
-            )}
-            {!online && (
-              <p className="mt-3 text-xs" style={{ color: '#9ca3af' }}>
-                Sem conexão — conecte para adicionar.
-              </p>
-            )}
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <EmptyState
+            icon={Music}
+            title="Sua biblioteca está vazia"
+            description="Adicione suas músicas para organizar setlists, ministérios e cultos da igreja."
+            actionLabel={canAddSongs && online ? 'Adicionar primeira música' : undefined}
+            onAction={canAddSongs && online ? () => openAddSong() : undefined}
+          />
         </div>
       ) : (
-        <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">
-          {filtered.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              onEdit={() => openEditSong(song, songGroupMap.get(song.id) ?? [])}
-            />
+        <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll" style={{ contain: 'layout' }}>
+          {filtered.map((song, i) => (
+            <div key={song.id} className="animate-fade-slide-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+              <SongCard
+                song={song}
+                onEdit={() => openEditSong(song, songGroupMap.get(song.id) ?? [])}
+              />
+            </div>
           ))}
           {/* Empty filtrado: tem música na biblioteca mas nada bate. Mantém
               o estado existente, opção de limpar filtros pra recuperar. */}
           {!hasFilteredResults && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <Music size={40} color="#4b5563" strokeWidth={1.5} />
-              <div className="text-center">
-                <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
-                  Nenhuma música encontrada
-                </p>
-                {hasAnyFilter && (
-                  <button
-                    onClick={() => { setSearch(''); updateFilters(EMPTY_FILTERS) }}
-                    className="text-sm mt-1"
-                    style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                  >
-                    Limpar filtros
-                  </button>
-                )}
-              </div>
-            </div>
+            <EmptyState
+              icon={Music}
+              title="Nenhuma música encontrada"
+              description={hasAnyFilter ? 'Nenhuma música bate com os filtros ativos.' : undefined}
+              actionLabel={hasAnyFilter ? 'Limpar filtros' : undefined}
+              onAction={hasAnyFilter ? () => { setSearch(''); updateFilters(EMPTY_FILTERS) } : undefined}
+            />
           )}
         </div>
       )}
     </div>
+    </CrossFade>
   )
 }

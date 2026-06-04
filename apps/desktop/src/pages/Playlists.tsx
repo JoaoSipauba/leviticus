@@ -5,7 +5,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { Skeleton } from '../components/Skeleton.js'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
-  Pencil, Copy, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
+  Pencil, Copy, Trash2, MoreHorizontal, AlertTriangle, Music,
 } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
@@ -19,8 +19,9 @@ import {
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
+import { Button, CrossFade, EmptyState } from '../components/ui/index.js'
 
-type ServiceWithStatus = Playlist & { total: number; downloaded: number }
+type ServiceWithStatus = Playlist & { total: number; downloaded: number; optimistic?: boolean }
 
 const SERVICE_COLORS = [
   { bg: 'linear-gradient(135deg,#1e3a8a,#2563eb)', icon: '#93c5fd' },
@@ -115,26 +116,25 @@ export function Playlists() {
     await loadServices()
   }
 
-  if (loading) {
-    return (
-      <div className="px-8 pt-6 max-w-[1100px] mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={10} w={70} />
-            <Skeleton h={24} w={200} />
-          </div>
-          <Skeleton h={36} w={140} rounded="lg" />
+  const playlistsSkeleton = (
+    <div className="px-8 pt-6 max-w-[1100px] mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={10} w={70} />
+          <Skeleton h={24} w={200} />
         </div>
-        <div className="flex flex-col gap-3">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} h={100} w="100%" rounded="xl" />
-          ))}
-        </div>
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} h={100} w="100%" rounded="xl" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={playlistsSkeleton}>
     <div className="px-8 pt-6 max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -142,20 +142,15 @@ export function Playlists() {
           <h1 className="text-h1 text-heading">Sua agenda</h1>
         </div>
         {canManagePlaylists && (
-        <button
-          onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
-          disabled={!online}
-          title={online ? undefined : 'Sem conexão'}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
-          style={{
-            background: '#2563eb',
-            color: '#fff',
-            opacity: online ? 1 : 0.35,
-            cursor: online ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <Plus size={16} /> Novo culto
-        </button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+          >
+            <Plus size={16} /> Novo culto
+          </Button>
         )}
       </div>
 
@@ -165,7 +160,7 @@ export function Playlists() {
           <div className="space-y-3">
             {today.map((s) => (
               <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} optimistic={s.optimistic} />
             ))}
           </div>
         </section>
@@ -177,25 +172,34 @@ export function Playlists() {
           <div className="space-y-2">
             {upcoming.map((s) => (
               <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} optimistic={s.optimistic} />
             ))}
           </div>
         </section>
       )}
 
       {today.length === 0 && upcoming.length === 0 && (
-        <EmptyState onCreate={online && canManagePlaylists ? () => { setEditing(null); setShowModal(true) } : undefined} />
+        <EmptyState
+          icon={CalendarDays}
+          title="Nenhum culto agendado"
+          description="Crie o primeiro culto para organizar músicas e setlists."
+          actionLabel={online && canManagePlaylists ? 'Criar primeiro culto' : undefined}
+          onAction={online && canManagePlaylists ? () => { setEditing(null); setShowModal(true) } : undefined}
+        />
       )}
 
       {past.length > 0 && (
         <section className="mb-8">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowPast((v) => !v)}
-            className="flex items-center gap-1.5 text-caps text-body hover:text-heading transition-colors mb-3 cursor-pointer"
+            className="text-caps text-body hover:text-heading mb-3"
+            style={{ padding: 0, background: 'none', borderRadius: 0 }}
           >
             {showPast ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             PASSADOS · {past.length}
-          </button>
+          </Button>
           {showPast && (
             <div className="space-y-2" style={{ opacity: 0.55 }}>
               {past.map((s) => (
@@ -212,7 +216,29 @@ export function Playlists() {
         editing={editing}
         duplicating={duplicating}
         onClose={() => { setShowModal(false); setEditing(null); setDuplicating(null) }}
-        onSaved={(newId) => {
+        onSaved={(newId, optimistic) => {
+          if (optimistic && !editing && !duplicating) {
+            // Inserção otimista: adiciona o culto provisório na lista local
+            // imediatamente, antes de syncOrg completar. opacity: 0.6 indica
+            // estado "carregando". loadServices() vai substituir com o real.
+            const now = new Date().toISOString()
+            const provisional: ServiceWithStatus = {
+              created_by: '',
+              created_at: now,
+              updated_at: now,
+              ...optimistic,
+              total: 0,
+              downloaded: 0,
+              optimistic: true,
+            }
+            setServices((prev) => {
+              // Remove qualquer provisional anterior com mesmo id (segurança)
+              const filtered = prev.filter((s) => s.id !== provisional.id)
+              return [...filtered, provisional].sort(
+                (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+              )
+            })
+          }
           void loadServices()
           // Issue #155: ao duplicar, navega pro culto novo pra usuário ver
           // o resultado (seções/músicas copiadas) e ajustar se quiser.
@@ -220,27 +246,11 @@ export function Playlists() {
         }}
       />
     </div>
+    </CrossFade>
   )
 }
 
-function EmptyState({ onCreate }: { onCreate?: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <CalendarDays size={48} className="text-muted mb-4" strokeWidth={1.5} />
-      <p className="text-body mb-1">Nenhum culto agendado.</p>
-      {onCreate && (
-        <button onClick={onCreate}
-          className="text-brand font-semibold cursor-pointer"
-          style={{ background: 'none', border: 'none' }}
-        >
-          Criar primeiro culto
-        </button>
-      )}
-    </div>
-  )
-}
-
-function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
+function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage, optimistic }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
@@ -248,6 +258,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
+  optimistic?: boolean
 }) {
   const color = getServiceColor(service.id)
   const status = formatPlaylistStatus(service.scheduled_at, service.scheduled_end)
@@ -259,6 +270,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
         background: color.bg,
         boxShadow: '0 12px 32px -8px rgba(0,0,0,0.5)',
         border: '1px solid rgba(255,255,255,0.1)',
+        opacity: optimistic ? 0.6 : 1,
       }}
     >
       <div className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
@@ -287,7 +299,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
   )
 }
 
-function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
+function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage, optimistic }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
@@ -295,6 +307,7 @@ function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, 
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
+  optimistic?: boolean
 }) {
   const color = getServiceColor(service.id)
   return (
@@ -305,6 +318,7 @@ function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, 
         background: 'rgba(19,19,31,0.55)',
         backdropFilter: 'blur(20px) saturate(180%)',
         border: '1px solid rgba(255,255,255,0.06)',
+        opacity: optimistic ? 0.6 : 1,
       }}
     >
       <div className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: color.bg }}>
@@ -431,16 +445,26 @@ function ActionsMenu({ onEdit, onDuplicate, onDelete, dark, online }: {
               </div>
               {error && <p className="text-xs text-red-400">{error}</p>}
               <div className="flex gap-2">
-                <button onClick={(e) => { e.stopPropagation(); setConfirming(false) }} disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-body bg-white/[0.05] border border-hairline cursor-pointer">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); setConfirming(false) }}
+                  disabled={deleting}
+                  fullWidth
+                >
                   Cancelar
-                </button>
-                <button onClick={doDelete} disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                  style={{ background: deleting ? 'rgba(185,28,28,0.5)' : '#dc2626' }}>
-                  {deleting ? <Loader2 size={12} className="animate-spin-smooth" /> : <Trash2 size={12} />}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={deleting}
+                  onClick={doDelete}
+                  disabled={deleting}
+                  fullWidth
+                >
+                  {!deleting && <Trash2 size={12} />}
                   {deleting ? 'Excluindo…' : 'Excluir'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (

@@ -1,5 +1,6 @@
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react'
 import { useToasts, type ToastKind } from '../store/toasts.js'
+import { IconButton } from './ui/index.js'
 
 const ICON: Record<ToastKind, typeof CheckCircle2> = {
   success: CheckCircle2,
@@ -51,13 +52,14 @@ export function Toasts() {
                 </p>
               )}
             </div>
-            <button
+            <IconButton
+              label="Fechar"
               onClick={() => dismiss(t.id)}
-              aria-label="Fechar"
-              className="text-body hover:text-heading transition-colors flex-shrink-0"
+              size="sm"
+              style={{ flexShrink: 0, color: '#6b7280' }}
             >
               <X size={14} />
-            </button>
+            </IconButton>
           </div>
         )
       })}

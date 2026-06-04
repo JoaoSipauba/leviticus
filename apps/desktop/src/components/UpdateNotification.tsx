@@ -6,6 +6,7 @@ import { usePlayerStore } from '../store/player.js'
 import { captureException } from '../lib/observability.js'
 import { withTimeout } from '../lib/boot-update.js'
 import { markRelaunchForFocus } from '../lib/post-relaunch-focus.js'
+import { Button } from './ui/index.js'
 
 type Status =
   | { kind: 'idle' }
@@ -193,18 +194,20 @@ export function UpdateNotification() {
             Já baixada. Reinicie pra aplicar, ou pule pra depois.
           </p>
           <div className="flex gap-2 mt-3">
-            <button
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => actionsRef.current.restart()}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 text-white transition-colors"
             >
               Reiniciar agora
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => actionsRef.current.skip()}
-              className="px-3 py-1.5 text-xs font-medium rounded-md text-body hover:text-heading transition-colors"
             >
               Pular
-            </button>
+            </Button>
           </div>
           <p className="text-xs text-muted mt-2 leading-snug">
             Sem resposta em 2h, aplicada automaticamente (nunca durante um culto).

@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react'
 import { QuotaBar } from './QuotaBar.js'
 import { StatsRow } from './StatsRow.js'
+import { Button } from '../ui/index.js'
 
 type Props = {
   email: string
@@ -37,16 +38,20 @@ export function ConnectedAccountCard(props: Props) {
         </div>
         {props.canManage && (
           <div className="flex gap-1.5">
-            <button onClick={props.onSwap}
-              className="rounded-md px-2.5 py-1.5 text-[11px] font-medium"
-              style={{ background: 'var(--bg-accent, #27272a)', color: 'var(--text-heading, #fafafa)', border: 'none' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={props.onSwap}
+            >
               Trocar conta
-            </button>
-            <button onClick={props.onDisconnect}
-              className="rounded-md px-2.5 py-1.5 text-[11px] font-medium bg-transparent"
-              style={{ color: '#ef4444', border: '1px solid #7f1d1d' }}>
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={props.onDisconnect}
+            >
               Desconectar
-            </button>
+            </Button>
           </div>
         )}
       </div>

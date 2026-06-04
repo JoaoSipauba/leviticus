@@ -9,6 +9,7 @@ import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
 import { Skeleton } from '../components/Skeleton.js'
+import { Button, CrossFade } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -100,26 +101,25 @@ export function Groups() {
     boxSizing: 'border-box' as const,
   }
 
-  if (loading) {
-    return (
-      <div className="px-6 pt-6 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={20} w={140} />
-            <Skeleton h={12} w={220} />
-          </div>
-          <Skeleton h={36} w={140} rounded="lg" />
+  const groupsSkeleton = (
+    <div className="px-6 pt-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={20} w={140} />
+          <Skeleton h={12} w={220} />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} h={84} w="100%" rounded="xl" />
-          ))}
-        </div>
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="grid grid-cols-2 gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} h={84} w="100%" rounded="xl" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={groupsSkeleton}>
     <div className="px-6 pt-6 flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
@@ -132,25 +132,18 @@ export function Groups() {
           </p>
         </div>
         {canManageGroups && (
-        <button
-          onClick={online ? () => setShowModal(true) : undefined}
-          disabled={!online}
-          title={online ? undefined : 'Sem conexão'}
-          className="flex items-center gap-1.5 font-semibold text-white disabled:cursor-not-allowed"
-          style={{
-            background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
-            color: online ? '#fff' : '#9ca3af',
-            border: 'none',
-            borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, cursor: online ? 'pointer' : 'not-allowed',
-            opacity: online ? 1 : 0.6,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Novo
-        </button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={online ? () => setShowModal(true) : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Novo
+          </Button>
         )}
       </div>
 
@@ -163,13 +156,14 @@ export function Groups() {
               Nenhum ministério ainda
             </p>
             {canManageGroups && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowModal(true)}
-                className="text-sm mt-1"
-                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+                className="mt-1"
               >
                 Criar primeiro ministério
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -217,11 +211,12 @@ export function Groups() {
       {/* Modal */}
       {showModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) { setShowModal(false); setNewName(''); setError(null) } }}
         >
           <div
+            className="animate-modal-in"
             style={{
               background: '#13131f', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 16, padding: 24, width: 300,
@@ -271,36 +266,30 @@ export function Groups() {
             {error && <p className="text-sm mb-3" style={{ color: '#ef4444' }}>{error}</p>}
 
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 onClick={() => { setShowModal(false); setNewName(''); setError(null) }}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: 'pointer',
-                }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleCreate}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                loading={saving}
                 disabled={saving || !newName.trim() || !online}
                 title={online ? undefined : 'Sem conexão'}
-                style={{
-                  flex: 1,
-                  background: (saving || !newName.trim() || !online) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: (saving || !newName.trim()) ? 'default' : 'pointer',
-                }}
+                onClick={handleCreate}
               >
                 {saving ? 'Criando…' : 'Criar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       )}
     </div>
+    </CrossFade>
   )
 }

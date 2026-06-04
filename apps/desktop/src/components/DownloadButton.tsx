@@ -4,6 +4,7 @@ import { downloadSong } from '../lib/ytdlp.js'
 import { usePlayerStore } from '../store/player.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { captureException } from '../lib/observability.js'
+import { IconButton } from './ui/index.js'
 
 type Props = {
   songId: string
@@ -65,32 +66,26 @@ export function DownloadButton({ songId, youtubeUrl, onDownloaded }: Props) {
 
   if (error) {
     return (
-      <button
+      <IconButton
+        label={error}
         onClick={handleDownload}
-        title={error}
-        style={{ cursor: 'pointer', background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        size="sm"
+        variant="danger"
       >
         <AlertCircle size={15} color="#ef4444" strokeWidth={2} />
-      </button>
+      </IconButton>
     )
   }
 
   return (
-    <button
+    <IconButton
+      label={online ? 'Baixar' : 'Sem conexão'}
       onClick={online ? handleDownload : undefined}
       disabled={!online}
-      title={online ? 'Baixar' : 'Sem conexão'}
-      style={{
-        cursor: online ? 'pointer' : 'not-allowed',
-        background: 'none',
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        opacity: online ? 1 : 0.35,
-      }}
+      size="sm"
+      style={{ opacity: online ? 1 : 0.35 }}
     >
       <Download size={16} color={online ? '#3b82f6' : '#6b7280'} strokeWidth={2} />
-    </button>
+    </IconButton>
   )
 }

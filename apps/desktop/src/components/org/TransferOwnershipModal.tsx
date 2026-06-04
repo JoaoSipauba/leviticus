@@ -5,7 +5,9 @@ import { getDb } from '../../lib/db.js'
 import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
+import { IconButton } from '../ui/IconButton.js'
 
 type Candidate = { user_id: string; name: string; email: string }
 
@@ -58,23 +60,13 @@ export function TransferOwnershipModal({
     setPending(false); onDone(); onClose()
   }
 
-  const { onBackdropClick } = useModalDismiss({
-    onClose,
-    canDismissOutside: pick === null,
-    busy: pending,
-    enabled: open,
-  })
-
-  if (!open) return null
   const picked = candidates.find((c) => c.user_id === pick)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={pick === null} busy={pending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0 }}>Transferir propriedade</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           {!confirming ? (
@@ -98,10 +90,10 @@ export function TransferOwnershipModal({
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={onClose}
-                  style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Cancelar</button>
-                <button onClick={() => setConfirming(true)} disabled={!pick}
-                  style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#2563eb', border: 'none', cursor: pick ? 'pointer' : 'default', opacity: pick ? 1 : 0.4 }}>Continuar</button>
+                <Button onClick={onClose} variant="secondary">Cancelar</Button>
+                <Button onClick={() => setConfirming(true)} disabled={!pick}>
+                  Continuar
+                </Button>
               </div>
             </>
           ) : (
@@ -114,17 +106,14 @@ export function TransferOwnershipModal({
               </div>
               {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={() => setConfirming(false)}
-                  style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Voltar</button>
-                <button onClick={handleTransfer} disabled={pending}
-                  style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#dc2626', border: 'none', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
+                <Button onClick={() => setConfirming(false)} variant="secondary">Voltar</Button>
+                <Button onClick={handleTransfer} disabled={pending} loading={pending} variant="danger">
                   {pending ? 'Transferindo…' : 'Transferir'}
-                </button>
+                </Button>
               </div>
             </>
           )}
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

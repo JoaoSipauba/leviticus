@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { X, AlertTriangle } from 'lucide-react'
-import { useModalDismiss } from '../../lib/useModalDismiss.js'
 import { supabase } from '../../lib/supabase.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
+import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
+import { IconButton } from '../ui/IconButton.js'
 
 export function DeleteOrgModal({
   open, orgId, orgName, onClose,
@@ -18,14 +20,6 @@ export function DeleteOrgModal({
   const [typed, setTyped] = useState('')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Type-to-confirm: clique-fora só é seguro com o input vazio. `pending` trava durante a deleção.
-  const { onBackdropClick } = useModalDismiss({
-    onClose,
-    canDismissOutside: typed.trim() === '',
-    busy: pending,
-    enabled: open,
-  })
-  if (!open) return null
 
   async function handleDelete() {
     setPending(true); setError(null)
@@ -46,14 +40,12 @@ export function DeleteOrgModal({
   const canDelete = typed.trim() === orgName.trim() && !pending
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(220,38,38,0.3)' }}
-        onClick={(e) => e.stopPropagation()}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={typed.trim() === ''} busy={pending}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#fca5a5', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={16} color="#f87171" />Deletar organização
           </h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           <p style={{ fontSize: 13, color: '#d1d5db', marginBottom: 12, lineHeight: 1.6 }}>
@@ -68,15 +60,17 @@ export function DeleteOrgModal({
             style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '9px 12px', fontSize: 13.5, color: '#f3f4f6', outline: 'none', marginBottom: 16 }} />
           {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={onClose}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={handleDelete} disabled={!canDelete}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#dc2626', border: 'none', cursor: canDelete ? 'pointer' : 'default', opacity: canDelete ? 1 : 0.4 }}>
+            <Button onClick={onClose} variant="secondary">Cancelar</Button>
+            <Button
+              onClick={handleDelete}
+              disabled={!canDelete}
+              loading={pending}
+              variant="danger"
+            >
               {pending ? 'Deletando…' : 'Deletar'}
-            </button>
+            </Button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }
