@@ -926,7 +926,7 @@ function PlaylistSection({
           const playedFirst = section.songs.filter((s) => playedIds.has(s.song_id))
           const remaining = section.songs.filter((s) => !playedIds.has(s.song_id))
           return [...playedFirst, ...remaining]
-        })().map((ps) => {
+        })().map((ps, i) => {
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
           const showDropBefore = dropTarget?.kind === 'song'
             && dropTarget.sectionId === section.sectionId
@@ -950,7 +950,8 @@ function PlaylistSection({
               key={`${ps.section_id}-${ps.song_id}`}
               data-song-id={ps.song_id}
               data-section-id={ps.section_id}
-              style={{ opacity: isBeingDragged ? 0.4 : 1 }}
+              className="animate-fade-slide-in"
+              style={{ opacity: isBeingDragged ? 0.4 : 1, animationDelay: `${Math.min(i, 10) * 30}ms` }}
             >
               <div
                 style={{
