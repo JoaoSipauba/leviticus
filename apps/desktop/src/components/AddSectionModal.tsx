@@ -3,6 +3,8 @@ import { X, Mic } from 'lucide-react'
 import { getDb } from '../lib/db.js'
 import { getGroupColor, type GroupRef } from '../lib/playlist.js'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -60,7 +62,7 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
     <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={canDismissOutside}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Nova seção</h2>
-          <button onClick={onClose} className="text-body hover:text-heading"><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
 
         <div className="px-5 pb-4">
@@ -121,14 +123,14 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
                   />
                 </div>
               </label>
-              <button
+              <Button
                 onClick={handleAvulsoConfirm}
                 disabled={!avulsoLabel.trim()}
-                className="w-full mt-3 px-3 py-2 rounded-lg font-semibold cursor-pointer disabled:cursor-default disabled:opacity-50"
-                style={{ background: '#2563eb', color: '#fff' }}
+                fullWidth
+                style={{ marginTop: 12 }}
               >
                 Criar seção
-              </button>
+              </Button>
             </div>
           )}
         </div>

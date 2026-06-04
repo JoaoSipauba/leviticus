@@ -1,5 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -30,19 +32,15 @@ export function MergeSectionsModal({
               {' '}({targetSongCount} {targetSongCount === 1 ? 'música' : 'músicas'}).
             </p>
           </div>
-          <button onClick={onCancel} className="text-body hover:text-heading"><X size={16} /></button>
+          <IconButton label="Fechar" onClick={onCancel} variant="ghost" size="sm"><X size={16} /></IconButton>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 px-3 py-2 rounded-lg font-semibold text-body cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <Button onClick={onCancel} variant="secondary" fullWidth>
             Cancelar
-          </button>
-          <button onClick={onConfirm}
-            className="flex-1 px-3 py-2 rounded-lg font-semibold text-white cursor-pointer"
-            style={{ background: '#2563eb' }}>
+          </Button>
+          <Button onClick={onConfirm} variant="primary" fullWidth>
             Fundir
-          </button>
+          </Button>
         </div>
       </div>
     </AnimatedModal>

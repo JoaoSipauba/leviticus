@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
 
 type Props = {
   open: boolean
@@ -56,16 +57,12 @@ export function DisconnectModal({ open, email, songsCount, onConfirm, onCancel, 
         />
 
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 rounded-lg py-2.5 text-[13px] font-medium"
-            style={{ background: 'var(--bg-accent, #27272a)', color: 'var(--text-heading, #fafafa)', border: 'none' }}>
+          <Button onClick={onCancel} variant="secondary" fullWidth>
             Cancelar
-          </button>
-          <button onClick={onConfirm} disabled={!canConfirm}
-            className="flex-1 rounded-lg py-2.5 text-[13px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: '#ef4444', color: '#fafafa', border: 'none' }}>
+          </Button>
+          <Button onClick={onConfirm} disabled={!canConfirm} variant="danger" fullWidth>
             Desconectar
-          </button>
+          </Button>
         </div>
       </div>
     </AnimatedModal>

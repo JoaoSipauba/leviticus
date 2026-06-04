@@ -1,5 +1,6 @@
 import { LogOut, Home } from 'lucide-react'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
 
 type Props = {
   open: boolean
@@ -82,20 +83,14 @@ export function LogoutChoiceModal({ open, orgName, onExitOrg, onSignOut, onClose
             </div>
           </button>
 
-          <button
-            type="button"
+          <Button
             onClick={onClose}
-            className="rounded-xl px-4 py-2.5 text-center transition-colors mt-2"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: '#a1a1aa',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
+            variant="ghost"
+            fullWidth
+            style={{ marginTop: 8 }}
           >
             Cancelar
-          </button>
+          </Button>
         </div>
       </div>
     </AnimatedModal>

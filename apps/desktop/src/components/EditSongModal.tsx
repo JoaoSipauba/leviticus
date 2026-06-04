@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Check, Headphones, Loader2, Mic, Music, Plus, Save, Waves, X } from 'lucide-react'
+import { Check, Headphones, Mic, Music, Plus, Save, Waves, X } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
@@ -9,6 +9,8 @@ import type { SongType } from '@leviticus/core'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type GroupRow = { id: string; name: string }
 
@@ -91,7 +93,6 @@ function GroupChip({
   selected: boolean
   onToggle: () => void
 }) {
-  const [hov, setHov] = useState(false)
   return (
     <button
       onClick={onToggle}
@@ -107,12 +108,9 @@ function GroupChip({
         fontWeight: 600,
         color: selected ? '#93c5fd' : '#6b7280',
         cursor: 'pointer',
-        transform: hov ? 'scale(1.04)' : 'scale(1)',
         transition: 'all 0.15s',
         margin: '3px 2px',
       }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
     >
       {selected ? <Check size={11} strokeWidth={2.5} /> : <Plus size={11} strokeWidth={2.5} />}
       {name}
@@ -284,38 +282,15 @@ export function EditSongModal() {
               Alterações salvas na biblioteca
             </div>
           </div>
-          <button
+          <IconButton
+            label="Fechar"
             onClick={() => { if (!saving) closeEditSong() }}
             disabled={saving}
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              color: '#6b7280',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: saving ? 'default' : 'pointer',
-              transition: 'all 0.15s',
-              opacity: saving ? 0.4 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!saving) {
-                e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                e.currentTarget.style.color = 'white'
-                e.currentTarget.style.transform = 'scale(1.1)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-              e.currentTarget.style.color = '#6b7280'
-              e.currentTarget.style.transform = 'scale(1)'
-            }}
+            variant="ghost"
+            size="sm"
           >
             <X size={14} strokeWidth={2.5} />
-          </button>
+          </IconButton>
         </div>
 
         {/* Body */}
@@ -421,44 +396,16 @@ export function EditSongModal() {
 
           {/* action row */}
           <div style={{ marginTop: 2 }}>
-            <button
+            <Button
               onClick={handleSave}
               disabled={saving || !online}
+              loading={saving}
               title={online ? undefined : 'Sem conexão'}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '10px 0',
-                borderRadius: 10,
-                background: !online ? 'rgba(75,85,99,0.4)' : (saving ? 'rgba(37,99,235,0.45)' : '#2563eb'),
-                border: 'none',
-                color: !online ? '#9ca3af' : 'white',
-                cursor: (saving || !online) ? 'not-allowed' : 'pointer',
-                fontSize: 13,
-                fontWeight: 600,
-                transition: 'background 0.15s, box-shadow 0.15s',
-              }}
-              onMouseEnter={(e) => {
-                if (!saving) {
-                  e.currentTarget.style.background = '#1d4ed8'
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.35)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = saving ? 'rgba(37,99,235,0.45)' : '#2563eb'
-                e.currentTarget.style.boxShadow = 'none'
-              }}
+              fullWidth
             >
-              {saving ? (
-                <Loader2 size={14} className="animate-spin-smooth" />
-              ) : (
-                <Save size={14} strokeWidth={2} />
-              )}
+              {!saving && <Save size={14} strokeWidth={2} />}
               {saving ? 'Salvando…' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         </div>
     </AnimatedModal>

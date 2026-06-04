@@ -9,6 +9,8 @@ import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
 import { useUIStore } from '../store/ui.js'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -149,7 +151,7 @@ export function AddSongToPlaylistModal({
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Adicionar música</h2>
-          <button onClick={onClose} className="text-body hover:text-heading transition-colors"><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
 
         {/* Segmented control: escolher entre a biblioteca existente ou
@@ -261,13 +263,9 @@ export function AddSongToPlaylistModal({
         {error && <p className="px-5 pb-3 text-sm text-red-400">{error}</p>}
 
         <div className="px-5 pb-5 pt-2 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--tw-color-body, #9ca3af)' }}
-          >
+          <Button onClick={onClose} variant="secondary">
             Concluído
-          </button>
+          </Button>
         </div>
       </div>
     </AnimatedModal>

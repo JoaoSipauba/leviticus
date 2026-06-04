@@ -43,6 +43,8 @@ import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
 import { useUIStore } from '../store/ui.js'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type GroupRow = { id: string; name: string }
 type Metadata = {
@@ -157,34 +159,10 @@ function BtnPrimary({
   children: React.ReactNode
   style?: React.CSSProperties
 }) {
-  const [hov, setHov] = useState(false)
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        background: disabled ? 'rgba(37,99,235,0.45)' : hov ? '#1d4ed8' : '#2563eb',
-        color: 'white',
-        border: 'none',
-        borderRadius: 10,
-        padding: '10px 0',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: disabled ? 'default' : 'pointer',
-        width: '100%',
-        boxShadow: hov && !disabled ? '0 4px 16px rgba(37,99,235,0.35)' : 'none',
-        transition: 'background 0.15s, box-shadow 0.15s',
-        ...style,
-      }}
-      onMouseEnter={() => setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
+    <Button onClick={onClick} disabled={disabled} fullWidth style={style}>
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -199,34 +177,10 @@ function BtnGhost({
   children: React.ReactNode
   style?: React.CSSProperties
 }) {
-  const [hov, setHov] = useState(false)
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        background: hov ? 'rgba(255,255,255,0.09)' : 'rgba(255,255,255,0.05)',
-        border: '1px solid rgba(255,255,255,0.08)',
-        color: hov ? '#d1d5db' : '#9ca3af',
-        borderRadius: 10,
-        padding: '10px 0',
-        fontSize: 13,
-        fontWeight: 600,
-        cursor: disabled ? 'default' : 'pointer',
-        width: '100%',
-        opacity: disabled ? 0.45 : 1,
-        transition: 'background 0.15s, color 0.15s',
-        ...style,
-      }}
-      onMouseEnter={() => !disabled && setHov(true)}
-      onMouseLeave={() => setHov(false)}
-    >
+    <Button onClick={onClick} disabled={disabled} variant="secondary" fullWidth style={style}>
       {children}
-    </button>
+    </Button>
   )
 }
 
@@ -1561,35 +1515,9 @@ export function AddSongModal() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <StepDots step={step} />
             {step !== 3 && (
-              <button
-                onClick={triggerClose}
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: 8,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  color: '#6b7280',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
-                  e.currentTarget.style.color = 'white'
-                  e.currentTarget.style.transform = 'scale(1.1)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-                  e.currentTarget.style.color = '#6b7280'
-                  e.currentTarget.style.transform = 'scale(1)'
-                }}
-              >
+              <IconButton label="Fechar" onClick={triggerClose} variant="ghost" size="sm">
                 <X size={14} strokeWidth={2.5} />
-              </button>
+              </IconButton>
             )}
           </div>
         </div>
@@ -1691,16 +1619,13 @@ export function AddSongModal() {
                               : 'Será enviado como está'}
                           </div>
                         </div>
-                        <button
-                          type="button"
+                        <Button
                           onClick={() => { setSelectedFile(null); setDetectedFormat(null); setTitle('') }}
-                          style={{
-                            background: 'transparent', color: '#71717a',
-                            border: 'none', cursor: 'pointer', padding: 4,
-                          }}
+                          variant="ghost"
+                          size="sm"
                         >
                           Trocar
-                        </button>
+                        </Button>
                       </div>
                       <BtnPrimary onClick={() => setStep(2)} style={{ width: '100%' }}>
                         Continuar
@@ -1783,20 +1708,15 @@ export function AddSongModal() {
                         Não conseguimos conectar ao YouTube.<br />
                         Verifique sua internet e tente de novo.
                       </p>
-                      <button
+                      <Button
                         onClick={() => doSearch(query)}
-                        style={{
-                          marginTop: 2,
-                          background: 'rgba(255,255,255,0.07)',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          color: '#e5e7eb', fontSize: 12, fontWeight: 600,
-                          borderRadius: 8, padding: '6px 16px', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', gap: 6,
-                        }}
+                        variant="secondary"
+                        size="sm"
+                        style={{ marginTop: 2 }}
                       >
                         <RotateCcw size={12} strokeWidth={2.5} />
                         Tentar novamente
-                      </button>
+                      </Button>
                     </div>
                   )}
 
@@ -1835,32 +1755,20 @@ export function AddSongModal() {
                                   Ouvir esta prévia vai pausar o que está tocando agora.
                                 </p>
                                 <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                                  <button
+                                  <Button
                                     onClick={(e) => { e.stopPropagation(); confirmAndStartPreview() }}
-                                    style={{
-                                      padding: '6px 12px', borderRadius: 7,
-                                      background: 'transparent',
-                                      border: '1px solid rgba(255,255,255,0.12)',
-                                      color: '#9ca3af',
-                                      fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                                    }}
+                                    variant="secondary"
+                                    size="sm"
                                   >
                                     Pausar player principal
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     onClick={(e) => { e.stopPropagation(); setConfirmStop(null) }}
                                     autoFocus
-                                    style={{
-                                      padding: '6px 14px', borderRadius: 7,
-                                      background: '#2563eb',
-                                      border: 'none',
-                                      color: '#f3f4f6',
-                                      fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                                      boxShadow: '0 4px 12px -3px rgba(37,99,235,0.5)',
-                                    }}
+                                    size="sm"
                                   >
                                     Continuar tocando
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             </div>
@@ -1880,20 +1788,19 @@ export function AddSongModal() {
                                 </p>
                               ) : (
                                 <>
-                                  <button
+                                  <IconButton
+                                    label={previewPlaying ? 'Pausar prévia' : 'Tocar prévia'}
                                     onClick={() => { void handlePreview(r) }}
-                                    style={{
-                                      width: 28, height: 28, borderRadius: '50%', border: 'none',
-                                      background: '#2563eb', cursor: 'pointer', flexShrink: 0,
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    }}
+                                    variant="primary"
+                                    size="sm"
+                                    style={{ borderRadius: '50%', background: '#2563eb', flexShrink: 0 }}
                                   >
                                     {previewLoading && previewId === r.id
                                       ? <Loader2 size={12} color="white" className="animate-spin-smooth" />
                                       : previewPlaying
                                       ? <Pause size={11} color="white" fill="white" />
                                       : <Play size={11} color="white" fill="white" />}
-                                  </button>
+                                  </IconButton>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#6b7280', marginBottom: 4 }}>
                                       <span>{fmtDuration(Math.floor(previewTime))}</span>
@@ -1917,23 +1824,18 @@ export function AddSongModal() {
                                     />
                                   </div>
                                   <div className="group/vol flex items-center flex-shrink-0">
-                                    <button
+                                    <IconButton
+                                      label={previewMuted ? 'Ativar som' : 'Silenciar'}
                                       onClick={(e) => { e.stopPropagation(); setPreviewMuted((m) => !m) }}
-                                      aria-label={previewMuted ? 'Ativar som' : 'Silenciar'}
-                                      className="hover:bg-white/[0.08] hover:opacity-100 transition-colors"
-                                      style={{
-                                        width: 32, height: 32, borderRadius: 8,
-                                        background: 'transparent', border: 'none', padding: 0,
-                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        cursor: 'pointer', color: '#9ca3af',
-                                        opacity: 0.7,
-                                        flexShrink: 0,
-                                      }}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="hover:opacity-100"
+                                      style={{ opacity: 0.7, flexShrink: 0 }}
                                     >
                                       {previewMuted || previewVolume === 0
                                         ? <VolumeX size={14} strokeWidth={2} />
                                         : <Volume2 size={14} strokeWidth={2} />}
-                                    </button>
+                                    </IconButton>
                                     <div
                                       className={
                                         previewVolDragging

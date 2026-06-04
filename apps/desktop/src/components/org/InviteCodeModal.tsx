@@ -5,6 +5,8 @@ import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
+import { IconButton } from '../ui/IconButton.js'
 
 type Expiry = '24h' | '7d' | '30d' | 'never'
 
@@ -57,7 +59,7 @@ export function InviteCodeModal({
     <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={label.trim() === ''} busy={saving}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0 }}>Novo código de convite</h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           <div style={{ marginBottom: 16 }}>
@@ -90,11 +92,10 @@ export function InviteCodeModal({
           {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
 
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={handleCreate} disabled={saving}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#2563eb', border: 'none', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.4 : 1 }}>
+            <Button onClick={onClose} variant="secondary">Cancelar</Button>
+            <Button onClick={handleCreate} disabled={saving} loading={saving}>
               {saving ? 'Gerando…' : 'Gerar código'}
-            </button>
+            </Button>
           </div>
         </div>
     </AnimatedModal>

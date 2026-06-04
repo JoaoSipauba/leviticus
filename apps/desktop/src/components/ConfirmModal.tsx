@@ -1,5 +1,7 @@
 import { X, AlertTriangle } from 'lucide-react'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 // Modal de confirmação genérico. Substitui `window.confirm`, que não exibe
 // diálogo nenhum na WebView do Tauri (retorna falsy silenciosamente). É
@@ -25,7 +27,6 @@ export function ConfirmModal({
   onConfirm: () => void
   onClose: () => void
 }) {
-  const accent = tone === 'danger' ? '#dc2626' : '#2563eb'
   const iconColor = tone === 'danger' ? '#f87171' : '#60a5fa'
 
   return (
@@ -34,19 +35,23 @@ export function ConfirmModal({
           <h2 id="confirm-modal-title" style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={16} color={iconColor} />{title}
           </h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           <p style={{ fontSize: 13.5, color: '#d1d5db', marginBottom: 16, lineHeight: 1.6 }}>{body}</p>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={onClose} disabled={pending}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
+            <Button onClick={onClose} disabled={pending} variant="secondary">
               {cancelLabel}
-            </button>
-            <button onClick={onConfirm} disabled={pending} data-testid="confirm-modal-confirm"
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: accent, border: 'none', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
-              {pending ? 'Aguarde…' : confirmLabel}
-            </button>
+            </Button>
+            <Button
+              onClick={onConfirm}
+              disabled={pending}
+              loading={pending}
+              variant={tone === 'danger' ? 'danger' : 'primary'}
+              data-testid="confirm-modal-confirm"
+            >
+              {confirmLabel}
+            </Button>
           </div>
         </div>
     </AnimatedModal>

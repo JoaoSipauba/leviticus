@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Clock, X, Loader2 } from 'lucide-react'
+import { Calendar, Clock, X } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
@@ -8,6 +8,8 @@ import { captureException } from '../lib/observability.js'
 import { DatePicker } from './DatePicker.js'
 import { TimePicker } from './TimePicker.js'
 import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -181,9 +183,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           <h2 className="text-h2 text-heading">
             {editing ? 'Editar culto' : duplicating ? 'Duplicar culto' : 'Novo culto'}
           </h2>
-          <button onClick={onClose} className="text-body hover:text-heading transition-colors" aria-label="Fechar">
-            <X size={18} />
-          </button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
 
         <div className="space-y-4">
@@ -225,28 +225,23 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           {error && <p className="text-sm text-red-400">{error}</p>}
 
           <div className="flex gap-2 pt-2">
-            <button
+            <Button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 px-3 py-2 rounded-lg text-body font-semibold transition-colors cursor-pointer disabled:cursor-default"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              variant="secondary"
+              fullWidth
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={saving || !online}
+              loading={saving}
               title={online ? undefined : 'Sem conexão'}
-              className="flex-1 px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-              style={{
-                background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
-                color: online ? '#fff' : '#9ca3af',
-                opacity: online ? 1 : 0.7,
-              }}
+              fullWidth
             >
-              {saving ? <Loader2 size={14} className="animate-spin-smooth" /> : null}
               {saving ? 'Salvando…' : editing ? 'Salvar' : duplicating ? 'Duplicar' : 'Criar'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

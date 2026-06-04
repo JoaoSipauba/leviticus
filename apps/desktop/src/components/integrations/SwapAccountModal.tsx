@@ -1,5 +1,6 @@
 import { RefreshCw, AlertTriangle } from 'lucide-react'
 import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
 
 type Props = {
   open: boolean
@@ -59,16 +60,16 @@ export function SwapAccountModal({ open, currentEmail, songsCount, totalBytes, o
         </div>
 
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 rounded-lg py-2.5 text-[13px] font-medium"
-            style={{ background: 'var(--bg-accent, #27272a)', color: 'var(--text-heading, #fafafa)', border: 'none' }}>
+          <Button onClick={onCancel} variant="secondary" fullWidth>
             Cancelar
-          </button>
-          <button onClick={onConfirm}
-            className="flex-1 rounded-lg py-2.5 text-[13px] font-semibold"
-            style={{ background: '#a78bfa', color: '#09090b', border: 'none' }}>
+          </Button>
+          <Button
+            onClick={onConfirm}
+            fullWidth
+            style={{ background: '#a78bfa', color: '#09090b' }}
+          >
             Entendi, trocar conta
-          </button>
+          </Button>
         </div>
       </div>
     </AnimatedModal>

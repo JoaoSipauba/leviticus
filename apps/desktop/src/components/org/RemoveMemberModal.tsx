@@ -5,6 +5,8 @@ import { syncOrg } from '../../lib/sync.js'
 import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { AnimatedModal } from '../ui/AnimatedModal.js'
+import { Button } from '../ui/Button.js'
+import { IconButton } from '../ui/IconButton.js'
 
 export function RemoveMemberModal({
   open, orgId, userId, memberName, mode, onClose, onDone,
@@ -54,17 +56,16 @@ export function RemoveMemberModal({
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={16} color="#f87171" />{title}
           </h2>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af' }}><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
         <div style={{ padding: '0 20px 20px' }}>
           <p style={{ fontSize: 13.5, color: '#d1d5db', marginBottom: 16, lineHeight: 1.6 }}>{body}</p>
           {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>Cancelar</button>
-            <button onClick={handleConfirm} disabled={pending}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#dc2626', border: 'none', cursor: pending ? 'default' : 'pointer', opacity: pending ? 0.4 : 1 }}>
+            <Button onClick={onClose} variant="secondary">Cancelar</Button>
+            <Button onClick={handleConfirm} disabled={pending} loading={pending} variant="danger">
               {pending ? 'Aguarde…' : cta}
-            </button>
+            </Button>
           </div>
         </div>
     </AnimatedModal>
