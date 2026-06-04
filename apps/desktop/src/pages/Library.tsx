@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Music, Plus } from 'lucide-react'
 import { Skeleton, SongCardSkeleton } from '../components/Skeleton.js'
-import { Button } from '../components/ui/index.js'
+import { Button, CrossFade } from '../components/ui/index.js'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
@@ -137,25 +137,23 @@ export function Library() {
   // Issue #65: em vez de spinner centralizado (que cria layout shift quando
   // troca pelo conteúdo), mostra skeleton da própria estrutura. Usuário
   // já vê o header + a área das cards no formato final.
-  if (loading) {
-    return (
-      <div className="px-6 pt-6 flex flex-col h-full">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex flex-col gap-1.5">
-            <Skeleton h={10} w={80} />
-            <Skeleton h={24} w={180} />
-          </div>
-          <Skeleton h={32} w={120} rounded="lg" />
+  const librarySkeleton = (
+    <div className="px-6 pt-6 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col gap-1.5">
+          <Skeleton h={10} w={80} />
+          <Skeleton h={24} w={180} />
         </div>
-        <Skeleton h={36} w="100%" rounded="lg" mb={16} />
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SongCardSkeleton key={i} variant="list" />
-          ))}
-        </div>
+        <Skeleton h={32} w={120} rounded="lg" />
       </div>
-    )
-  }
+      <Skeleton h={36} w="100%" rounded="lg" mb={16} />
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <SongCardSkeleton key={i} variant="list" />
+        ))}
+      </div>
+    </div>
+  )
 
   // Biblioteca completamente vazia: caso de primeiro uso. Search/filtros não
   // fazem sentido aqui — escondemos eles e mostramos uma CTA grande
@@ -165,6 +163,7 @@ export function Library() {
   const hasAnyFilter = !!search || hasActiveFilters(filters)
 
   return (
+    <CrossFade loading={loading} skeleton={librarySkeleton}>
     <div className="px-6 pt-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div className="flex flex-col gap-0.5">
@@ -299,12 +298,13 @@ export function Library() {
         </div>
       ) : (
         <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">
-          {filtered.map((song) => (
-            <SongCard
-              key={song.id}
-              song={song}
-              onEdit={() => openEditSong(song, songGroupMap.get(song.id) ?? [])}
-            />
+          {filtered.map((song, i) => (
+            <div key={song.id} className="animate-fade-slide-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
+              <SongCard
+                song={song}
+                onEdit={() => openEditSong(song, songGroupMap.get(song.id) ?? [])}
+              />
+            </div>
           ))}
           {/* Empty filtrado: tem música na biblioteca mas nada bate. Mantém
               o estado existente, opção de limpar filtros pra recuperar. */}
@@ -332,5 +332,6 @@ export function Library() {
         </div>
       )}
     </div>
+    </CrossFade>
   )
 }

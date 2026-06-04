@@ -136,12 +136,15 @@ export function OrgManage() {
           const isActive = effectiveTab === key
           return (
             <div key={key} hidden={!isActive}>
-              {key === 'info' && <OrgInfo orgId={orgId} active={isActive} />}
-              {key === 'members' && <OrgMembers orgId={orgId} active={isActive} />}
-              {key === 'invites' && <OrgInvites orgId={orgId} active={isActive} />}
-              {key === 'roles' && <OrgRoles orgId={orgId} active={isActive} />}
-              {key === 'integrations' && <OrgIntegrations orgId={orgId} active={isActive} />}
-              {key === 'danger' && <OrgDanger orgId={orgId} active={isActive} />}
+              {/* inner key forces re-mount (and fade-in) whenever this tab becomes active */}
+              <div key={isActive ? effectiveTab : key} className={isActive ? 'animate-fade-slide-in' : undefined}>
+                {key === 'info' && <OrgInfo orgId={orgId} active={isActive} />}
+                {key === 'members' && <OrgMembers orgId={orgId} active={isActive} />}
+                {key === 'invites' && <OrgInvites orgId={orgId} active={isActive} />}
+                {key === 'roles' && <OrgRoles orgId={orgId} active={isActive} />}
+                {key === 'integrations' && <OrgIntegrations orgId={orgId} active={isActive} />}
+                {key === 'danger' && <OrgDanger orgId={orgId} active={isActive} />}
+              </div>
             </div>
           )
         })}

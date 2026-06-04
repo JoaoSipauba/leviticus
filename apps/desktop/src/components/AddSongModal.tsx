@@ -1586,6 +1586,9 @@ export function AddSongModal() {
                 ))}
               </div>
 
+              {/* Tab content — key forces re-mount on tab switch, triggering fade-in */}
+              <div key={tab} className="animate-fade-slide-in" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
               {/* ── Arquivo tab ── */}
               {tab === 'file' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1922,6 +1925,8 @@ export function AddSongModal() {
                   </BtnPrimary>
                 </>
               )}
+
+              </div>{/* end tab content wrapper */}
             </div>
           )}
 

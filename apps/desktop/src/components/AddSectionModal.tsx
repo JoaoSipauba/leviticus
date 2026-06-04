@@ -85,6 +85,7 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
         </div>
 
         <div className="px-5 pb-5">
+          <div key={tab} className="animate-fade-slide-in">
           {tab === 'group' ? (
             <div className="space-y-1.5">
               {groups.length === 0 ? (
@@ -133,6 +134,7 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
               </Button>
             </div>
           )}
+          </div>
         </div>
     </AnimatedModal>
   )
