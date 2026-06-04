@@ -295,3 +295,15 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
 @media (prefers-reduced-motion: reduce) {
   .lv-btn:active { transform: none !important; }
 }
+
+/* Acessibilidade: usuários com prefers-reduced-motion não recebem animações
+   longas. Transições curtas de feedback são neutralizadas junto (default
+   seguro). Issue #69 bloco D. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
