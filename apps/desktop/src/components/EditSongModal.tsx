@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check, Headphones, Loader2, Mic, Music, Plus, Save, Waves, X } from 'lucide-react'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useUIStore } from '../store/ui.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
 import type { SongType } from '@leviticus/core'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 type GroupRow = { id: string; name: string }
 
@@ -185,7 +185,6 @@ const SONG_TYPE_OPTIONS: { value: SongType; label: string; color: string; active
 export function EditSongModal() {
   const { songToEdit, songToEditGroups, closeEditSong, bumpLibrary } = useUIStore()
 
-  const [closing, setClosing] = useState(false)
   const [title, setTitle] = useState('')
   const [artist, setArtist] = useState('')
   const [groups, setGroups] = useState<GroupRow[]>([])
@@ -195,12 +194,9 @@ export function EditSongModal() {
   const [error, setError] = useState<string | null>(null)
   const online = useOnlineStatus()
 
-  const overlayRef = useRef<HTMLDivElement>(null)
-
   // populate when song changes
   useEffect(() => {
     if (!songToEdit) return
-    setClosing(false)
     setTitle(songToEdit.title)
     setArtist(songToEdit.artist)
     setSelectedGroups(songToEditGroups)
@@ -214,19 +210,6 @@ export function EditSongModal() {
         .then(setGroups)
     )
   }, [songToEdit, songToEditGroups])
-
-  function triggerClose() {
-    if (saving) return
-    setClosing(true)
-  }
-
-  // Issue #91: Esc fecha (exceto enquanto salva). Clique-fora nunca descarta —
-  // os campos vêm sempre pré-preenchidos com a música existente.
-  useModalDismiss({ onClose: triggerClose, canDismissOutside: false, busy: saving, enabled: !!songToEdit })
-
-  function handleAnimationEnd() {
-    if (closing) closeEditSong()
-  }
 
   function toggleGroup(id: string) {
     setSelectedGroups((prev) =>
@@ -278,45 +261,13 @@ export function EditSongModal() {
     await syncOrg(orgId)
     bumpLibrary()
     setSaving(false)
-    triggerClose()
+    closeEditSong()
   }
 
   if (!songToEdit) return null
 
-  const modalClass = closing ? 'animate-modal-out' : 'animate-modal-in'
-  const busy = saving
-
   return (
-    <div
-      ref={overlayRef}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: 'rgba(3,7,18,0.7)',
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div
-        className={modalClass}
-        onAnimationEnd={handleAnimationEnd}
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: 'rgba(19,19,31,0.7)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 20,
-          boxShadow: '0 20px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
-          overflow: 'hidden',
-        }}
-      >
+    <AnimatedModal open={!!songToEdit} onClose={() => { if (!saving) closeEditSong() }} closeOnBackdrop={false} busy={saving}>
         {/* Header */}
         <div
           style={{
@@ -334,8 +285,8 @@ export function EditSongModal() {
             </div>
           </div>
           <button
-            onClick={triggerClose}
-            disabled={busy}
+            onClick={() => { if (!saving) closeEditSong() }}
+            disabled={saving}
             style={{
               width: 30,
               height: 30,
@@ -346,12 +297,12 @@ export function EditSongModal() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              cursor: busy ? 'default' : 'pointer',
+              cursor: saving ? 'default' : 'pointer',
               transition: 'all 0.15s',
-              opacity: busy ? 0.4 : 1,
+              opacity: saving ? 0.4 : 1,
             }}
             onMouseEnter={(e) => {
-              if (!busy) {
+              if (!saving) {
                 e.currentTarget.style.background = 'rgba(255,255,255,0.1)'
                 e.currentTarget.style.color = 'white'
                 e.currentTarget.style.transform = 'scale(1.1)'
@@ -472,7 +423,7 @@ export function EditSongModal() {
           <div style={{ marginTop: 2 }}>
             <button
               onClick={handleSave}
-              disabled={busy || !online}
+              disabled={saving || !online}
               title={online ? undefined : 'Sem conexão'}
               style={{
                 width: '100%',
@@ -482,22 +433,22 @@ export function EditSongModal() {
                 gap: 6,
                 padding: '10px 0',
                 borderRadius: 10,
-                background: !online ? 'rgba(75,85,99,0.4)' : (busy ? 'rgba(37,99,235,0.45)' : '#2563eb'),
+                background: !online ? 'rgba(75,85,99,0.4)' : (saving ? 'rgba(37,99,235,0.45)' : '#2563eb'),
                 border: 'none',
                 color: !online ? '#9ca3af' : 'white',
-                cursor: (busy || !online) ? 'not-allowed' : 'pointer',
+                cursor: (saving || !online) ? 'not-allowed' : 'pointer',
                 fontSize: 13,
                 fontWeight: 600,
                 transition: 'background 0.15s, box-shadow 0.15s',
               }}
               onMouseEnter={(e) => {
-                if (!busy) {
+                if (!saving) {
                   e.currentTarget.style.background = '#1d4ed8'
                   e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.35)'
                 }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = busy ? 'rgba(37,99,235,0.45)' : '#2563eb'
+                e.currentTarget.style.background = saving ? 'rgba(37,99,235,0.45)' : '#2563eb'
                 e.currentTarget.style.boxShadow = 'none'
               }}
             >
@@ -510,7 +461,6 @@ export function EditSongModal() {
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { X, Mic } from 'lucide-react'
 import { getDb } from '../lib/db.js'
 import { getGroupColor, type GroupRef } from '../lib/playlist.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 type Props = {
   open: boolean
@@ -55,22 +55,9 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
   // Issue #91: clique-fora descarta na aba Ministério (nenhum dado digitado)
   // ou na aba Avulso quando o label está vazio.
   const canDismissOutside = tab === 'group' || avulsoLabel.trim() === ''
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, enabled: open })
-
-  if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div
-        className="animate-modal-in w-full max-w-md rounded-2xl"
-        style={{
-          background: 'rgba(19,19,31,0.95)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 20px 60px -10px rgba(0,0,0,0.7)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={canDismissOutside}>
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Nova seção</h2>
           <button onClick={onClose} className="text-body hover:text-heading"><X size={18} /></button>
@@ -145,7 +132,6 @@ export function AddSectionModal({ open, onClose, onConfirm }: Props) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

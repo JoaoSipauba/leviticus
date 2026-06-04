@@ -1,5 +1,5 @@
 import { X, AlertTriangle } from 'lucide-react'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 // Modal de confirmação genérico. Substitui `window.confirm`, que não exibe
 // diálogo nenhum na WebView do Tauri (retorna falsy silenciosamente). É
@@ -25,23 +25,11 @@ export function ConfirmModal({
   onConfirm: () => void
   onClose: () => void
 }) {
-  // Confirmação sem formulário: clique-fora é seguro. `pending` trava o modal.
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside: true, busy: pending, enabled: open })
-  if (!open) return null
-
   const accent = tone === 'danger' ? '#dc2626' : '#2563eb'
   const iconColor = tone === 'danger' ? '#f87171' : '#60a5fa'
 
   return (
-    // Backdrop: clique-fora só fecha quando o alvo é o próprio backdrop
-    // (dispensa o stopPropagation no modal). onKeyDown captura Escape que
-    // borbulha de qualquer botão focado dentro do modal.
-    <div role="presentation"
-      onClick={(e) => { if (e.target === e.currentTarget) onBackdropClick() }}
-      onKeyDown={(e) => { if (e.key === 'Escape' && !pending) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, background: 'rgba(0,0,0,0.55)' }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title"
-        className="animate-modal-in" style={{ width: '100%', maxWidth: 448, borderRadius: 16, background: 'rgba(19,19,31,0.95)', backdropFilter: 'blur(20px) saturate(180%)', border: '1px solid rgba(255,255,255,0.08)' }}>
+    <AnimatedModal open={open} onClose={onClose} busy={pending} labelledBy="confirm-modal-title">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 20px 12px' }}>
           <h2 id="confirm-modal-title" style={{ fontSize: 16, fontWeight: 700, color: '#f3f4f6', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AlertTriangle size={16} color={iconColor} />{title}
@@ -61,7 +49,6 @@ export function ConfirmModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </AnimatedModal>
   )
 }

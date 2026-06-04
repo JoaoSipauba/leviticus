@@ -195,9 +195,9 @@ describe('EditSongModal', () => {
       expect(bumpLibraryMock).toHaveBeenCalled()
     })
 
-    // Modal starts closing (class animate-modal-out applied)
+    // Modal fecha (closeEditSong chamado)
     await waitFor(() => {
-      expect(document.querySelector('.animate-modal-out')).toBeTruthy()
+      expect(uiStoreState.closeEditSong).toHaveBeenCalled()
     })
   })
 

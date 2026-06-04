@@ -4,10 +4,10 @@ import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
 import { DatePicker } from './DatePicker.js'
 import { TimePicker } from './TimePicker.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 type Props = {
   open: boolean
@@ -173,26 +173,10 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
 
   // Issue #91: clique-fora só descarta se o form está vazio (nada digitado).
   const canDismissOutside = name.trim() === ''
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: saving, enabled: open })
-
-  if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.55)' }}
-      onClick={onBackdropClick}
-    >
-      <div
-        className="animate-modal-in w-full max-w-md rounded-2xl p-6"
-        style={{
-          background: 'rgba(19,19,31,0.95)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 20px 60px -10px rgba(0,0,0,0.7)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={canDismissOutside} busy={saving}>
+      <div className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-h2 text-heading">
             {editing ? 'Editar culto' : duplicating ? 'Duplicar culto' : 'Novo culto'}
@@ -266,6 +250,6 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           </div>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

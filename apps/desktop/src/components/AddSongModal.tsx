@@ -42,7 +42,7 @@ import { pauseAudio } from '../lib/audio.js'
 import { getDb } from '../lib/db.js'
 import { syncOrg } from '../lib/sync.js'
 import { useUIStore } from '../store/ui.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
 
 type GroupRow = { id: string; name: string }
 type Metadata = {
@@ -656,9 +656,6 @@ export function AddSongModal() {
   const enqueueDownload = useDownloadsStore((s) => s.enqueue)
   const cloudStatus = useIntegrationsStore((s) => s.status)
 
-  // animation state
-  const [closing, setClosing] = useState(false)
-
   // step
   const [step, setStep] = useState<Step>(1)
   // step 4: distingue música do YouTube (foi pra fila de download, ainda
@@ -710,8 +707,6 @@ export function AddSongModal() {
   const downloadStartRef = useRef(0)
   const realProgressRef = useRef(0)
 
-  const overlayRef = useRef<HTMLDivElement>(null)
-
   // preview
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const previewAbortRef = useRef(0)
@@ -749,7 +744,6 @@ export function AddSongModal() {
   // reset when modal opens; para o preview quando fecha por qualquer caminho
   useEffect(() => {
     if (showAddSong) {
-      setClosing(false)
       resetToStep1()
     } else {
       // Garante parada do áudio mesmo que triggerClose() não tenha sido chamado
@@ -812,7 +806,7 @@ export function AddSongModal() {
   function triggerClose() {
     if (step === 3) return
     stopPreview()
-    setClosing(true)
+    closeAddSong()
   }
 
   // Issue #91: Esc fecha sempre (exceto durante o download — step 3, tratado
@@ -820,16 +814,6 @@ export function AddSongModal() {
   // sem URL digitada, sem arquivo selecionado e sem query de busca.
   const canDismissOutside =
     step === 1 && url.trim() === '' && selectedFile === null && query.trim() === ''
-  const { onBackdropClick } = useModalDismiss({
-    onClose: triggerClose,
-    canDismissOutside,
-    busy: saving || step === 3,
-    enabled: showAddSong,
-  })
-
-  function handleAnimationEnd() {
-    if (closing) closeAddSong()
-  }
 
   function stopPreview() {
     previewAbortRef.current++
@@ -1537,47 +1521,10 @@ export function AddSongModal() {
     return 'Concluído'
   }
 
-  if (!showAddSong) return null
-
-  const modalClass = closing ? 'animate-modal-out' : 'animate-modal-in'
-
   // ─── render ─────────────────────────────────────────────────────────────
 
   return (
-    <div
-      ref={overlayRef}
-      onClick={(e) => {
-        if (e.target === overlayRef.current) onBackdropClick()
-      }}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 50,
-        background: closing ? 'rgba(0,0,0,0)' : 'rgba(3,7,18,0.7)',
-        backdropFilter: 'blur(12px) saturate(140%)',
-        WebkitBackdropFilter: 'blur(12px) saturate(140%)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        transition: 'background 0.25s',
-      }}
-    >
-      <div
-        className={modalClass}
-        onAnimationEnd={handleAnimationEnd}
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: 'rgba(19,19,31,0.7)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 20,
-          boxShadow: '0 20px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04)',
-          overflow: 'hidden',
-        }}
-      >
+    <AnimatedModal open={showAddSong} onClose={triggerClose} closeOnBackdrop={canDismissOutside} busy={saving || step === 3}>
         {/* Header */}
         <div
           style={{
@@ -2397,8 +2344,6 @@ export function AddSongModal() {
           )}
 
         </div>
-      </div>
-
-    </div>
+    </AnimatedModal>
   )
 }
