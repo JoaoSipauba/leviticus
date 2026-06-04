@@ -38,7 +38,7 @@ export function AnimatedModal({
     <div
       role="presentation"
       onClick={(e) => { if (e.target === e.currentTarget) onBackdropClick() }}
-      className="fixed inset-0 z-[50] animate-backdrop-in"
+      className="fixed inset-0 z-50 animate-backdrop-in"
       style={{
         position: 'fixed',
         inset: 0,
