@@ -283,3 +283,15 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
   outline: 2px solid #60a5fa;
   outline-offset: 2px;
 }
+
+/* Botão primitivo (ui/Button) — hover/active/focus padronizados */
+.lv-btn:not(:disabled):hover   { background: var(--lv-hover-bg) !important; }
+.lv-btn-md:not(:disabled):active,
+.lv-btn-lg:not(:disabled):active { transform: scale(0.98); }
+.lv-btn:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lv-btn:active { transform: none !important; }
+}
