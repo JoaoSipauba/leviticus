@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
 import { ConfirmModal } from '../../components/ConfirmModal.js'
 import { captureException } from '../../lib/observability.js'
+import { Button, IconButton } from '../../components/ui/index.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
 type DisplayRow = Row & { status: 'active' | 'expired' | 'revoked'; creatorName: string }
@@ -110,10 +111,9 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
         <div style={{ flex: 1, fontSize: 13, color: '#9ca3af' }}>Compartilhe um código pra novos membros entrarem na organização.</div>
-        <button onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, color: '#fff', background: '#2563eb', border: 'none', boxShadow: '0 4px 12px -4px rgba(37,99,235,0.5)', cursor: 'pointer' }}>
+        <Button variant="primary" size="sm" onClick={() => setShowModal(true)}>
           <Plus size={14} strokeWidth={2.5} />Novo código
-        </button>
+        </Button>
       </div>
 
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
@@ -127,10 +127,9 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontFamily: 'SF Mono, Menlo, monospace', fontSize: 13, fontWeight: 600, letterSpacing: '0.06em', padding: '4px 8px', borderRadius: 6, background: 'rgba(59,130,246,0.08)', color: '#f3f4f6', border: '1px solid rgba(59,130,246,0.18)' }}>{r.code}</span>
               {r.status === 'active' && (
-                <button onClick={() => handleCopy(r.code)}
-                  style={{ padding: 4, borderRadius: 4, color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }} title="Copiar">
+                <IconButton size="sm" label="Copiar código" onClick={() => handleCopy(r.code)} style={{ width: 26, height: 26, borderRadius: 4 }}>
                   <Copy size={14} />
-                </button>
+                </IconButton>
               )}
               {copiedCode === r.code && <span style={{ fontSize: 10, color: '#86efac', fontWeight: 600 }}>copiado</span>}
             </div>
@@ -154,11 +153,12 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
             </div>
 
             <div>
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setRevokeId(r.id)}
                 disabled={r.status !== 'active'}
-                style={{ padding: '6px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: r.status === 'active' ? 'pointer' : 'default', opacity: r.status === 'active' ? 1 : 0.4 }}
-              >Revogar</button>
+              >Revogar</Button>
             </div>
           </div>
         ))}

@@ -7,6 +7,7 @@ import { usePermissionsStore } from '../../store/permissions.js'
 import { TransferOwnershipModal } from '../../components/org/TransferOwnershipModal.js'
 import { DeleteOrgModal } from '../../components/org/DeleteOrgModal.js'
 import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
+import { Button } from '../../components/ui/index.js'
 
 export function OrgDanger({ orgId, active = false }: { orgId: string; active?: boolean }) {
   const navigate = useNavigate()
@@ -46,10 +47,9 @@ export function OrgDanger({ orgId, active = false }: { orgId: string; active?: b
               Passar o título de "Dono" pra outro membro. Você continua na organização sem papel — o novo dono decide o que te atribuir.
             </p>
           </div>
-          <button onClick={() => setOpenTransfer(true)}
-            style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>
+          <Button variant="secondary" size="sm" style={{ flexShrink: 0 }} onClick={() => setOpenTransfer(true)}>
             Transferir…
-          </button>
+          </Button>
         </div>
       )}
 
@@ -70,10 +70,9 @@ export function OrgDanger({ orgId, active = false }: { orgId: string; active?: b
               Você perderá acesso à biblioteca, ministérios e cultos. Pode voltar via um novo código de convite.
             </p>
           </div>
-          <button onClick={() => setOpenLeave(true)}
-            style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: 'pointer' }}>
+          <Button variant="secondary" size="sm" style={{ flexShrink: 0 }} onClick={() => setOpenLeave(true)}>
             Sair
-          </button>
+          </Button>
         </div>
       )}
 
@@ -85,10 +84,9 @@ export function OrgDanger({ orgId, active = false }: { orgId: string; active?: b
               Apaga permanentemente todas as músicas, ministérios, cultos e membros. <strong style={{ color: '#fca5a5' }}>Esta ação não pode ser desfeita.</strong>
             </p>
           </div>
-          <button onClick={() => setOpenDelete(true)}
-            style={{ flexShrink: 0, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(127,29,29,0.4)', border: '1px solid rgba(220,38,38,0.45)', color: '#fca5a5', cursor: 'pointer' }}>
+          <Button variant="danger" size="sm" style={{ flexShrink: 0 }} onClick={() => setOpenDelete(true)}>
             Deletar…
-          </button>
+          </Button>
         </div>
       )}
 
