@@ -51,6 +51,16 @@ input, textarea, [contenteditable="true"], [contenteditable=""] {
 .animate-modal-out      { animation: modal-out 0.18s ease forwards; }
 .animate-fade-slide-in  { animation: fade-slide-in 0.2s ease forwards; }
 .animate-pop-in         { animation: pop-in 0.35s cubic-bezier(0.34,1.5,0.64,1) forwards; }
+@keyframes backdrop-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes backdrop-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+.animate-backdrop-in  { animation: backdrop-fade-in 0.22s ease forwards; }
+.animate-backdrop-out { animation: backdrop-fade-out 0.18s ease forwards; }
 
 /* DonationBanner (lembrete mensal de doação) */
 @keyframes banner-in {
