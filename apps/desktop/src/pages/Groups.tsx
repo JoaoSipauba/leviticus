@@ -211,11 +211,12 @@ export function Groups() {
       {/* Modal */}
       {showModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) { setShowModal(false); setNewName(''); setError(null) } }}
         >
           <div
+            className="animate-modal-in"
             style={{
               background: '#13131f', border: '1px solid rgba(255,255,255,0.12)',
               borderRadius: 16, padding: 24, width: 300,

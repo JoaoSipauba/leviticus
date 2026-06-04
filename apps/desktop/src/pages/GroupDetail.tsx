@@ -249,7 +249,7 @@ export function GroupDetail() {
       {/* Edit modal */}
       {showEdit && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowEdit(false) }}
         >
@@ -338,7 +338,7 @@ export function GroupDetail() {
       {/* Delete confirmation modal */}
       {showDelete && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
+          className="fixed inset-0 flex items-center justify-center z-50 animate-backdrop-in"
           style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)' }}
           onClick={(e) => { if (e.target === e.currentTarget && !deleting) setShowDelete(false) }}
         >
