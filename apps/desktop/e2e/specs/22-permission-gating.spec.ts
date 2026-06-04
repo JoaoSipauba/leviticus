@@ -40,6 +40,15 @@ describe('Journey #22 — Permission gating (#120)', () => {
     // não é membro → RLS filtra tudo e nada aparece. Sair antes do clean.
     const currentUrl = await browser.getUrl()
     if (!/\/login/.test(currentUrl)) {
+      // Garante que estamos numa página com a Sidebar (que tem o botão "Sair").
+      // Se o app estiver em /org (sem Sidebar), navegar para /library primeiro.
+      if (!/\/(library|services|manage|ministries)/.test(currentUrl)) {
+        await browser.url('tauri://localhost/library')
+        await browser.waitUntil(
+          async () => !(await browser.$('#boot-splash').isExisting()),
+          { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear before logout' }
+        )
+      }
       const sairBtn = $('button=Sair')
       await sairBtn.waitForExist({ timeout: 10_000 })
       await sairBtn.click()

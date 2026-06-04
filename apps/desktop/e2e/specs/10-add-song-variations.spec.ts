@@ -138,9 +138,11 @@ describe('Journey B — Add song variations', () => {
 
     // Navigate to /library to trigger syncOrg so the ministry enters SQLite
     await browser.url('tauri://localhost/library')
+    // Aguardar o boot terminar: splash some apenas após syncOrg completar.
+    // Sem esse wait, o modal abre antes da página estar pronta.
     await browser.waitUntil(
-      async () => /\/library$/.test(await browser.getUrl()),
-      { timeout: 15_000 }
+      async () => !(await browser.$('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear after /library navigation' }
     )
 
     // Open modal fresh
