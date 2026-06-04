@@ -73,7 +73,10 @@ export function DownloadDock() {
           gap: 8,
           fontSize: 12,
           color: '#e5e7eb',
+          transition: 'background-color 0.15s cubic-bezier(0.4,0,0.2,1)',
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.06)')}
+        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
       >
         <Download
           size={13}
