@@ -6,7 +6,7 @@ import {
 import type { Song } from '@leviticus/core'
 import { Slider } from './Slider.js'
 import { Tooltip } from './Tooltip.js'
-import { IconButton } from './ui/index.js'
+import { Button, IconButton } from './ui/index.js'
 import { usePlayerStore } from '../store/player.js'
 import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -144,23 +144,27 @@ export function PlayerExpanded({
       {/* Topo: Fila + Fechar */}
       <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
         <Tooltip text="Fila (Q)">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setQueueOpen((v) => !v)}
-            className="flex items-center gap-2 px-3.5 h-9 rounded-lg cursor-pointer transition-colors"
+            aria-label="Fila (Q)"
+            aria-pressed={queueOpen}
             style={{
               background: queueOpen ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
               border: queueOpen ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.08)',
               color: queueOpen ? '#3b82f6' : '#9ca3af',
+              height: 36,
             }}
           >
             <ListMusic size={16} strokeWidth={2} />
-            <span className="text-sm font-medium">Fila</span>
+            <span>Fila</span>
             {playlistSongs.length > 0 && (
               <span className="text-xs font-mono ml-1 opacity-70">
                 {Math.max(currentIdx + 1, 1)}/{playlistSongs.length}
               </span>
             )}
-          </button>
+          </Button>
         </Tooltip>
 
         <Tooltip text="Fechar (Esc)">

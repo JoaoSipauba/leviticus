@@ -116,9 +116,7 @@ const defaultProps = {
   onVolumeChange,
 }
 
-// Queue button is labeled "Fila"; close button is an unlabeled X icon.
-// Play/pause, prev, next, repeat, autoplay, mute are icon-only buttons with no aria-label.
-// We locate them by className patterns that match the component's markup.
+// All interactive buttons use IconButton/Button with aria-label — queries use getByRole with name.
 
 // ─── tests ────────────────────────────────────────────────────────────────────
 
@@ -186,12 +184,10 @@ describe('PlayerExpanded', () => {
   it('botão Fechar (X) chama onClose', () => {
     playerState.currentSong = { ...baseSong }
     const localClose = vi.fn()
-    const { container } = render(<PlayerExpanded {...defaultProps} onClose={localClose} />)
-    // The close button is the second button in the top-right area (after Fila button)
-    // It has class "w-9 h-9" (the X icon button)
-    const closeBtn = container.querySelector<HTMLButtonElement>('button.w-9.h-9')
+    render(<PlayerExpanded {...defaultProps} onClose={localClose} />)
+    const closeBtn = screen.getByRole('button', { name: 'Fechar (Esc)' })
     expect(closeBtn).toBeTruthy()
-    fireEvent.click(closeBtn!)
+    fireEvent.click(closeBtn)
     expect(localClose).toHaveBeenCalledTimes(1)
   })
 
@@ -225,34 +221,29 @@ describe('PlayerExpanded', () => {
   it('botão autoplay chama onToggleAutoplay ao clicar', () => {
     playerState.currentSong = { ...baseSong }
     const localAutoplay = vi.fn()
-    const { container } = render(<PlayerExpanded {...defaultProps} onToggleAutoplay={localAutoplay} />)
-    // Autoplay button: w-10 h-10 rounded-lg, first in the transport row
-    const transportBtns = container.querySelectorAll<HTMLButtonElement>('button.w-10.h-10')
-    // First w-10 h-10 button is autoplay (before repeat)
-    expect(transportBtns.length).toBeGreaterThanOrEqual(2)
-    fireEvent.click(transportBtns[0])
+    render(<PlayerExpanded {...defaultProps} onToggleAutoplay={localAutoplay} />)
+    const autoplayBtn = screen.getByRole('button', { name: 'Reprodução automática (S)' })
+    expect(autoplayBtn).toBeTruthy()
+    fireEvent.click(autoplayBtn)
     expect(localAutoplay).toHaveBeenCalledTimes(1)
   })
 
   it('botão repeat chama onCycleRepeat ao clicar', () => {
     playerState.currentSong = { ...baseSong }
     const localRepeat = vi.fn()
-    const { container } = render(<PlayerExpanded {...defaultProps} onCycleRepeat={localRepeat} />)
-    // Repeat button: w-10 h-10, second in the transport row
-    const transportBtns = container.querySelectorAll<HTMLButtonElement>('button.w-10.h-10')
-    expect(transportBtns.length).toBeGreaterThanOrEqual(2)
-    fireEvent.click(transportBtns[1])
+    render(<PlayerExpanded {...defaultProps} onCycleRepeat={localRepeat} />)
+    // When repeat='none', label is 'Repetir (R)'
+    const repeatBtn = screen.getByRole('button', { name: 'Repetir (R)' })
+    expect(repeatBtn).toBeTruthy()
+    fireEvent.click(repeatBtn)
     expect(localRepeat).toHaveBeenCalledTimes(1)
   })
 
   it('botão mudo chama onMute ao clicar', () => {
     playerState.currentSong = { ...baseSong }
     const localMute = vi.fn()
-    const { container } = render(<PlayerExpanded {...defaultProps} onMute={localMute} />)
-    // Mute button: w-9 h-9 in the volume section (after transport)
-    // There are two w-9 h-9 buttons: close (top) and mute (bottom). Mute is the last one.
-    const allW9Btns = container.querySelectorAll<HTMLButtonElement>('button.w-9.h-9')
-    const muteBtn = allW9Btns[allW9Btns.length - 1]
+    render(<PlayerExpanded {...defaultProps} onMute={localMute} />)
+    const muteBtn = screen.getByRole('button', { name: 'Mudo (M)' })
     expect(muteBtn).toBeTruthy()
     fireEvent.click(muteBtn)
     expect(localMute).toHaveBeenCalledTimes(1)
@@ -301,11 +292,10 @@ describe('PlayerExpanded', () => {
     playerState.playlistSongs = [{ ...baseSong }, song2]
     playerState.nextInPlaylist = vi.fn().mockReturnValue(song2)
 
-    const { container } = render(<PlayerExpanded {...defaultProps} />)
-    // w-12 h-12 buttons: prev (ChevronLeft) and next (ChevronLeft rotated)
-    const navBtns = container.querySelectorAll<HTMLButtonElement>('button.w-12.h-12')
-    expect(navBtns.length).toBe(2)
-    fireEvent.click(navBtns[1]) // Next is second
+    render(<PlayerExpanded {...defaultProps} />)
+    const nextBtn = screen.getByRole('button', { name: 'Próxima (→)' })
+    expect(nextBtn).toBeTruthy()
+    fireEvent.click(nextBtn)
 
     await vi.waitFor(() => {
       expect(playerState.nextInPlaylist).toHaveBeenCalledTimes(1)
@@ -318,10 +308,10 @@ describe('PlayerExpanded', () => {
     playerState.playlistSongs = [song0, { ...baseSong }]
     playerState.previousInPlaylist = vi.fn().mockReturnValue(song0)
 
-    const { container } = render(<PlayerExpanded {...defaultProps} />)
-    const navBtns = container.querySelectorAll<HTMLButtonElement>('button.w-12.h-12')
-    expect(navBtns.length).toBe(2)
-    fireEvent.click(navBtns[0]) // Prev is first
+    render(<PlayerExpanded {...defaultProps} />)
+    const prevBtn = screen.getByRole('button', { name: 'Anterior (←)' })
+    expect(prevBtn).toBeTruthy()
+    fireEvent.click(prevBtn)
 
     await vi.waitFor(() => {
       expect(playerState.previousInPlaylist).toHaveBeenCalledTimes(1)
