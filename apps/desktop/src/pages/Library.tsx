@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Music, Plus } from 'lucide-react'
 import { Skeleton, SongCardSkeleton } from '../components/Skeleton.js'
+import { Button } from '../components/ui/index.js'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
@@ -175,23 +176,20 @@ export function Library() {
         {/* Adicionar só aparece no header quando há músicas — em biblioteca
             vazia a CTA grande é o caminho principal (não competir com ela). */}
         {!isLibraryEmpty && canAddSongs && (
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={online ? () => openAddSong() : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 font-semibold text-heading transition-colors bg-brand-active hover:bg-brand"
             style={{
               borderRadius: 10,
-              padding: '8px 14px', fontSize: 13,
-              border: 'none',
               boxShadow: online ? '0 8px 24px -8px rgba(37,99,235,0.5)' : 'none',
-              opacity: online ? 1 : 0.35,
-              cursor: online ? 'pointer' : 'not-allowed',
             }}
           >
             <Plus size={13} strokeWidth={2.5} />
             Adicionar
-          </button>
+          </Button>
         )}
       </div>
 
@@ -277,23 +275,20 @@ export function Library() {
               Adicione suas músicas para organizar setlists, ministérios e cultos da igreja.
             </p>
             {canAddSongs && (
-              <button
+              <Button
+                variant="primary"
+                size="lg"
                 onClick={online ? () => openAddSong() : undefined}
                 disabled={!online}
                 title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
-                className="inline-flex items-center gap-2 font-semibold text-white transition-colors bg-brand-active hover:bg-brand"
                 style={{
                   borderRadius: 12,
-                  padding: '12px 22px', fontSize: 14,
-                  border: 'none',
                   boxShadow: online ? '0 12px 32px -10px rgba(37,99,235,0.65)' : 'none',
-                  opacity: online ? 1 : 0.4,
-                  cursor: online ? 'pointer' : 'not-allowed',
                 }}
               >
                 <Plus size={16} strokeWidth={2.5} />
                 Adicionar primeira música
-              </button>
+              </Button>
             )}
             {!online && (
               <p className="mt-3 text-xs" style={{ color: '#9ca3af' }}>
@@ -321,13 +316,15 @@ export function Library() {
                   Nenhuma música encontrada
                 </p>
                 {hasAnyFilter && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => { setSearch(''); updateFilters(EMPTY_FILTERS) }}
-                    className="text-sm mt-1"
-                    style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    className="mt-1"
+                    style={{ color: '#3b82f6', padding: 0 }}
                   >
                     Limpar filtros
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
