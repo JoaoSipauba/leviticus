@@ -10,6 +10,7 @@ import { getDb } from '../lib/db.js'
 import { formatPlaylistTimeRange, formatTime } from '../lib/playlist.js'
 import { DONATION_URL } from '../lib/donation.js'
 import { captureException } from '../lib/observability.js'
+import { usePrefetchRoute } from '../lib/usePrefetchRoute.js'
 import { Logo } from './brand/Logo.js'
 import { LogoutChoiceModal } from './LogoutChoiceModal.js'
 import { toastSuccess, toastError } from '../store/toasts.js'
@@ -37,15 +38,16 @@ function detectCulto(rows: Playlist[]): ActiveCulto | null {
 // 3. Ministérios — gerenciamento ocasional
 // 4. Organização — config rara
 const links = [
-  { to: '/services', label: 'Cultos', Icon: CalendarDays },
-  { to: '/library', label: 'Biblioteca', Icon: Music },
-  { to: '/ministries', label: 'Ministérios', Icon: LayoutGrid },
-  { to: '/manage', label: 'Organização', Icon: Users },
+  { to: '/services', label: 'Cultos', Icon: CalendarDays, prefetchKey: 'playlists' },
+  { to: '/library', label: 'Biblioteca', Icon: Music, prefetchKey: 'library' },
+  { to: '/ministries', label: 'Ministérios', Icon: LayoutGrid, prefetchKey: 'groups' },
+  { to: '/manage', label: 'Organização', Icon: Users, prefetchKey: null },
 ]
 
 export function Sidebar() {
   const { signOut } = useAuthStore()
   const navigate = useNavigate()
+  const { prefetch } = usePrefetchRoute()
   const [orgName, setOrgName] = useState<string | null>(null)
   const [activeCulto, setActiveCulto] = useState<ActiveCulto | null>(null)
   const [appVersion, setAppVersion] = useState<string | null>(null)
@@ -104,10 +106,11 @@ export function Sidebar() {
         <Logo variant="lockup" size={18} />
       </div>
       <nav className="flex-1 px-2 space-y-0.5">
-        {links.map(({ to, label, Icon }) => (
+        {links.map(({ to, label, Icon, prefetchKey }) => (
           <NavLink
             key={to}
             to={to}
+            onMouseEnter={prefetchKey ? () => prefetch(prefetchKey) : undefined}
             className={({ isActive }) =>
               `flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 isActive ? '' : 'text-[#9ca3af] hover:text-white hover:bg-white/5'
