@@ -120,8 +120,13 @@ export function Sidebar() {
                     color: '#eff6ff',
                     borderLeft: '3px solid #3b82f6',
                     paddingLeft: '9px',
+                    transition: 'border-color 0.22s cubic-bezier(0.34,1.25,0.64,1), background 0.22s, color 0.22s',
                   }
-                : {}
+                : {
+                    borderLeft: '3px solid transparent',
+                    paddingLeft: '9px',
+                    transition: 'border-color 0.22s cubic-bezier(0.34,1.25,0.64,1), background 0.22s, color 0.22s',
+                  }
             }
           >
             <Icon size={16} strokeWidth={2} />
