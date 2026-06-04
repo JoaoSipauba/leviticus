@@ -5,7 +5,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { Skeleton } from '../components/Skeleton.js'
 import {
   CalendarDays, ChevronDown, ChevronRight, Clock, Plus,
-  Pencil, Copy, Trash2, MoreHorizontal, Loader2, AlertTriangle, Music,
+  Pencil, Copy, Trash2, MoreHorizontal, AlertTriangle, Music,
 } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
@@ -19,6 +19,7 @@ import {
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
+import { Button } from '../components/ui/index.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -142,20 +143,15 @@ export function Playlists() {
           <h1 className="text-h1 text-heading">Sua agenda</h1>
         </div>
         {canManagePlaylists && (
-        <button
-          onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
-          disabled={!online}
-          title={online ? undefined : 'Sem conexão'}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
-          style={{
-            background: '#2563eb',
-            color: '#fff',
-            opacity: online ? 1 : 0.35,
-            cursor: online ? 'pointer' : 'not-allowed',
-          }}
-        >
-          <Plus size={16} /> Novo culto
-        </button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={online ? () => { setEditing(null); setShowModal(true) } : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+          >
+            <Plus size={16} /> Novo culto
+          </Button>
         )}
       </div>
 
@@ -189,13 +185,16 @@ export function Playlists() {
 
       {past.length > 0 && (
         <section className="mb-8">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setShowPast((v) => !v)}
-            className="flex items-center gap-1.5 text-caps text-body hover:text-heading transition-colors mb-3 cursor-pointer"
+            className="text-caps text-body hover:text-heading mb-3"
+            style={{ padding: 0, background: 'none', borderRadius: 0 }}
           >
             {showPast ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
             PASSADOS · {past.length}
-          </button>
+          </Button>
           {showPast && (
             <div className="space-y-2" style={{ opacity: 0.55 }}>
               {past.map((s) => (
@@ -229,12 +228,9 @@ function EmptyState({ onCreate }: { onCreate?: () => void }) {
       <CalendarDays size={48} className="text-muted mb-4" strokeWidth={1.5} />
       <p className="text-body mb-1">Nenhum culto agendado.</p>
       {onCreate && (
-        <button onClick={onCreate}
-          className="text-brand font-semibold cursor-pointer"
-          style={{ background: 'none', border: 'none' }}
-        >
+        <Button variant="ghost" size="sm" onClick={onCreate}>
           Criar primeiro culto
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -431,16 +427,26 @@ function ActionsMenu({ onEdit, onDuplicate, onDelete, dark, online }: {
               </div>
               {error && <p className="text-xs text-red-400">{error}</p>}
               <div className="flex gap-2">
-                <button onClick={(e) => { e.stopPropagation(); setConfirming(false) }} disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-body bg-white/[0.05] border border-hairline cursor-pointer">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); setConfirming(false) }}
+                  disabled={deleting}
+                  fullWidth
+                >
                   Cancelar
-                </button>
-                <button onClick={doDelete} disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                  style={{ background: deleting ? 'rgba(185,28,28,0.5)' : '#dc2626' }}>
-                  {deleting ? <Loader2 size={12} className="animate-spin-smooth" /> : <Trash2 size={12} />}
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={deleting}
+                  onClick={doDelete}
+                  disabled={deleting}
+                  fullWidth
+                >
+                  {!deleting && <Trash2 size={12} />}
                   {deleting ? 'Excluindo…' : 'Excluir'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
