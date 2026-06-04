@@ -106,7 +106,11 @@ describe('PlaylistFormModal', () => {
           p_name: 'Culto de Domingo',
         }),
       )
-      expect(onSaved).toHaveBeenCalledWith(NEW_PLAYLIST_ID)
+      // onSaved recebe o id + dados otimistas (novo na v2)
+      expect(onSaved).toHaveBeenCalledWith(
+        NEW_PLAYLIST_ID,
+        expect.objectContaining({ id: NEW_PLAYLIST_ID, name: 'Culto de Domingo', org_id: ORG_ID }),
+      )
       expect(onClose).toHaveBeenCalled()
     })
   })

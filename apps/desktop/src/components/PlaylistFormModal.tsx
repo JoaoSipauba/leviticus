@@ -14,7 +14,7 @@ import { IconButton } from './ui/IconButton.js'
 type Props = {
   open: boolean
   onClose: () => void
-  onSaved: (playlistId: string) => void
+  onSaved: (playlistId: string, optimistic?: Pick<Playlist, 'id' | 'name' | 'scheduled_at' | 'scheduled_end' | 'org_id'>) => void
   // Quando preenchido, modal age em modo edição.
   editing?: Playlist | null
   // Quando preenchido, modal age em modo duplicação — nome e horário
@@ -124,6 +124,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
         }
         await syncOrg(orgId)
         onSaved(editing.id)
+        onClose()
       } else if (duplicating) {
         // Issue #155: cria culto novo + copia seções/músicas do original.
         const { data, error: e } = await supabase.rpc('duplicate_playlist', {
@@ -145,6 +146,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
         }
         await syncOrg(orgId)
         onSaved(r.id)
+        onClose()
       } else {
         const { data, error: e } = await supabase.rpc('create_playlist', {
           p_org_id: orgId,
@@ -162,10 +164,16 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           if (r?.error === 'invalid_time_range') throw new Error('A hora de término precisa ser depois da hora de início.')
           throw new Error('Não foi possível criar. Tente novamente.')
         }
+        onSaved(r.id, {
+          id: r.id,
+          name: name.trim(),
+          scheduled_at: start.toISOString(),
+          scheduled_end: end.toISOString(),
+          org_id: orgId,
+        })
+        onClose()
         await syncOrg(orgId)
-        onSaved(r.id)
       }
-      onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Algo deu errado.')
     } finally {

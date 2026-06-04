@@ -21,7 +21,7 @@ import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
 import { Button, CrossFade, EmptyState } from '../components/ui/index.js'
 
-type ServiceWithStatus = Playlist & { total: number; downloaded: number }
+type ServiceWithStatus = Playlist & { total: number; downloaded: number; optimistic?: boolean }
 
 const SERVICE_COLORS = [
   { bg: 'linear-gradient(135deg,#1e3a8a,#2563eb)', icon: '#93c5fd' },
@@ -160,7 +160,7 @@ export function Playlists() {
           <div className="space-y-3">
             {today.map((s) => (
               <TodayCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} optimistic={s.optimistic} />
             ))}
           </div>
         </section>
@@ -172,7 +172,7 @@ export function Playlists() {
           <div className="space-y-2">
             {upcoming.map((s) => (
               <CompactCard key={s.id} service={s} onClick={() => navigate(`/services/${s.id}`)}
-                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} />
+                onEdit={() => handleEdit(s)} onDuplicate={() => handleDuplicate(s)} onDelete={() => handleDelete(s)} online={online} canManage={canManagePlaylists} optimistic={s.optimistic} />
             ))}
           </div>
         </section>
@@ -216,7 +216,29 @@ export function Playlists() {
         editing={editing}
         duplicating={duplicating}
         onClose={() => { setShowModal(false); setEditing(null); setDuplicating(null) }}
-        onSaved={(newId) => {
+        onSaved={(newId, optimistic) => {
+          if (optimistic && !editing && !duplicating) {
+            // Inserção otimista: adiciona o culto provisório na lista local
+            // imediatamente, antes de syncOrg completar. opacity: 0.6 indica
+            // estado "carregando". loadServices() vai substituir com o real.
+            const now = new Date().toISOString()
+            const provisional: ServiceWithStatus = {
+              created_by: '',
+              created_at: now,
+              updated_at: now,
+              ...optimistic,
+              total: 0,
+              downloaded: 0,
+              optimistic: true,
+            }
+            setServices((prev) => {
+              // Remove qualquer provisional anterior com mesmo id (segurança)
+              const filtered = prev.filter((s) => s.id !== provisional.id)
+              return [...filtered, provisional].sort(
+                (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime()
+              )
+            })
+          }
           void loadServices()
           // Issue #155: ao duplicar, navega pro culto novo pra usuário ver
           // o resultado (seções/músicas copiadas) e ajustar se quiser.
@@ -228,7 +250,7 @@ export function Playlists() {
   )
 }
 
-function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
+function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage, optimistic }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
@@ -236,6 +258,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
+  optimistic?: boolean
 }) {
   const color = getServiceColor(service.id)
   const status = formatPlaylistStatus(service.scheduled_at, service.scheduled_end)
@@ -247,6 +270,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
         background: color.bg,
         boxShadow: '0 12px 32px -8px rgba(0,0,0,0.5)',
         border: '1px solid rgba(255,255,255,0.1)',
+        opacity: optimistic ? 0.6 : 1,
       }}
     >
       <div className="flex-shrink-0 w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.15)' }}>
@@ -275,7 +299,7 @@ function TodayCard({ service, onClick, onEdit, onDuplicate, onDelete, online, ca
   )
 }
 
-function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage }: {
+function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, canManage, optimistic }: {
   service: ServiceWithStatus
   onClick: () => void
   onEdit: () => void
@@ -283,6 +307,7 @@ function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, 
   onDelete: () => Promise<void>
   online: boolean
   canManage: boolean
+  optimistic?: boolean
 }) {
   const color = getServiceColor(service.id)
   return (
@@ -293,6 +318,7 @@ function CompactCard({ service, onClick, onEdit, onDuplicate, onDelete, online, 
         background: 'rgba(19,19,31,0.55)',
         backdropFilter: 'blur(20px) saturate(180%)',
         border: '1px solid rgba(255,255,255,0.06)',
+        opacity: optimistic ? 0.6 : 1,
       }}
     >
       <div className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center" style={{ background: color.bg }}>
