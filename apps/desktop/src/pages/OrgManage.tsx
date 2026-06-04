@@ -131,7 +131,7 @@ export function OrgManage() {
           inativas ficam com `hidden` (display:none); trocar de aba é só
           alternar visibilidade, sem desmontar/recarregar. Antes, cada troca
           remontava o componente e refazia o fetch (skeleton piscando). */}
-      <div className="flex-1 overflow-y-auto styled-scroll px-8 py-7 max-w-[1100px]">
+      <div className="flex-1 overflow-y-auto styled-scroll px-8 py-7 max-w-[1100px]" style={{ contain: 'layout' }}>
         {visibleTabs.map(({ key }) => {
           const isActive = effectiveTab === key
           return (

@@ -204,7 +204,7 @@ export function AddSongToPlaylistModal({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 pb-2 styled-scroll">
+        <div className="flex-1 overflow-y-auto px-2 pb-2 styled-scroll" style={{ contain: 'layout' }}>
           {filtered.length === 0 ? (
             <div className="text-center text-body text-sm py-8">
               {allSongs.length === 0 ? 'Sua biblioteca está vazia.' : 'Nenhuma música encontrada.'}

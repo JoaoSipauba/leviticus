@@ -257,7 +257,7 @@ export function Library() {
           />
         </div>
       ) : (
-        <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">
+        <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll" style={{ contain: 'layout' }}>
           {filtered.map((song, i) => (
             <div key={song.id} className="animate-fade-slide-in" style={{ animationDelay: `${Math.min(i, 10) * 30}ms` }}>
               <SongCard

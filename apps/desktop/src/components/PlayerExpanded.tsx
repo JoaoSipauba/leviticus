@@ -382,7 +382,7 @@ export function PlayerExpanded({
           </div>
 
           {/* Lista — ordem do culto, sem rearranjo. */}
-          <div className="flex-1 overflow-y-auto styled-scroll px-2 py-2 space-y-0.5">
+          <div className="flex-1 overflow-y-auto styled-scroll px-2 py-2 space-y-0.5" style={{ contain: 'layout' }}>
             {playlistSongs.map((song, idx) => {
               const isCurrent = song.id === currentSong.id
               return (

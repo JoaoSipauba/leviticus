@@ -228,7 +228,7 @@ export function GroupDetail() {
       </p>
 
       {/* Song list */}
-      <div className="space-y-2 flex-1 overflow-y-auto styled-scroll">
+      <div className="space-y-2 flex-1 overflow-y-auto styled-scroll" style={{ contain: 'layout' }}>
         {songs.length === 0 ? (
           <EmptyState
             icon={Users}
