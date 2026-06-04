@@ -19,7 +19,7 @@ import {
 import { PlaylistFormModal } from '../components/PlaylistFormModal.js'
 import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
-import { Button, CrossFade } from '../components/ui/index.js'
+import { Button, CrossFade, EmptyState } from '../components/ui/index.js'
 
 type ServiceWithStatus = Playlist & { total: number; downloaded: number }
 
@@ -179,7 +179,13 @@ export function Playlists() {
       )}
 
       {today.length === 0 && upcoming.length === 0 && (
-        <EmptyState onCreate={online && canManagePlaylists ? () => { setEditing(null); setShowModal(true) } : undefined} />
+        <EmptyState
+          icon={CalendarDays}
+          title="Nenhum culto agendado"
+          description="Crie o primeiro culto para organizar músicas e setlists."
+          actionLabel={online && canManagePlaylists ? 'Criar primeiro culto' : undefined}
+          onAction={online && canManagePlaylists ? () => { setEditing(null); setShowModal(true) } : undefined}
+        />
       )}
 
       {past.length > 0 && (
@@ -219,20 +225,6 @@ export function Playlists() {
       />
     </div>
     </CrossFade>
-  )
-}
-
-function EmptyState({ onCreate }: { onCreate?: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-16">
-      <CalendarDays size={48} className="text-muted mb-4" strokeWidth={1.5} />
-      <p className="text-body mb-1">Nenhum culto agendado.</p>
-      {onCreate && (
-        <Button variant="ghost" size="sm" onClick={onCreate}>
-          Criar primeiro culto
-        </Button>
-      )}
-    </div>
   )
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ChevronLeft, Pencil, Trash2, AlertTriangle, Check, Loader2, Music } from 'lucide-react'
+import { ChevronLeft, Pencil, Trash2, AlertTriangle, Check, Loader2, Users } from 'lucide-react'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { supabase } from '../lib/supabase.js'
@@ -11,7 +11,7 @@ import { useUIStore } from '../store/ui.js'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
-import { Button } from '../components/ui/index.js'
+import { Button, EmptyState } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -230,12 +230,11 @@ export function GroupDetail() {
       {/* Song list */}
       <div className="space-y-2 flex-1 overflow-y-auto styled-scroll">
         {songs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 gap-4">
-            <Music size={40} color="#4b5563" strokeWidth={1.5} />
-            <p className="font-semibold text-center" style={{ color: '#6b7280', fontSize: 15 }}>
-              Nenhuma música neste ministério ainda
-            </p>
-          </div>
+          <EmptyState
+            icon={Users}
+            title="Nenhuma música neste ministério ainda"
+            description="Adicione músicas ao ministério pela aba de edição de cada música na Biblioteca."
+          />
         ) : (
           songs.map((song) => (
             <SongCard

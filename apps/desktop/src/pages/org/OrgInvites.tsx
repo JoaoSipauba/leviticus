@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, Copy } from 'lucide-react'
+import { Plus, Copy, Link2 } from 'lucide-react'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { Skeleton, SongCardSkeleton } from '../../components/Skeleton.js'
 import { supabase } from '../../lib/supabase.js'
@@ -9,7 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { InviteCodeModal } from '../../components/org/InviteCodeModal.js'
 import { ConfirmModal } from '../../components/ConfirmModal.js'
 import { captureException } from '../../lib/observability.js'
-import { Button, CrossFade, IconButton } from '../../components/ui/index.js'
+import { Button, CrossFade, EmptyState, IconButton } from '../../components/ui/index.js'
 
 type Row = { id: string; code: string; label: string | null; expires_at: string | null; is_active: number; created_by: string }
 type DisplayRow = Row & { status: 'active' | 'expired' | 'revoked'; creatorName: string }
@@ -119,7 +119,11 @@ export function OrgInvites({ orgId, active = false }: { orgId: string; active?: 
 
       <div style={{ background: '#13131f', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12, overflow: 'hidden' }}>
         {rows.length === 0 ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af', fontSize: 13 }}>Nenhum código criado ainda.</div>
+          <EmptyState
+            icon={Link2}
+            title="Nenhum código criado ainda"
+            description="Gere um código de convite para compartilhar com novos membros."
+          />
         ) : rows.map((r, i) => (
           <div key={r.id}
             className="animate-fade-slide-in"

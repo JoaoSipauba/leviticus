@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Music, Plus } from 'lucide-react'
 import { Skeleton, SongCardSkeleton } from '../components/Skeleton.js'
-import { Button, CrossFade } from '../components/ui/index.js'
+import { Button, CrossFade, EmptyState } from '../components/ui/index.js'
 import type { Song } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
 import { SongCard } from '../components/SongCard.js'
@@ -247,54 +247,14 @@ export function Library() {
           centralizado com CTA proeminente — não compete com search bar
           (que sequer está renderizada aqui). Issue #34. */}
       {isLibraryEmpty ? (
-        <div className="flex-1 flex flex-col items-center justify-center px-4">
-          <div
-            className="w-full max-w-md text-center rounded-2xl"
-            style={{
-              padding: '40px 32px',
-              background: 'rgba(255,255,255,0.02)',
-              border: '1px solid rgba(255,255,255,0.06)',
-            }}
-          >
-            <div
-              className="mx-auto flex items-center justify-center mb-5"
-              style={{
-                width: 64, height: 64,
-                background: 'rgba(37,99,235,0.12)',
-                border: '1px solid rgba(37,99,235,0.25)',
-                borderRadius: 18,
-              }}
-            >
-              <Music size={28} color="#60a5fa" strokeWidth={1.8} />
-            </div>
-            <h3 className="font-semibold text-heading mb-2" style={{ fontSize: 19 }}>
-              Sua biblioteca está vazia
-            </h3>
-            <p className="text-body mb-6" style={{ fontSize: 13.5, lineHeight: 1.55 }}>
-              Adicione suas músicas para organizar setlists, ministérios e cultos da igreja.
-            </p>
-            {canAddSongs && (
-              <Button
-                variant="primary"
-                size="lg"
-                onClick={online ? () => openAddSong() : undefined}
-                disabled={!online}
-                title={online ? undefined : 'Sem conexão — conecte para adicionar a primeira música'}
-                style={{
-                  borderRadius: 12,
-                  boxShadow: online ? '0 12px 32px -10px rgba(37,99,235,0.65)' : 'none',
-                }}
-              >
-                <Plus size={16} strokeWidth={2.5} />
-                Adicionar primeira música
-              </Button>
-            )}
-            {!online && (
-              <p className="mt-3 text-xs" style={{ color: '#9ca3af' }}>
-                Sem conexão — conecte para adicionar.
-              </p>
-            )}
-          </div>
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <EmptyState
+            icon={Music}
+            title="Sua biblioteca está vazia"
+            description="Adicione suas músicas para organizar setlists, ministérios e cultos da igreja."
+            actionLabel={canAddSongs && online ? 'Adicionar primeira música' : undefined}
+            onAction={canAddSongs && online ? () => openAddSong() : undefined}
+          />
         </div>
       ) : (
         <div ref={listRef} className="space-y-2 flex-1 overflow-y-auto styled-scroll">
@@ -309,25 +269,13 @@ export function Library() {
           {/* Empty filtrado: tem música na biblioteca mas nada bate. Mantém
               o estado existente, opção de limpar filtros pra recuperar. */}
           {!hasFilteredResults && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4">
-              <Music size={40} color="#4b5563" strokeWidth={1.5} />
-              <div className="text-center">
-                <p className="font-semibold" style={{ color: '#6b7280', fontSize: 15 }}>
-                  Nenhuma música encontrada
-                </p>
-                {hasAnyFilter && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => { setSearch(''); updateFilters(EMPTY_FILTERS) }}
-                    className="mt-1"
-                    style={{ color: '#3b82f6', padding: 0 }}
-                  >
-                    Limpar filtros
-                  </Button>
-                )}
-              </div>
-            </div>
+            <EmptyState
+              icon={Music}
+              title="Nenhuma música encontrada"
+              description={hasAnyFilter ? 'Nenhuma música bate com os filtros ativos.' : undefined}
+              actionLabel={hasAnyFilter ? 'Limpar filtros' : undefined}
+              onAction={hasAnyFilter ? () => { setSearch(''); updateFilters(EMPTY_FILTERS) } : undefined}
+            />
           )}
         </div>
       )}
