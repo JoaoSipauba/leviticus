@@ -11,6 +11,7 @@ import { useUIStore } from '../store/ui.js'
 import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
+import { Button } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -146,12 +147,13 @@ export function GroupDetail() {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-4">
         <p style={{ color: '#6b7280' }}>Ministério não encontrado.</p>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate('/ministries')}
-          style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', fontSize: 14 }}
         >
           Voltar
-        </button>
+        </Button>
       </div>
     )
   }
@@ -194,38 +196,26 @@ export function GroupDetail() {
         </div>
         {canManageGroups && (
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={online ? () => { setEditName(group.name); setEditColorIdx(group.color_index); setShowEdit(true) } : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 transition-colors hover:bg-white/10 disabled:cursor-not-allowed"
-            style={{
-              background: 'rgba(255,255,255,0.05)',
-              border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#9ca3af', cursor: online ? 'pointer' : 'not-allowed',
-              opacity: online ? 1 : 0.5,
-            }}
           >
             <Pencil size={13} strokeWidth={2} />
             Editar
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
             onClick={online ? () => setShowDelete(true) : undefined}
             disabled={!online}
             title={online ? undefined : 'Sem conexão'}
-            className="flex items-center gap-1.5 transition-colors hover:bg-red-950/60 disabled:cursor-not-allowed"
-            style={{
-              background: 'rgba(239,68,68,0.08)',
-              border: '1px solid rgba(239,68,68,0.18)',
-              borderRadius: 9, padding: '7px 12px',
-              fontSize: 13, color: '#f87171', cursor: online ? 'pointer' : 'not-allowed',
-              opacity: online ? 1 : 0.5,
-            }}
           >
             <Trash2 size={13} strokeWidth={2} />
             Excluir
-          </button>
+          </Button>
         </div>
         )}
       </div>
@@ -323,31 +313,24 @@ export function GroupDetail() {
             )}
 
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 onClick={() => { setShowEdit(false); setEditError(null) }}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: 'pointer',
-                }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleSaveEdit}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                loading={saving}
                 disabled={saving || !editName.trim()}
-                style={{
-                  flex: 1,
-                  background: (saving || !editName.trim()) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: (saving || !editName.trim()) ? 'default' : 'pointer',
-                }}
+                onClick={handleSaveEdit}
               >
                 {saving ? 'Salvando…' : 'Salvar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -392,32 +375,25 @@ export function GroupDetail() {
             )}
 
             <div className="flex gap-2">
-              <button
-                onClick={() => { setShowDelete(false); setDeleteError(null) }}
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 disabled={deleting}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: deleting ? 'default' : 'pointer',
-                }}
+                onClick={() => { setShowDelete(false); setDeleteError(null) }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                fullWidth
+                loading={deleting}
                 disabled={deleting}
-                style={{
-                  flex: 1,
-                  background: deleting ? 'rgba(239,68,68,0.4)' : '#dc2626',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: deleting ? 'default' : 'pointer',
-                }}
+                onClick={handleDelete}
               >
                 {deleting ? 'Excluindo…' : 'Excluir'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

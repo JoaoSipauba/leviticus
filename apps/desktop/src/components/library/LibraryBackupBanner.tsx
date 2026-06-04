@@ -6,6 +6,7 @@ import {
   type InitialSyncProgress,
 } from '../../lib/cloud-storage/sync-worker.js'
 import { useOnlineStatus } from '../../lib/useOnlineStatus.js'
+import { Button } from '../ui/index.js'
 
 type Props = {
   // Quantidade de músicas cuja PRIMEIRA tentativa de upload falhou
@@ -87,13 +88,14 @@ export function LibraryBackupBanner({ failedCount, hasLocalOnlySongs, status, on
             Sem backup configurado — músicas salvas apenas no dispositivo
           </div>
         </div>
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onConfigure}
-          className="rounded-md px-3 py-1.5 text-[12px] font-semibold flex-shrink-0"
-          style={{ background: '#a8a29e', color: '#09090b', border: 'none', cursor: 'pointer' }}
+          style={{ flexShrink: 0, background: '#a8a29e', color: '#09090b', ['--lv-hover-bg' as string]: '#9ca3af' }}
         >
           Configurar
-        </button>
+        </Button>
       </div>
     )
   }
@@ -130,18 +132,20 @@ export function LibraryBackupBanner({ failedCount, hasLocalOnlySongs, status, on
           {message}
         </div>
       </div>
-      <button
+      <Button
+        variant={critical ? 'danger' : 'primary'}
+        size="sm"
         onClick={onConfigure}
-        className="rounded-md px-3 py-1.5 text-[12px] font-semibold flex-shrink-0"
         style={{
-          background: critical ? '#ef4444' : '#a78bfa',
+          flexShrink: 0,
+          ...(critical
+            ? {}
+            : { background: '#a78bfa', ['--lv-hover-bg' as string]: '#8b5cf6' }),
           color: '#09090b',
-          border: 'none',
-          cursor: 'pointer',
         }}
       >
         {buttonLabel}
-      </button>
+      </Button>
     </div>
   )
 }

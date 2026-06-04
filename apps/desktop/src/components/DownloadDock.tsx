@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ChevronUp, ChevronDown, Download, AlertCircle, RotateCcw, X } from 'lucide-react'
 import { useDownloadsStore, selectAggregate } from '../store/downloads.js'
+import { IconButton } from './ui/index.js'
 
 // Issue #71: dock global no rodapé exibindo agregado de downloads em
 // background. Renderizado em Layout.tsx, fica sempre acima do PlayerMini.
@@ -166,23 +167,24 @@ function DockItem({ entry }: { entry: ReturnType<typeof selectAggregate>['entrie
         {entry.state === 'queued' && <span style={{ color: '#fbbf24' }}>na fila</span>}
         {entry.state === 'retrying' && <span style={{ color: '#fbbf24' }}>retry {entry.retryCount}/3</span>}
         {entry.state === 'error' && (
-          <button
-            type="button"
+          <IconButton
+            label="Tentar de novo"
             onClick={() => retry(entry.songId)}
-            title="Tentar de novo"
-            style={{ background: 'transparent', border: 'none', color: '#f87171', cursor: 'pointer', padding: 2 }}
+            size="sm"
+            variant="danger"
+            style={{ color: '#f87171', width: 20, height: 20, borderRadius: 4 }}
           >
             <RotateCcw size={12} />
-          </button>
+          </IconButton>
         )}
-        <button
-          type="button"
+        <IconButton
+          label="Cancelar"
           onClick={() => cancel(entry.songId)}
-          title="Cancelar"
-          style={{ background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: 2 }}
+          size="sm"
+          style={{ color: '#9ca3af', width: 20, height: 20, borderRadius: 4 }}
         >
           <X size={12} />
-        </button>
+        </IconButton>
       </div>
 
       {(entry.state === 'error' || entry.state === 'retrying') && entry.error && (

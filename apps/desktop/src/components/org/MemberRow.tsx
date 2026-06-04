@@ -1,4 +1,5 @@
 import { MoreVertical } from 'lucide-react'
+import { IconButton } from '../ui/index.js'
 
 export type RoleTagKind = 'owner' | 'custom' | 'none'
 
@@ -97,10 +98,14 @@ export function MemberRow({
 
       <div>
         {showMenu ? (
-          <button
+          <IconButton
+            label="Mais ações"
             onClick={(e) => onMenuClick(e.currentTarget)}
-            style={{ padding: 4, borderRadius: 4, color: '#9ca3af', background: 'transparent', border: 'none', cursor: 'pointer' }}
-          ><MoreVertical size={14} strokeWidth={2} /></button>
+            size="sm"
+            style={{ width: 26, height: 26, borderRadius: 4 }}
+          >
+            <MoreVertical size={14} strokeWidth={2} />
+          </IconButton>
         ) : null}
       </div>
     </div>

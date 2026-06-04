@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
 import { TimezoneCombobox } from '../../components/TimezoneCombobox.js'
+import { Button } from '../../components/ui/index.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -166,16 +167,23 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
 
         {canEdit && (
           <div className="flex gap-2 justify-end pt-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setForm(original)}
               disabled={!dirty || saving}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: (!dirty || saving) ? 'default' : 'pointer', opacity: (!dirty || saving) ? 0.4 : 1 }}
-            >Cancelar</button>
-            <button
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleSave}
+              loading={saving}
               disabled={!dirty || saving}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: '#2563eb', border: 'none', color: '#fff', cursor: (!dirty || saving) ? 'default' : 'pointer', opacity: (!dirty || saving) ? 0.4 : 1 }}
-            >{saving ? 'Salvando…' : 'Salvar alterações'}</button>
+            >
+              {saving ? 'Salvando…' : 'Salvar alterações'}
+            </Button>
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import { Cloud, CheckSquare, AlertTriangle } from 'lucide-react'
+import { Button } from '../ui/index.js'
 
 type Props = {
   onConnect: () => void
@@ -59,14 +60,15 @@ export function ConnectDriveCard({ onConnect, canConnect, connecting }: Props) {
               Você não tem permissão pra gerenciar integrações. Peça pra um admin conectar.
             </div>
           )}
-          <button
+          <Button
+            variant="primary"
+            size="sm"
             onClick={onConnect}
             disabled={!canConnect || connecting}
-            className="rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: '#a78bfa', color: '#09090b' }}
+            style={{ background: '#a78bfa', color: '#09090b', ['--lv-hover-bg' as string]: '#8b5cf6' }}
           >
             Conectar Google Drive
-          </button>
+          </Button>
         </>
       )}
     </div>

@@ -9,6 +9,7 @@ import { captureException } from '../lib/observability.js'
 import { permissionErrorMessage } from '../lib/permission-error.js'
 import { usePermission } from '../store/permissions.js'
 import { Skeleton } from '../components/Skeleton.js'
+import { Button } from '../components/ui/index.js'
 
 type GroupRow = { id: string; name: string; org_id: string; color_index: number }
 
@@ -132,25 +133,18 @@ export function Groups() {
           </p>
         </div>
         {canManageGroups && (
-        <button
-          onClick={online ? () => setShowModal(true) : undefined}
-          disabled={!online}
-          title={online ? undefined : 'Sem conexão'}
-          className="flex items-center gap-1.5 font-semibold text-white disabled:cursor-not-allowed"
-          style={{
-            background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
-            color: online ? '#fff' : '#9ca3af',
-            border: 'none',
-            borderRadius: 10, padding: '8px 14px',
-            fontSize: 13, cursor: online ? 'pointer' : 'not-allowed',
-            opacity: online ? 1 : 0.6,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          Novo
-        </button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={online ? () => setShowModal(true) : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Novo
+          </Button>
         )}
       </div>
 
@@ -163,13 +157,14 @@ export function Groups() {
               Nenhum ministério ainda
             </p>
             {canManageGroups && (
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setShowModal(true)}
-                className="text-sm mt-1"
-                style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+                className="mt-1"
               >
                 Criar primeiro ministério
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -271,32 +266,25 @@ export function Groups() {
             {error && <p className="text-sm mb-3" style={{ color: '#ef4444' }}>{error}</p>}
 
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
+                fullWidth
                 onClick={() => { setShowModal(false); setNewName(''); setError(null) }}
-                style={{
-                  flex: 1, background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#9ca3af', cursor: 'pointer',
-                }}
               >
                 Cancelar
-              </button>
-              <button
-                onClick={handleCreate}
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                fullWidth
+                loading={saving}
                 disabled={saving || !newName.trim() || !online}
                 title={online ? undefined : 'Sem conexão'}
-                style={{
-                  flex: 1,
-                  background: (saving || !newName.trim() || !online) ? 'rgba(37,99,235,0.4)' : '#2563eb',
-                  border: 'none', borderRadius: 10, padding: 9,
-                  fontSize: 13, fontWeight: 600,
-                  color: '#fff', cursor: (saving || !newName.trim()) ? 'default' : 'pointer',
-                }}
+                onClick={handleCreate}
               >
                 {saving ? 'Criando…' : 'Criar'}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

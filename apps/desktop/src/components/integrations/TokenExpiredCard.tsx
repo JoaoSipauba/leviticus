@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
+import { Button } from '../ui/index.js'
 
 type Props = {
   email: string
@@ -29,14 +30,15 @@ export function TokenExpiredCard({ email, canConnect, onReconnect }: Props) {
       <p className="text-[12px] leading-relaxed mb-3" style={{ color: 'var(--text-muted, #a1a1aa)' }}>
         Faça o login no Google de novo pra retomar uploads. Os arquivos que estão no Drive continuam acessíveis depois da reconexão.
       </p>
-      <button
+      <Button
+        variant="primary"
+        size="sm"
         onClick={onReconnect}
         disabled={!canConnect}
-        className="rounded-lg px-4 py-2 text-[13px] font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        style={{ background: '#a78bfa', color: '#09090b', border: 'none' }}
+        style={{ background: '#a78bfa', ['--lv-hover-bg' as string]: '#8b5cf6' }}
       >
         Reconectar Google Drive
-      </button>
+      </Button>
     </div>
   )
 }
