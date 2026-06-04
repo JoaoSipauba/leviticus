@@ -204,6 +204,24 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
   )
 
   return (
+    <div>
+      {!showNew ? (
+        <Button variant="ghost" size="sm" onClick={() => setShowNew(true)} style={{ justifyContent: 'flex-start', color: '#3b82f6', marginBottom: 8 }}>
+          <Plus size={13} strokeWidth={2.5} />Novo papel
+        </Button>
+      ) : (
+        <div style={{ padding: 8, marginBottom: 8, background: '#13131f', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 12 }}>
+          <input value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus
+            placeholder="Nome do papel"
+            onKeyDown={(e) => { if (e.key === 'Enter') void createRole(); if (e.key === 'Escape') { setShowNew(false); setNewName('') } }}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '8px 12px', fontSize: 13, color: '#f3f4f6', outline: 'none' }} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <Button variant="secondary" size="sm" fullWidth onClick={() => { setShowNew(false); setNewName('') }}>Cancelar</Button>
+            <Button variant="primary" size="sm" fullWidth onClick={() => void createRole()} disabled={!newName.trim()}>Criar</Button>
+          </div>
+        </div>
+      )}
+
     <CrossFade loading={loading} skeleton={rolesSkeleton}>
     <div>
       {error && <p style={{ fontSize: 13, color: '#f87171', marginBottom: 12 }}>{error}</p>}
@@ -228,22 +246,6 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
               </div>
             )
           })}
-          {showNew ? (
-            <div style={{ padding: 8 }}>
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} autoFocus
-                placeholder="Nome do papel"
-                onKeyDown={(e) => { if (e.key === 'Enter') void createRole(); if (e.key === 'Escape') { setShowNew(false); setNewName('') } }}
-                style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, padding: '8px 12px', fontSize: 13, color: '#f3f4f6', outline: 'none' }} />
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <Button variant="secondary" size="sm" fullWidth onClick={() => { setShowNew(false); setNewName('') }}>Cancelar</Button>
-                <Button variant="primary" size="sm" fullWidth onClick={() => void createRole()} disabled={!newName.trim()}>Criar</Button>
-              </div>
-            </div>
-          ) : (
-            <Button variant="ghost" size="sm" fullWidth onClick={() => setShowNew(true)} style={{ justifyContent: 'flex-start', color: '#3b82f6' }}>
-              <Plus size={13} strokeWidth={2.5} />Novo papel
-            </Button>
-          )}
         </div>
 
         {/* Right: permission detail */}
@@ -323,5 +325,6 @@ export function OrgRoles({ orgId, active = false }: { orgId: string; active?: bo
       />
     </div>
     </CrossFade>
+    </div>
   )
 }

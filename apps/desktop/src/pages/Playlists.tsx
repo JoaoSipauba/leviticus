@@ -134,7 +134,6 @@ export function Playlists() {
   )
 
   return (
-    <CrossFade loading={loading} skeleton={playlistsSkeleton}>
     <div className="px-8 pt-6 max-w-[1100px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -154,6 +153,8 @@ export function Playlists() {
         )}
       </div>
 
+    <CrossFade loading={loading} skeleton={playlistsSkeleton}>
+    <div>
       {today.length > 0 && (
         <section className="mb-8">
           <h2 className="text-caps text-body mb-3">HOJE</h2>
@@ -247,6 +248,7 @@ export function Playlists() {
       />
     </div>
     </CrossFade>
+    </div>
   )
 }
 
