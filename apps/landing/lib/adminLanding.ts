@@ -29,19 +29,35 @@ export type LandingData = {
   waitlistNewDelta: number | null
 }
 
-const VERCEL_BASE = 'https://vercel.com/api/web-analytics/timeseries'
+// Endpoints internos (não-documentados) do dashboard de Web Analytics da Vercel.
+// A Vercel deprecou /api/web-analytics/timeseries (hoje devolve 404) e migrou
+// pra /api/web-analytics/v2/{timeseries,stats}. Descoberto inspecionando a
+// chamada XHR real do painel (jun/2026):
+//   - timeseries → série do gráfico: { data: { groups: { all: [{key,total,devices}] } } }
+//   - stats?type=X → tabela de groupBy (referrer/country/path/route):
+//       { data: [{key,total,devices}] }  (formato plano, diferente do timeseries)
+// `type` é obrigatório em /stats; sem ele a API devolve 400.
+const VERCEL_BASE = 'https://vercel.com/api/web-analytics/v2'
 
-async function vercelFetch(period: Period, groupBy?: string): Promise<unknown | null> {
+async function vercelFetch(
+  endpoint: 'timeseries' | 'stats',
+  period: Period,
+  type?: string,
+): Promise<unknown | null> {
   const token = process.env.VERCEL_ANALYTICS_TOKEN
   const teamId = process.env.VERCEL_TEAM_ID
   const projectId = process.env.VERCEL_PROJECT_ID
   if (!token || !teamId || !projectId) return null
+  // Sem `granularity`: o v2/timeseries infere a resolução pelo range (horária
+  // pra janelas de ~1 dia, diária pra 7d/30d/90d) — a agregação abaixo lida
+  // com os dois formatos de key.
   const params = new URLSearchParams({
-    projectId, teamId, from: period.from, to: period.to, filter: '{}', granularity: 'day',
+    projectId, teamId, from: period.from, to: period.to,
+    filter: '{}', environment: 'production', limit: '250',
   })
-  if (groupBy) params.set('groupBy', groupBy)
+  if (type) params.set('type', type)
   try {
-    const res = await fetch(`${VERCEL_BASE}?${params}`, {
+    const res = await fetch(`${VERCEL_BASE}/${endpoint}?${params}`, {
       headers: { Authorization: `Bearer ${token}` },
       next: { revalidate: 600 },
     })
@@ -113,11 +129,14 @@ function aggregateVercelMain(
   }
 }
 
-function aggregateGroups(json: unknown, prettify: (k: string) => string): NameCount[] {
-  const groups = vercelGroups(json)
-  if (!groups) return []
-  return Object.entries(groups)
-    .map(([k, rows]) => ({ name: prettify(k), count: rows.reduce((s, r) => s + (r.total ?? 0), 0) }))
+// /v2/stats?type=X devolve um array plano [{key,total,devices}] — uma linha por
+// valor da dimensão (cada referrer, cada país). Diferente do timeseries, que
+// aninha em data.groups.all.
+function aggregateStats(json: unknown, prettify: (k: string) => string): NameCount[] {
+  const rows = (json as { data?: VercelGroupRow[] })?.data
+  if (!Array.isArray(rows)) return []
+  return rows
+    .map((r) => ({ name: prettify(r.key ?? ''), count: r.total ?? 0 }))
     .filter((g) => g.count > 0)
     .sort((a, b) => b.count - a.count)
     .slice(0, 8)
@@ -134,10 +153,10 @@ export async function getAdminLanding(period: Period, prev: Period): Promise<Lan
     prevMainJson,
     dlCurr, dlPrev, waitlistAll, waitlistPrev,
   ] = await Promise.all([
-    vercelFetch(period),
-    vercelFetch(period, 'referrer'),
-    vercelFetch(period, 'country'),
-    vercelFetch(prev),
+    vercelFetch('timeseries', period),
+    vercelFetch('stats', period, 'referrer'),
+    vercelFetch('stats', period, 'country'),
+    vercelFetch('timeseries', prev),
     supabaseAdmin.from('landing_downloads').select('platform, occurred_at')
       .gte('occurred_at', period.from).lte('occurred_at', period.to),
     supabaseAdmin.from('landing_downloads').select('platform, occurred_at')
@@ -182,8 +201,8 @@ export async function getAdminLanding(period: Period, prev: Period): Promise<Lan
   const granularity = period.preset === 'today' ? 'hour' : 'day'
   const curr = aggregateVercelMain(mainJson, granularity)
   const prevAgg = prevMainJson ? aggregateVercelMain(prevMainJson, granularity) : { visitors: 0, pageviews: 0, bounceRate: null, timeseries: [] }
-  const referrers = aggregateGroups(refJson, (k) => (k === '' ? 'Direto' : k))
-  const countries = aggregateGroups(countryJson, (k) =>
+  const referrers = aggregateStats(refJson, (k) => (k === '' ? 'Direto' : k))
+  const countries = aggregateStats(countryJson, (k) =>
     k === '' ? 'Desconhecido' : (COUNTRY_NAMES[k.toUpperCase()] ?? k.toUpperCase()),
   )
 
