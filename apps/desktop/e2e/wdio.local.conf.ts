@@ -112,27 +112,4 @@ export const config: WebdriverIO.Config = {
       console.error(`Screenshot saved: ${filePath}`)
     }
   },
-
-  // Após cada navegação explícita (browser.url()), aguarda o boot-splash sumir.
-  //
-  // No Tauri/WKWebView, todo browser.url() é um full page reload que dispara
-  // auth + syncOrg e mostra o #boot-splash. Sem este wait, specs que navegam
-  // pra uma nova rota e imediatamente buscam elementos encontram a UI coberta
-  // pelo splash (ou CrossFade em loading=true), causando flakiness na suíte
-  // paralela que não ocorre em isolado (onde o boot termina antes do timeout).
-  afterCommand: async (commandName: string) => {
-    if (commandName === 'navigateTo') {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (browser as any).waitUntil(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          async () => !await (browser as any).$('#boot-splash').isExisting(),
-          { timeout: 60_000 }
-        )
-      } catch {
-        // Silencioso: algumas navegações não mostram o splash (ex: SPA routes
-        // que o React Router intercepta sem full reload). Não propagar erro.
-      }
-    }
-  },
 }
