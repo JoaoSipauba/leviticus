@@ -5,10 +5,12 @@ import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
 import { usePermission } from '../store/permissions.js'
 import { useUIStore } from '../store/ui.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -140,26 +142,16 @@ export function AddSongToPlaylistModal({
 
   // Issue #91: clique-fora só descarta sem busca digitada e sem adição em curso.
   const canDismissOutside = query.trim() === '' && adding === null
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: adding !== null, enabled: open })
-
-  if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={canDismissOutside} busy={adding !== null} size="lg">
       <div
-        className="animate-modal-in w-full max-w-lg rounded-2xl flex flex-col"
-        style={{
-          background: 'rgba(19,19,31,0.95)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 20px 60px -10px rgba(0,0,0,0.7)',
-          maxHeight: 'min(80vh, 640px)',
-        }}
-        onClick={(e) => e.stopPropagation()}
+        className="flex flex-col"
+        style={{ maxHeight: 'min(80vh, 640px)' }}
       >
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <h2 className="text-h2 text-heading">Adicionar música</h2>
-          <button onClick={onClose} className="text-body hover:text-heading transition-colors"><X size={18} /></button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
 
         {/* Segmented control: escolher entre a biblioteca existente ou
@@ -212,7 +204,7 @@ export function AddSongToPlaylistModal({
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-2 pb-2 styled-scroll">
+        <div className="flex-1 overflow-y-auto px-2 pb-2 styled-scroll" style={{ contain: 'layout' }}>
           {filtered.length === 0 ? (
             <div className="text-center text-body text-sm py-8">
               {allSongs.length === 0 ? 'Sua biblioteca está vazia.' : 'Nenhuma música encontrada.'}
@@ -271,15 +263,11 @@ export function AddSongToPlaylistModal({
         {error && <p className="px-5 pb-3 text-sm text-red-400">{error}</p>}
 
         <div className="px-5 pb-5 pt-2 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg font-semibold text-sm cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'var(--tw-color-body, #9ca3af)' }}
-          >
+          <Button onClick={onClose} variant="secondary">
             Concluído
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

@@ -10,6 +10,7 @@ import {
 } from '../lib/donation.js'
 import { captureException } from '../lib/observability.js'
 import { toastError } from '../store/toasts.js'
+import { Button, IconButton } from './ui/index.js'
 
 export function DonationBanner() {
   const [visible, setVisible] = useState(false)
@@ -66,22 +67,21 @@ export function DonationBanner() {
             Se ele tem abençoado sua equipe, considere apoiar o projeto este mês.
           </p>
         </div>
-        <button
+        <Button
           onClick={handleDonate}
-          className="flex-shrink-0 text-[11.5px] font-semibold text-white rounded-[7px] px-3.5 py-1.5 transition-colors"
-          style={{ background: '#db2777' }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#be185d' }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = '#db2777' }}
+          size="sm"
+          style={{ flexShrink: 0, background: '#db2777', borderRadius: 7, fontSize: 11.5, padding: '6px 14px', ['--lv-hover-bg' as string]: '#be185d' }}
         >
           Apoiar
-        </button>
-        <button
+        </Button>
+        <IconButton
+          label="Dispensar"
           onClick={markHandled}
-          aria-label="Dispensar"
-          className="flex-shrink-0 text-[#6b7280] hover:text-[#e5e7eb] transition-colors p-1"
+          size="sm"
+          style={{ flexShrink: 0, color: '#6b7280', ['--lv-hover-bg' as string]: 'transparent' }}
         >
           <X size={15} />
-        </button>
+        </IconButton>
       </div>
     </div>
   )

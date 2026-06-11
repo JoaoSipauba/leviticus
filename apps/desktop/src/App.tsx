@@ -18,6 +18,7 @@ import { getDb } from './lib/db.js'
 import { listenForDeepLinks } from './lib/deep-link.js'
 import { useIntegrationsStore } from './store/integrations.js'
 import { usePermissionsStore } from './store/permissions.js'
+import { Button } from './components/ui/index.js'
 import { startSyncWorker, stopSyncWorker, startInitialSync } from './lib/cloud-storage/sync-worker.js'
 import { backfillMissingDurations, reconcileAllDurations } from './lib/audio-meta.js'
 import { flushAnalyticsQueue, trackEvent } from './lib/analytics.js'
@@ -327,16 +328,14 @@ export function App() {
               O app encontrou um erro inesperado. Já reportamos pra equipe.
               Você pode tentar recarregar ou fechar e abrir o app de novo.
             </p>
-            <button
+            <Button
+              variant="primary"
+              size="md"
               onClick={() => { resetError(); window.location.reload() }}
-              style={{
-                background: '#a78bfa', color: '#09090b', border: 'none',
-                padding: '10px 20px', borderRadius: 8, fontSize: 14,
-                fontWeight: 600, cursor: 'pointer',
-              }}
+              style={{ background: '#a78bfa', color: '#09090b', ['--lv-hover-bg' as string]: '#8b5cf6' }}
             >
               Recarregar app
-            </button>
+            </Button>
           </div>
         </div>
       )}

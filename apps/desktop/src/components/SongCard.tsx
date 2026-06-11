@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Song, SongType } from '@leviticus/core'
-import { AlertTriangle, Check, FileDown, HardDriveDownload, Headphones, Loader2, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, Waves, X } from 'lucide-react'
+import { AlertTriangle, Check, FileDown, HardDriveDownload, Headphones, Mic, Music, MoreHorizontal, Pencil, Pause, Play, Trash2, Undo2, Waves, X } from 'lucide-react'
 import { isDownloaded, getSongFilename, deleteSongFile, exportSongToMp3 } from '../lib/ytdlp.js'
 import { playSong, pauseAudio } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -19,6 +19,7 @@ import { syncOrg } from '../lib/sync.js'
 import { getDb } from '../lib/db.js'
 import { DownloadBadge } from './DownloadBadge.js'
 import { BackupStatusBadge } from './library/BackupStatusBadge.js'
+import { Button, IconButton } from './ui/index.js'
 
 import { formatDuration as fmtDuration } from '../lib/format-duration.js'
 
@@ -219,22 +220,28 @@ function ActionsMenu({
                 <span>Excluir esta música da biblioteca? Essa ação não pode ser desfeita.</span>
               </div>
               <div className="flex gap-2">
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  fullWidth
                   onClick={(e) => { e.stopPropagation(); setConfirming(false) }}
                   disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-body bg-white/[0.05] border border-hairline hover:bg-white/[0.08] transition-colors cursor-pointer disabled:cursor-default"
+                  style={{ borderRadius: 6 }}
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  fullWidth
+                  loading={deleting}
                   onClick={(e) => { e.stopPropagation(); void handleConfirmDelete() }}
                   disabled={deleting}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:cursor-default"
-                  style={{ background: deleting ? 'rgba(185,28,28,0.5)' : '#dc2626' }}
+                  style={{ borderRadius: 6 }}
                 >
-                  {deleting ? <Loader2 size={12} className="animate-spin-smooth" /> : <Trash2 size={12} strokeWidth={2} />}
+                  {!deleting && <Trash2 size={12} strokeWidth={2} />}
                   {deleting ? 'Excluindo…' : 'Excluir'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
@@ -695,17 +702,17 @@ export function SongCard({
 
       {/* Toggle "marcar como tocada" — só aparece quando dentro de playlistContext */}
       {playlistContext?.onTogglePlayed && (
-        <button
+        <IconButton
+          label={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
+          variant="ghost"
+          size="sm"
           onClick={(e) => { e.stopPropagation(); playlistContext.onTogglePlayed?.() }}
-          className={`w-7 h-7 rounded-md flex items-center justify-center hover:bg-white/[0.08] transition-all flex-shrink-0 cursor-pointer ${
-            isPlayed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          }`}
-          style={{ color: isPlayed ? '#34d399' : '#9ca3af' }}
-          aria-label={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
           title={isPlayed ? 'Desmarcar como tocada' : 'Marcar como tocada'}
+          className={`flex-shrink-0 ${isPlayed ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+          style={{ color: isPlayed ? '#34d399' : '#9ca3af', borderRadius: 6, width: 28, height: 28 }}
         >
           {isPlayed ? <Undo2 size={13} strokeWidth={2.5} /> : <Check size={14} strokeWidth={2.5} />}
-        </button>
+        </IconButton>
       )}
 
       {/* Duração: mostra valor real ou placeholder "--:--" quando faltando.

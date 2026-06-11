@@ -81,7 +81,7 @@ describe('OrgInvites', () => {
     fromMock.mockReturnValue({ select: selectMock })
     selectMock.mockReturnValue({ in: inMock })
     render(<OrgInvites orgId={ORG_ID} />)
-    await screen.findByText('Nenhum código criado ainda.')
+    await screen.findByText('Nenhum código criado ainda')
   })
 
   it('botão "Novo código" abre InviteCodeModal', async () => {

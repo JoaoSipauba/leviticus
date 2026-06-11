@@ -6,6 +6,7 @@ import { capitalizeName, isValidEmail } from '../lib/validation.js'
 import { GlowBackdrop } from '../components/brand/GlowBackdrop.js'
 import { GlassCard } from '../components/brand/GlassCard.js'
 import { captureException } from '../lib/observability.js'
+import { Button } from '../components/ui/index.js'
 
 type Props = {
   onSuccess: () => void
@@ -200,30 +201,32 @@ export function Login({ onSuccess }: Props) {
 
             {error && <p role="alert" className="text-sm text-red-400">{error}</p>}
 
-            <button
+            <Button
               type="submit"
-              disabled={loading}
-              className={`w-full font-semibold text-heading rounded-lg min-h-[46px] text-sm transition-colors ${
-                loading ? 'bg-brand-active/50 cursor-default' : 'bg-brand-active hover:bg-brand cursor-pointer'
-              }`}
+              variant="primary"
+              size="lg"
+              loading={loading}
+              fullWidth
               style={{ boxShadow: '0 8px 24px -8px rgba(37,99,235,0.5)' }}
             >
               {loading ? 'Aguarde…' : isSignUp ? 'Criar conta' : 'Entrar'}
-            </button>
+            </Button>
           </form>
 
           <p className="mt-5 text-center text-muted text-sm">
             {isSignUp ? 'Já tem uma conta? ' : 'Não tem conta? '}
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setIsSignUp((v) => !v)
                 setError(null)
                 setEmailError(null)
               }}
-              className="font-medium text-brand bg-transparent border-0 cursor-pointer text-sm"
+              style={{ display: 'inline-flex', padding: '2px 4px', color: '#3b82f6', fontSize: 14, fontWeight: 500, borderRadius: 4 }}
             >
               {isSignUp ? 'Fazer login' : 'Criar conta'}
-            </button>
+            </Button>
           </p>
         </GlassCard>
       </div>

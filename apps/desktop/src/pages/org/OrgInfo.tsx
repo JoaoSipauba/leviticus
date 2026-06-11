@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Users, LayoutGrid, CalendarDays, Home } from 'lucide-react'
+import { Users, LayoutGrid, CalendarDays, Home, Check } from 'lucide-react'
 import { useRefetchOnActive } from '../../lib/useRefetchOnActive.js'
 import { supabase } from '../../lib/supabase.js'
 import { getDb } from '../../lib/db.js'
@@ -9,6 +9,7 @@ import { toastSuccess, toastError } from '../../store/toasts.js'
 import { captureException } from '../../lib/observability.js'
 import { Skeleton, CardSkeleton } from '../../components/Skeleton.js'
 import { TimezoneCombobox } from '../../components/TimezoneCombobox.js'
+import { Button, CrossFade } from '../../components/ui/index.js'
 
 type Stats = { members: number; ministries: number; playlists: number }
 type Form = { name: string; city: string; timezone: string }
@@ -21,7 +22,14 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
   const [original, setOriginal] = useState<Form>({ name: '', city: '', timezone: 'America/Sao_Paulo' })
   const canEdit = usePermission('manage_members')
   const [saving, setSaving] = useState(false)
+  const [savedOk, setSavedOk] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!savedOk) return
+    const t = setTimeout(() => setSavedOk(false), 1200)
+    return () => clearTimeout(t)
+  }, [savedOk])
 
   async function load(opts?: { silent?: boolean }) {
     const db = await getDb()
@@ -75,6 +83,7 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
     await syncOrg(orgId)
     await load()
     toastSuccess('Informações salvas')
+    setSavedOk(true)
     setSaving(false)
   }
 
@@ -84,23 +93,22 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
     { label: 'Cultos cadastrados', value: stats.playlists, bg: 'linear-gradient(135deg,#4c1d95,#7c3aed)', stroke: '#c4b5fd', Icon: CalendarDays },
   ]
 
-  if (loading) {
-    return (
-      <div>
-        <div className="grid grid-cols-3 gap-3 mb-4">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} h={88} w="100%" rounded="xl" />
-          ))}
-        </div>
-        <div className="flex flex-col gap-3">
-          <CardSkeleton lines={2} />
-          <CardSkeleton lines={2} />
-        </div>
+  const orgInfoSkeleton = (
+    <div>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} h={88} w="100%" rounded="xl" />
+        ))}
       </div>
-    )
-  }
+      <div className="flex flex-col gap-3">
+        <CardSkeleton lines={2} />
+        <CardSkeleton lines={2} />
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={orgInfoSkeleton}>
     <div>
       <div className="grid grid-cols-3 gap-3 mb-4">
         {STAT_CARDS.map((c) => (
@@ -166,19 +174,32 @@ export function OrgInfo({ orgId, active = false }: { orgId: string; active?: boo
 
         {canEdit && (
           <div className="flex gap-2 justify-end pt-2">
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setForm(original)}
               disabled={!dirty || saving}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#d1d5db', cursor: (!dirty || saving) ? 'default' : 'pointer', opacity: (!dirty || saving) ? 0.4 : 1 }}
-            >Cancelar</button>
-            <button
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={handleSave}
+              loading={saving}
               disabled={!dirty || saving}
-              style={{ padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 600, background: '#2563eb', border: 'none', color: '#fff', cursor: (!dirty || saving) ? 'default' : 'pointer', opacity: (!dirty || saving) ? 0.4 : 1 }}
-            >{saving ? 'Salvando…' : 'Salvar alterações'}</button>
+            >
+              {saving ? 'Salvando…' : 'Salvar alterações'}
+            </Button>
+            {savedOk && (
+              <span className="animate-pop-in" style={{ color: '#22c55e', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}>
+                <Check size={14} /> Salvo!
+              </span>
+            )}
           </div>
         )}
       </div>
     </div>
+    </CrossFade>
   )
 }

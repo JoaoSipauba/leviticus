@@ -98,7 +98,7 @@ describe('Playlists', () => {
     setupDb([])
     render(<Playlists />)
     await waitFor(() => {
-      expect(screen.getByText('Nenhum culto agendado.')).toBeInTheDocument()
+      expect(screen.getByText('Nenhum culto agendado')).toBeInTheDocument()
     })
     expect(screen.queryByText('Novo culto')).not.toBeInTheDocument()
     expect(screen.queryByText('Criar primeiro culto')).not.toBeInTheDocument()
@@ -128,7 +128,7 @@ describe('Playlists', () => {
     render(<Playlists />)
 
     await waitFor(() => {
-      expect(screen.getByText('Nenhum culto agendado.')).toBeInTheDocument()
+      expect(screen.getByText('Nenhum culto agendado')).toBeInTheDocument()
     })
   })
 
@@ -183,7 +183,7 @@ describe('Playlists', () => {
     render(<Playlists />)
 
     await waitFor(() => {
-      expect(screen.getByText('Nenhum culto agendado.')).toBeInTheDocument()
+      expect(screen.getByText('Nenhum culto agendado')).toBeInTheDocument()
     })
 
     expect(screen.queryByTestId('playlist-form-modal')).not.toBeInTheDocument()

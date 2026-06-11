@@ -241,6 +241,20 @@ export async function signupAndCreateOrg(opts: {
   }
   if (!org) throw new Error(`Org "${orgName}" not in DB after 30s`)
 
+  // Aguarda o boot completar: o app navega pra /library e o splash some apenas
+  // após auth + syncOrg terminarem. Sem este wait, specs que chamam este helper
+  // e logo em seguida buscam botões na página encontram elementos em estado de
+  // loading (CrossFade opacity:0) e não conseguem interagir — causando flakiness
+  // na suíte paralela mas não em isolado (onde o boot termina antes do timeout).
+  await browser.waitUntil(
+    async () => /\/library$/.test(await browser.getUrl()),
+    { timeout: 60_000, timeoutMsg: 'Did not navigate to /library after org creation' }
+  )
+  await browser.waitUntil(
+    async () => !(await browser.$('#boot-splash').isExisting()),
+    { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear — syncOrg may have failed' }
+  )
+
   return { userId: org.owner_id, orgId: org.id, email }
 }
 

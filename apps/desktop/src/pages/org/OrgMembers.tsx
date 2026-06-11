@@ -12,6 +12,7 @@ import { MemberMenu, type MenuVariant, type MemberMenuAction } from '../../compo
 import { ChangeRoleModal } from '../../components/org/ChangeRoleModal.js'
 import { ManageMinistriesModal } from '../../components/org/ManageMinistriesModal.js'
 import { RemoveMemberModal } from '../../components/org/RemoveMemberModal.js'
+import { CrossFade } from '../../components/ui/index.js'
 
 type RawRow = {
   user_id: string
@@ -161,30 +162,29 @@ export function OrgMembers({ orgId, active = false }: { orgId: string; active?: 
 
   const inputBase = { background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 9, color: '#f3f4f6', outline: 'none' }
 
-  if (loading) {
-    return (
-      <div>
-        <div className="flex items-center gap-3 mb-[14px]">
-          {/* O 1º skeleton ocupa o espaço restante via flex-1 — espelha o
-              `<div className="flex-1">` da busca real. Antes era w="100%"
-              que, somado aos dois de 140px (flex-shrink:0), estourava a
-              largura e mostrava scrollbar horizontal. */}
-          <div className="flex-1">
-            <Skeleton h={36} w="100%" rounded="lg" />
-          </div>
-          <Skeleton h={36} w={140} rounded="lg" />
-          <Skeleton h={36} w={140} rounded="lg" />
+  const membersSkeleton = (
+    <div>
+      <div className="flex items-center gap-3 mb-[14px]">
+        {/* O 1º skeleton ocupa o espaço restante via flex-1 — espelha o
+            `<div className="flex-1">` da busca real. Antes era w="100%"
+            que, somado aos dois de 140px (flex-shrink:0), estourava a
+            largura e mostrava scrollbar horizontal. */}
+        <div className="flex-1">
+          <Skeleton h={36} w="100%" rounded="lg" />
         </div>
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SongCardSkeleton key={i} variant="list" />
-          ))}
-        </div>
+        <Skeleton h={36} w={140} rounded="lg" />
+        <Skeleton h={36} w={140} rounded="lg" />
       </div>
-    )
-  }
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SongCardSkeleton key={i} variant="list" />
+        ))}
+      </div>
+    </div>
+  )
 
   return (
+    <CrossFade loading={loading} skeleton={membersSkeleton}>
     <div>
       <div className="flex items-center gap-3 mb-[14px]">
         <div className="flex-1 relative">
@@ -293,5 +293,6 @@ export function OrgMembers({ orgId, active = false }: { orgId: string; active?: 
         />
       )}
     </div>
+    </CrossFade>
   )
 }

@@ -1,18 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Calendar, Clock, X, Loader2 } from 'lucide-react'
+import { Calendar, Clock, X } from 'lucide-react'
 import type { Playlist } from '@leviticus/core'
 import { supabase } from '../lib/supabase.js'
 import { syncOrg } from '../lib/sync.js'
 import { useOnlineStatus } from '../lib/useOnlineStatus.js'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
 import { captureException } from '../lib/observability.js'
 import { DatePicker } from './DatePicker.js'
 import { TimePicker } from './TimePicker.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
   onClose: () => void
-  onSaved: (playlistId: string) => void
+  onSaved: (playlistId: string, optimistic?: Pick<Playlist, 'id' | 'name' | 'scheduled_at' | 'scheduled_end' | 'org_id'>) => void
   // Quando preenchido, modal age em modo edição.
   editing?: Playlist | null
   // Quando preenchido, modal age em modo duplicação — nome e horário
@@ -122,6 +124,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
         }
         await syncOrg(orgId)
         onSaved(editing.id)
+        onClose()
       } else if (duplicating) {
         // Issue #155: cria culto novo + copia seções/músicas do original.
         const { data, error: e } = await supabase.rpc('duplicate_playlist', {
@@ -143,6 +146,7 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
         }
         await syncOrg(orgId)
         onSaved(r.id)
+        onClose()
       } else {
         const { data, error: e } = await supabase.rpc('create_playlist', {
           p_org_id: orgId,
@@ -160,10 +164,16 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           if (r?.error === 'invalid_time_range') throw new Error('A hora de término precisa ser depois da hora de início.')
           throw new Error('Não foi possível criar. Tente novamente.')
         }
+        onSaved(r.id, {
+          id: r.id,
+          name: name.trim(),
+          scheduled_at: start.toISOString(),
+          scheduled_end: end.toISOString(),
+          org_id: orgId,
+        })
+        onClose()
         await syncOrg(orgId)
-        onSaved(r.id)
       }
-      onClose()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Algo deu errado.')
     } finally {
@@ -173,33 +183,15 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
 
   // Issue #91: clique-fora só descarta se o form está vazio (nada digitado).
   const canDismissOutside = name.trim() === ''
-  const { onBackdropClick } = useModalDismiss({ onClose, canDismissOutside, busy: saving, enabled: open })
-
-  if (!open) return null
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.55)' }}
-      onClick={onBackdropClick}
-    >
-      <div
-        className="animate-modal-in w-full max-w-md rounded-2xl p-6"
-        style={{
-          background: 'rgba(19,19,31,0.95)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 20px 60px -10px rgba(0,0,0,0.7)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal open={open} onClose={onClose} closeOnBackdrop={canDismissOutside} busy={saving}>
+      <div className="p-6">
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-h2 text-heading">
             {editing ? 'Editar culto' : duplicating ? 'Duplicar culto' : 'Novo culto'}
           </h2>
-          <button onClick={onClose} className="text-body hover:text-heading transition-colors" aria-label="Fechar">
-            <X size={18} />
-          </button>
+          <IconButton label="Fechar" onClick={onClose} variant="ghost" size="sm"><X size={18} /></IconButton>
         </div>
 
         <div className="space-y-4">
@@ -241,31 +233,26 @@ export function PlaylistFormModal({ open, onClose, onSaved, editing, duplicating
           {error && <p className="text-sm text-red-400">{error}</p>}
 
           <div className="flex gap-2 pt-2">
-            <button
+            <Button
               onClick={onClose}
               disabled={saving}
-              className="flex-1 px-3 py-2 rounded-lg text-body font-semibold transition-colors cursor-pointer disabled:cursor-default"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}
+              variant="secondary"
+              fullWidth
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSave}
               disabled={saving || !online}
+              loading={saving}
               title={online ? undefined : 'Sem conexão'}
-              className="flex-1 px-3 py-2 rounded-lg font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-              style={{
-                background: online ? '#2563eb' : 'rgba(75,85,99,0.4)',
-                color: online ? '#fff' : '#9ca3af',
-                opacity: online ? 1 : 0.7,
-              }}
+              fullWidth
             >
-              {saving ? <Loader2 size={14} className="animate-spin-smooth" /> : null}
               {saving ? 'Salvando…' : editing ? 'Salvar' : duplicating ? 'Duplicar' : 'Criar'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

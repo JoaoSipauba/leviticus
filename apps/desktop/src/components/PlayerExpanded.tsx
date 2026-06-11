@@ -6,6 +6,7 @@ import {
 import type { Song } from '@leviticus/core'
 import { Slider } from './Slider.js'
 import { Tooltip } from './Tooltip.js'
+import { Button, IconButton } from './ui/index.js'
 import { usePlayerStore } from '../store/player.js'
 import { pauseAudio, resumeAudio, playSong } from '../lib/audio.js'
 import { handleSongEnd } from '../lib/playback.js'
@@ -143,37 +144,41 @@ export function PlayerExpanded({
       {/* Topo: Fila + Fechar */}
       <div className="absolute top-6 right-6 z-30 flex items-center gap-2">
         <Tooltip text="Fila (Q)">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => setQueueOpen((v) => !v)}
-            className="flex items-center gap-2 px-3.5 h-9 rounded-lg cursor-pointer transition-colors"
+            aria-label="Fila (Q)"
+            aria-pressed={queueOpen}
             style={{
               background: queueOpen ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.05)',
               border: queueOpen ? '1px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.08)',
               color: queueOpen ? '#3b82f6' : '#9ca3af',
+              height: 36,
             }}
           >
             <ListMusic size={16} strokeWidth={2} />
-            <span className="text-sm font-medium">Fila</span>
+            <span>Fila</span>
             {playlistSongs.length > 0 && (
               <span className="text-xs font-mono ml-1 opacity-70">
                 {Math.max(currentIdx + 1, 1)}/{playlistSongs.length}
               </span>
             )}
-          </button>
+          </Button>
         </Tooltip>
 
         <Tooltip text="Fechar (Esc)">
-          <button
+          <IconButton
+            label="Fechar (Esc)"
+            size="sm"
             onClick={onClose}
-            className="flex items-center justify-center w-9 h-9 rounded-lg cursor-pointer transition-colors hover:bg-white/[0.08]"
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.08)',
-              color: '#9ca3af',
             }}
           >
             <X size={16} strokeWidth={2} />
-          </button>
+          </IconButton>
         </Tooltip>
       </div>
 
@@ -239,36 +244,43 @@ export function PlayerExpanded({
             click acidental, com cor de brand quando ativos. Prev/Play/Next dominam. */}
         <div className="flex items-center gap-4">
           <Tooltip text="Reprodução automática (S)">
-            <button
+            <IconButton
+              label="Reprodução automática (S)"
+              size="sm"
               onClick={onToggleAutoplay}
-              className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer hover:bg-white/[0.08]"
               style={{
                 color: autoplay ? '#3b82f6' : '#9ca3af',
                 opacity: autoplay ? 1 : 0.55,
               }}
             >
               <ListEnd size={18} strokeWidth={2} />
-            </button>
+            </IconButton>
           </Tooltip>
 
           <Tooltip text="Anterior (←)">
-            <button
+            <IconButton
+              label="Anterior (←)"
+              size="md"
               onClick={handlePrev}
-              className="w-12 h-12 rounded-lg flex items-center justify-center text-body hover:bg-white/[0.08] hover:text-heading transition-colors cursor-pointer"
+              className="hover:text-heading"
             >
               <ChevronLeft size={26} strokeWidth={2} />
-            </button>
+            </IconButton>
           </Tooltip>
 
+          {/* Play / Pause — circular, estilo único; usa size="sm" para evitar
+              active:scale do lv-btn-md (perceived performance). */}
           <Tooltip text="Play / Pause (Espaço)">
-            <button
+            <IconButton
+              label="Play / Pause (Espaço)"
+              size="sm"
               onClick={handlePlayPause}
-              className="rounded-full flex items-center justify-center text-white transition-transform hover:scale-105 cursor-pointer"
+              className="hover:scale-105"
               style={{
-                width: 72, height: 72,
-                background: '#2563eb',
+                width: 72, height: 72, borderRadius: '50%',
+                background: '#2563eb', color: '#fff',
                 boxShadow: '0 12px 32px -6px rgba(37,99,235,0.6)',
-                border: 'none',
+                transition: 'transform 0.1s ease',
               }}
             >
               {isPlaying ? (
@@ -276,16 +288,18 @@ export function PlayerExpanded({
               ) : (
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="ml-1"><polygon points="5,3 19,12 5,21" /></svg>
               )}
-            </button>
+            </IconButton>
           </Tooltip>
 
           <Tooltip text="Próxima (→)">
-            <button
+            <IconButton
+              label="Próxima (→)"
+              size="md"
               onClick={handleNext}
-              className="w-12 h-12 rounded-lg flex items-center justify-center text-body hover:bg-white/[0.08] hover:text-heading transition-colors cursor-pointer"
+              className="hover:text-heading"
             >
               <ChevronLeft size={26} strokeWidth={2} className="rotate-180" />
-            </button>
+            </IconButton>
           </Tooltip>
 
           <Tooltip text={
@@ -293,9 +307,14 @@ export function PlayerExpanded({
             repeat === 'queue' ? 'Repetindo a fila (R pra desativar)' :
                                  'Repetir (R)'
           }>
-            <button
+            <IconButton
+              label={
+                repeat === 'one'   ? 'Repetindo a música (R pra próximo)' :
+                repeat === 'queue' ? 'Repetindo a fila (R pra desativar)' :
+                                     'Repetir (R)'
+              }
+              size="sm"
               onClick={onCycleRepeat}
-              className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors cursor-pointer hover:bg-white/[0.08]"
               style={{
                 color: repeat !== 'none' ? '#3b82f6' : '#9ca3af',
                 opacity: repeat !== 'none' ? 1 : 0.55,
@@ -304,21 +323,23 @@ export function PlayerExpanded({
               {repeat === 'one'
                 ? <Repeat1 size={18} strokeWidth={2} />
                 : <Repeat size={18} strokeWidth={2} />}
-            </button>
+            </IconButton>
           </Tooltip>
         </div>
 
         {/* Volume + hint dos atalhos */}
         <div className="mt-10 flex items-center gap-3">
           <Tooltip text="Mudo (M)">
-            <button
+            <IconButton
+              label="Mudo (M)"
+              size="sm"
               onClick={onMute}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-body hover:bg-white/[0.08] hover:text-heading transition-colors cursor-pointer"
+              className="hover:text-heading"
             >
               {muted
                 ? <VolumeX size={18} strokeWidth={2} />
                 : <Volume2 size={18} strokeWidth={2} />}
-            </button>
+            </IconButton>
           </Tooltip>
           <Slider
             value={muted ? 0 : volume}
@@ -361,7 +382,7 @@ export function PlayerExpanded({
           </div>
 
           {/* Lista — ordem do culto, sem rearranjo. */}
-          <div className="flex-1 overflow-y-auto styled-scroll px-2 py-2 space-y-0.5">
+          <div className="flex-1 overflow-y-auto styled-scroll px-2 py-2 space-y-0.5" style={{ contain: 'layout' }}>
             {playlistSongs.map((song, idx) => {
               const isCurrent = song.id === currentSong.id
               return (

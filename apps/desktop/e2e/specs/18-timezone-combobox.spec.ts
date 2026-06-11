@@ -29,16 +29,23 @@ describe('Journey #18 — TimezoneCombobox (#86)', () => {
     const supabase = makeAdminClient()
     await browser.url('tauri://localhost/manage?tab=info')
 
+    // Aguarda boot terminar (splash some após syncOrg) antes de interagir.
+    await browser.waitUntil(
+      async () => !(await browser.$('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear' }
+    )
+
     // Aguarda página carregar antes de procurar combobox.
     await browser.waitUntil(
       async () => (await $('label*=Fuso horário')).isExisting(),
       { timeout: 15_000, timeoutMsg: 'OrgInfo não renderizou label Fuso horário' }
     )
 
-    // Combobox renderiza como <button aria-haspopup="listbox"> com IANA
-    // name + offset. Estado inicial: America/Sao_Paulo (default).
+    // OrgInfo usa CrossFade: aguarda trigger ser clickable (loading=false) antes
+    // de clicar. waitForClickable verifica que não está pointer-events:none.
     const trigger = $('button[aria-haspopup="listbox"]')
     await trigger.waitForExist({ timeout: 15_000 })
+    await trigger.waitForClickable({ timeout: 10_000, timeoutMsg: 'Trigger do combobox não ficou interativo' })
     const initialText = await trigger.getText()
     expect(initialText).toContain('America/Sao_Paulo')
     expect(initialText).toMatch(/GMT[+-]\d{2}:\d{2}/)
@@ -86,8 +93,13 @@ describe('Journey #18 — TimezoneCombobox (#86)', () => {
 
   it('busca tolera espaço (sao paulo → Sao_Paulo)', async () => {
     await browser.url('tauri://localhost/manage?tab=info')
+    await browser.waitUntil(
+      async () => !(await browser.$('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear' }
+    )
     const trigger = $('button[aria-haspopup="listbox"]')
     await trigger.waitForExist({ timeout: 15_000 })
+    await trigger.waitForClickable({ timeout: 10_000, timeoutMsg: 'Trigger do combobox não ficou interativo' })
     await trigger.click()
     await $('ul[role="listbox"]').waitForExist({ timeout: 5_000 })
 
@@ -106,8 +118,13 @@ describe('Journey #18 — TimezoneCombobox (#86)', () => {
     // verificando que ao menos o botão existe enabled. Cobertura de "disabled"
     // fica nos unit tests do componente (TimezoneCombobox.test.tsx).
     await browser.url('tauri://localhost/manage?tab=info')
+    await browser.waitUntil(
+      async () => !(await browser.$('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear' }
+    )
     const trigger = $('button[aria-haspopup="listbox"]')
     await trigger.waitForExist({ timeout: 15_000 })
+    await trigger.waitForClickable({ timeout: 10_000, timeoutMsg: 'Trigger do combobox não ficou interativo' })
     expect(await trigger.isEnabled()).toBe(true)
   })
 })

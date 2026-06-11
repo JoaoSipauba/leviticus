@@ -106,7 +106,11 @@ describe('PlaylistFormModal', () => {
           p_name: 'Culto de Domingo',
         }),
       )
-      expect(onSaved).toHaveBeenCalledWith(NEW_PLAYLIST_ID)
+      // onSaved recebe o id + dados otimistas (novo na v2)
+      expect(onSaved).toHaveBeenCalledWith(
+        NEW_PLAYLIST_ID,
+        expect.objectContaining({ id: NEW_PLAYLIST_ID, name: 'Culto de Domingo', org_id: ORG_ID }),
+      )
       expect(onClose).toHaveBeenCalled()
     })
   })
@@ -208,8 +212,8 @@ describe('PlaylistFormModal', () => {
 
   it('clique no backdrop: NÃO fecha com form preenchido, fecha com form vazio', async () => {
     const { onClose } = renderModal()
-    // O backdrop é o overlay fixed inset-0 — ancestor mais externo do modal.
-    const backdrop = document.querySelector('.fixed.inset-0') as HTMLElement
+    // O backdrop é o overlay role="presentation" renderizado pelo AnimatedModal.
+    const backdrop = document.querySelector('[role="presentation"]') as HTMLElement
     expect(backdrop).toBeTruthy()
 
     // Form preenchido → clique-fora não descarta.

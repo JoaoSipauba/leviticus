@@ -138,6 +138,14 @@ describe('Library', () => {
   })
 
   it('silent refresh: re-loads após librarySeed bump não mostram skeleton (issue #80)', async () => {
+    // CrossFade mantém skeleton no DOM (opacity:0, aria-hidden) após load.
+    // Verifica que nenhum .skeleton está *visível* (= fora de aria-hidden=true).
+    function visibleSkeletons(c: HTMLElement) {
+      return Array.from(c.querySelectorAll('.skeleton')).filter(
+        (el) => !el.closest('[aria-hidden="true"]')
+      ).length
+    }
+
     // Setup: 1 música, vai carregar normalmente
     setupDbSelect([makeSong({ id: 's1', title: 'Reckless Love' })])
 
@@ -147,8 +155,8 @@ describe('Library', () => {
     await waitFor(() => {
       expect(screen.getByText('Reckless Love')).toBeInTheDocument()
     })
-    // Sem skeleton no estado estável pós-load inicial
-    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+    // Sem skeleton visível no estado estável pós-load inicial
+    expect(visibleSkeletons(container)).toBe(0)
 
     // Simula bump do librarySeed (e.g. sync reativo após upload pro Drive)
     // Atualiza dados pra simular novo backup_status
@@ -158,15 +166,15 @@ describe('Library', () => {
 
     // Crítico: durante o re-load, skeleton NÃO deve aparecer (silent refresh).
     // Antes do fix, setLoading(true) faria skeletons piscarem aqui.
-    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+    expect(visibleSkeletons(container)).toBe(0)
     // E a música continua na tela (não foi unmount)
     expect(screen.getByText('Reckless Love')).toBeInTheDocument()
 
-    // Quando re-load concluir, ainda sem skeleton
+    // Quando re-load concluir, ainda sem skeleton visível
     await waitFor(() => {
       expect(screen.getAllByTestId('song-card')).toHaveLength(1)
     })
-    expect(container.querySelectorAll('.skeleton').length).toBe(0)
+    expect(visibleSkeletons(container)).toBe(0)
   })
 
   it('biblioteca vazia: CTA grande + esconde search/filtros (issue #34)', async () => {

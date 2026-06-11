@@ -1,5 +1,7 @@
 import { AlertTriangle, X } from 'lucide-react'
-import { useModalDismiss } from '../lib/useModalDismiss.js'
+import { AnimatedModal } from './ui/AnimatedModal.js'
+import { Button } from './ui/Button.js'
+import { IconButton } from './ui/IconButton.js'
 
 type Props = {
   open: boolean
@@ -14,21 +16,9 @@ type Props = {
 export function MergeSectionsModal({
   open, sourceLabel, targetLabel, sourceSongCount, targetSongCount, onConfirm, onCancel,
 }: Props) {
-  // Modal de confirmação sem formulário: clique-fora é sempre seguro.
-  const { onBackdropClick } = useModalDismiss({ onClose: onCancel, canDismissOutside: true, enabled: open })
-  if (!open) return null
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }} onClick={onBackdropClick}>
-      <div
-        className="animate-modal-in w-full max-w-sm rounded-2xl p-5"
-        style={{
-          background: 'rgba(19,19,31,0.95)',
-          backdropFilter: 'blur(20px) saturate(180%)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          boxShadow: '0 20px 60px -10px rgba(0,0,0,0.7)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+    <AnimatedModal open={open} onClose={onCancel} size="sm">
+      <div className="p-5">
         <div className="flex items-start gap-3 mb-4">
           <span className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)' }}>
             <AlertTriangle size={16} className="text-amber-400" />
@@ -42,21 +32,17 @@ export function MergeSectionsModal({
               {' '}({targetSongCount} {targetSongCount === 1 ? 'música' : 'músicas'}).
             </p>
           </div>
-          <button onClick={onCancel} className="text-body hover:text-heading"><X size={16} /></button>
+          <IconButton label="Fechar" onClick={onCancel} variant="ghost" size="sm"><X size={16} /></IconButton>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 px-3 py-2 rounded-lg font-semibold text-body cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <Button onClick={onCancel} variant="secondary" fullWidth>
             Cancelar
-          </button>
-          <button onClick={onConfirm}
-            className="flex-1 px-3 py-2 rounded-lg font-semibold text-white cursor-pointer"
-            style={{ background: '#2563eb' }}>
+          </Button>
+          <Button onClick={onConfirm} variant="primary" fullWidth>
             Fundir
-          </button>
+          </Button>
         </div>
       </div>
-    </div>
+    </AnimatedModal>
   )
 }

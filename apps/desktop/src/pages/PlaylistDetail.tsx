@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Play, Plus, MoreHorizontal, Music, Pencil, Copy, Trash2,
-  Loader2, AlertTriangle, GripVertical, CloudDownload,
+  AlertTriangle, GripVertical, CloudDownload,
 } from 'lucide-react'
 import type { Playlist, Song, PlaylistSong } from '@leviticus/core'
 import { getDb } from '../lib/db.js'
@@ -32,6 +32,7 @@ import { useOnlineStatus } from '../lib/useOnlineStatus.js'
 import { useDownloadsStore } from '../store/downloads.js'
 import { useUIStore } from '../store/ui.js'
 import { usePermission } from '../store/permissions.js'
+import { Button } from '../components/ui/index.js'
 
 type DraftSection = {
   sectionId: string
@@ -103,6 +104,8 @@ export function PlaylistDetail() {
   const dropTargetRef = useRef<DropTarget>(null)
   const [drag, setDrag] = useState<DragState>(null)
   const [dropTarget, setDropTarget] = useState<DropTarget>(null)
+  // Posição do mouse durante drag — usada só pro ghost element.
+  const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   // Ref que aponta para o endDrag mais recente — atualizado a cada render
   // para que o mouseup global sempre use a versão com sections atualizado.
   const endDragRef = useRef<() => Promise<void>>(async () => {})
@@ -271,6 +274,7 @@ export function PlaylistDetail() {
     function onMove(e: MouseEvent) {
       const state = dragRef.current
       if (!state) return
+      setMousePos({ x: e.clientX, y: e.clientY })
       const y = e.clientY
 
       if (state.kind === 'section') {
@@ -426,6 +430,7 @@ export function PlaylistDetail() {
     dropTargetRef.current = null
     setDrag(state)
     setDropTarget(null)
+    setMousePos(null)
   }
 
   function setDragOver(target: DropTarget) {
@@ -450,6 +455,7 @@ export function PlaylistDetail() {
     dropTargetRef.current = null
     setDrag(null)
     setDropTarget(null)
+    setMousePos(null)
 
     if (!state || !target || !id) return
     if (!online) return // sem conexão não tem como persistir reorder
@@ -640,9 +646,9 @@ export function PlaylistDetail() {
       <div className="relative px-8 pt-6 pb-8" style={{
         background: 'linear-gradient(180deg, rgba(37,99,235,0.18) 0%, rgba(19,19,31,0) 100%)',
       }}>
-        <button onClick={() => navigate('/services')} className="text-body text-sm flex items-center gap-1.5 mb-3 hover:text-heading transition-colors cursor-pointer">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/services')} className="mb-3">
           <ArrowLeft size={14} /> Voltar
-        </button>
+        </Button>
         <div className="flex items-end gap-5 max-w-[900px] mx-auto">
           <div className="w-32 h-32 rounded-2xl flex items-center justify-center flex-shrink-0"
             style={{ background: 'linear-gradient(135deg,#1e3a8a,#2563eb)', boxShadow: '0 16px 40px -10px rgba(37,99,235,0.45)' }}>
@@ -663,20 +669,15 @@ export function PlaylistDetail() {
                 </button>
               )}
               {canManagePlaylists && (
-              <button
-                onClick={online ? () => setAddSectionOpen(true) : undefined}
-                disabled={!online}
-                title={online ? undefined : 'Sem conexão'}
-                className="px-4 py-2.5 rounded-full font-semibold text-sm flex items-center gap-2 transition-colors disabled:cursor-not-allowed"
-                style={{
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: online ? undefined : '#6b7280',
-                  cursor: online ? 'pointer' : 'not-allowed',
-                  opacity: online ? 1 : 0.5,
-                }}>
-                <Plus size={14} /> Adicionar seção
-              </button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={online ? () => setAddSectionOpen(true) : undefined}
+                  disabled={!online}
+                  title={online ? undefined : 'Sem conexão'}
+                >
+                  <Plus size={14} /> Adicionar seção
+                </Button>
               )}
               {canManagePlaylists && (
               <PlaylistMenu
@@ -805,22 +806,61 @@ export function PlaylistDetail() {
         ))}
 
         {canManagePlaylists && (
-        <button
-          onClick={online ? () => setAddSectionOpen(true) : undefined}
-          disabled={!online}
-          title={online ? undefined : 'Sem conexão'}
-          className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-colors disabled:cursor-not-allowed"
-          style={{
-            border: '1px dashed rgba(255,255,255,0.1)',
-            color: online ? undefined : '#6b7280',
-            cursor: online ? 'pointer' : 'not-allowed',
-            opacity: online ? 1 : 0.5,
-          }}
-        >
-          <Plus size={16} /> Adicionar seção
-        </button>
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            onClick={online ? () => setAddSectionOpen(true) : undefined}
+            disabled={!online}
+            title={online ? undefined : 'Sem conexão'}
+            className="mt-6"
+            style={{ border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 12 }}
+          >
+            <Plus size={16} /> Adicionar seção
+          </Button>
         )}
       </div>
+
+      {/* Ghost element — segue o cursor durante drag */}
+      {drag !== null && mousePos !== null && (() => {
+        let ghostLabel: string | null = null
+        if (drag.kind === 'song') {
+          const section = sections.find((s) => s.sectionId === drag.sectionId)
+          const ps = section?.songs.find((s) => s.song_id === drag.songId)
+          ghostLabel = ps?.song.title ?? null
+        } else if (drag.kind === 'section') {
+          const section = allSections.find((s) => s.sectionId === drag.sectionId)
+          ghostLabel = section?.label ?? null
+        }
+        if (!ghostLabel) return null
+        return (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'fixed',
+              left: mousePos.x + 14,
+              top: mousePos.y - 14,
+              pointerEvents: 'none',
+              zIndex: 9999,
+              background: 'rgba(19,19,31,0.92)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 8,
+              padding: '5px 12px',
+              fontSize: 13,
+              color: '#e5e7eb',
+              opacity: 0.88,
+              backdropFilter: 'blur(8px)',
+              maxWidth: 220,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+            }}
+          >
+            {ghostLabel}
+          </div>
+        )
+      })()}
 
       <PlaylistFormModal
         open={editingPlaylist || duplicatingPlaylist}
@@ -932,7 +972,7 @@ function PlaylistSection({
           const playedFirst = section.songs.filter((s) => playedIds.has(s.song_id))
           const remaining = section.songs.filter((s) => !playedIds.has(s.song_id))
           return [...playedFirst, ...remaining]
-        })().map((ps) => {
+        })().map((ps, i) => {
           const isBeingDragged = dragState?.kind === 'song' && dragState.songId === ps.song_id && dragState.sectionId === ps.section_id
           const showDropBefore = dropTarget?.kind === 'song'
             && dropTarget.sectionId === section.sectionId
@@ -951,12 +991,23 @@ function PlaylistSection({
             },
             onRemoveFromPlaylist: () => onRemoveSong(ps),
           }
+          const isDropTarget = dropTarget?.kind === 'song'
+            && dropTarget.sectionId === section.sectionId
+            && dropTarget.beforeSongId === ps.song_id
           return (
             <div
               key={`${ps.section_id}-${ps.song_id}`}
               data-song-id={ps.song_id}
               data-section-id={ps.section_id}
-              style={{ opacity: isBeingDragged ? 0.4 : 1 }}
+              className="animate-fade-slide-in"
+              style={{
+                opacity: isBeingDragged ? 0.4 : 1,
+                animationDelay: `${Math.min(i, 10) * 30}ms`,
+                borderRadius: 8,
+                background: isDropTarget ? 'rgba(59,130,246,0.08)' : undefined,
+                outline: isDropTarget ? '1px solid rgba(59,130,246,0.35)' : undefined,
+                transition: 'background 0.08s, outline 0.08s',
+              }}
             >
               <div
                 style={{
@@ -998,12 +1049,15 @@ function PlaylistSection({
         )}
       </div>
       {(canManagePlaylists || canAddToPlaylist) && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onAddSong}
-          className="text-xs text-muted hover:text-[#9ca3af] transition-colors flex items-center gap-1.5 px-2 py-2 mt-1 cursor-pointer"
+          className="mt-1"
+          style={{ fontSize: 12, padding: '6px 8px' }}
         >
           <Plus size={12} /> Adicionar música
-        </button>
+        </Button>
       )}
     </section>
   )
@@ -1143,10 +1197,8 @@ function SectionHeader({
                   <span>Remover esta seção e suas músicas?</span>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => setConfirmingDelete(false)} className="flex-1 px-2 py-1 rounded-md text-xs font-semibold text-body bg-white/[0.05] cursor-pointer">Cancelar</button>
-                  <button onClick={() => { setMenuOpen(false); onDelete() }} className="flex-1 px-2 py-1 rounded-md text-xs font-semibold text-white cursor-pointer" style={{ background: '#dc2626' }}>
-                    Remover
-                  </button>
+                  <Button variant="secondary" size="sm" onClick={() => setConfirmingDelete(false)} fullWidth>Cancelar</Button>
+                  <Button variant="danger" size="sm" onClick={() => { setMenuOpen(false); onDelete() }} fullWidth>Remover</Button>
                 </div>
               </div>
             ) : (
@@ -1258,14 +1310,11 @@ function PlaylistMenu({
                 <span>Excluir este culto e todas suas seções?</span>
               </div>
               <div className="flex gap-2">
-                <button onClick={onCancelDelete} disabled={deletingPlaylist}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-body bg-white/[0.05] border border-hairline cursor-pointer">Cancelar</button>
-                <button onClick={onConfirmDelete} disabled={deletingPlaylist}
-                  className="flex-1 px-2 py-1.5 rounded-md text-xs font-semibold text-white flex items-center justify-center gap-1.5 cursor-pointer"
-                  style={{ background: deletingPlaylist ? 'rgba(185,28,28,0.5)' : '#dc2626' }}>
-                  {deletingPlaylist ? <Loader2 size={12} className="animate-spin-smooth" /> : <Trash2 size={12} />}
+                <Button variant="secondary" size="sm" onClick={onCancelDelete} disabled={deletingPlaylist} fullWidth>Cancelar</Button>
+                <Button variant="danger" size="sm" loading={deletingPlaylist} onClick={onConfirmDelete} disabled={deletingPlaylist} fullWidth>
+                  {!deletingPlaylist && <Trash2 size={12} />}
                   {deletingPlaylist ? 'Excluindo…' : 'Excluir'}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (

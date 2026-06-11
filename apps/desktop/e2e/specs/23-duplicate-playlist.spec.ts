@@ -91,6 +91,12 @@ describe('Journey #155 — Duplicar culto', () => {
 
     // ── 2. UI: navegar pra /services e abrir menu ⋯ → Duplicar ──────────
     await browser.url('tauri://localhost/services')
+    // Aguardar syncOrg completar (splash some após sync). O culto foi criado via
+    // admin — só aparece no SQLite após o sync que acontece no boot.
+    await browser.waitUntil(
+      async () => !(await browser.$('#boot-splash').isExisting()),
+      { timeout: 60_000, timeoutMsg: 'Boot splash did not disappear — syncOrg may have failed' }
+    )
 
     // O card pode estar em "HOJE", "EM BREVE" ou "PASSADOS" — busca pelo nome.
     // Como a data é +7 dias, vai estar em "EM BREVE".
