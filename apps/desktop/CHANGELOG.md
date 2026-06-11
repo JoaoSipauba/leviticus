@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.20.0](https://github.com/JoaoSipauba/leviticus/compare/v0.19.1...v0.20.0) (2026-06-11)
+
+### Funcionalidades
+
+* **analytics:** minutos tocados resilientes via playback session local ([#189](https://github.com/JoaoSipauba/leviticus/issues/189)) ([a1efdcc](https://github.com/JoaoSipauba/leviticus/commit/a1efdcca965f3601bc61d798b9dc421df6ede8e6))
+* **library:** chips de filtro combináveis e persistentes ([#40](https://github.com/JoaoSipauba/leviticus/issues/40)) ([#207](https://github.com/JoaoSipauba/leviticus/issues/207)) ([858d25f](https://github.com/JoaoSipauba/leviticus/commit/858d25f95da5ebcd4430bf11dc01ad1bfe8c0ddf))
+* **library:** inclui Fundo Musical no filtro de Tipo ([#209](https://github.com/JoaoSipauba/leviticus/issues/209)) ([1f03cf5](https://github.com/JoaoSipauba/leviticus/commit/1f03cf542077ee3c9251f272ad63b55f10fdb68f)), closes [#208](https://github.com/JoaoSipauba/leviticus/issues/208)
+* **playback:** modo "repetir fila" ([#158](https://github.com/JoaoSipauba/leviticus/issues/158)) ([#210](https://github.com/JoaoSipauba/leviticus/issues/210)) ([79599c2](https://github.com/JoaoSipauba/leviticus/commit/79599c283578d72334fadab21e6b792ba454df03))
+* **songs:** adiciona "fundo musical" como tipo de música ([#208](https://github.com/JoaoSipauba/leviticus/issues/208)) ([25118a3](https://github.com/JoaoSipauba/leviticus/commit/25118a3e9eccd9ab576e5a4fde4476a1bb1f4ab0)), closes [#207](https://github.com/JoaoSipauba/leviticus/issues/207)
+* **ui:** frontend polish — animações, primitivos e micro-interactions ([#69](https://github.com/JoaoSipauba/leviticus/issues/69)) ([#214](https://github.com/JoaoSipauba/leviticus/issues/214)) ([edd984f](https://github.com/JoaoSipauba/leviticus/commit/edd984f63edfc739401a70e5c16523edc40f9a15)), closes [#37](https://github.com/JoaoSipauba/leviticus/issues/37)
+* **ui:** pickers de data e hora localizados em pt-BR ([#108](https://github.com/JoaoSipauba/leviticus/issues/108)) ([#204](https://github.com/JoaoSipauba/leviticus/issues/204)) ([439a289](https://github.com/JoaoSipauba/leviticus/commit/439a289cde8ed6edab7bb933c95ddb05eb162e9e))
+
+### Correções
+
+* **add-song:** rejeita tipos não permitidos no drag-drop antes do modal ([#203](https://github.com/JoaoSipauba/leviticus/issues/203)) ([7bcd75d](https://github.com/JoaoSipauba/leviticus/commit/7bcd75d7dae2f65ce323cec4346c210338985d51)), closes [#154](https://github.com/JoaoSipauba/leviticus/issues/154)
+* **auth:** nao desloga o usuario no boot offline com sessao cacheada ([#205](https://github.com/JoaoSipauba/leviticus/issues/205)) ([c053498](https://github.com/JoaoSipauba/leviticus/commit/c053498a3ef01360a0e5593f416b3879a2082952))
+* **e2e:** afterCommand aguarda boot-splash após toda navegação browser.url() ([aa23b56](https://github.com/JoaoSipauba/leviticus/commit/aa23b561030b6702f00891de2d6b994565ee0dbb))
+* **e2e:** aguardar boot-splash e corrigir navegação nos specs falhos ([9f54978](https://github.com/JoaoSipauba/leviticus/commit/9f549785c261e54162e581d3432c64f50fb3c2ce))
+* **e2e:** AnimatedModal com classes Tailwind no backdrop; botões de header fora do CrossFade ([#69](https://github.com/JoaoSipauba/leviticus/issues/69)) ([8210a24](https://github.com/JoaoSipauba/leviticus/commit/8210a2440984a2434c0735561a8ba68834dfbfde))
+* **e2e:** AnimatedModal usa z-50 em vez de z-[50] para compatibilidade com seletor CSS ([2944e7d](https://github.com/JoaoSipauba/leviticus/commit/2944e7db69d965c26a615324a3328ce17dc383ea))
+* **e2e:** signupAndCreateOrg aguarda boot-splash antes de retornar ([ff3940e](https://github.com/JoaoSipauba/leviticus/commit/ff3940e3b8d6836514d433f654d1f1e8df9bf71c))
+* **ui:** aplica scrollbar custom em containers que ainda usavam a nativa do SO ([#109](https://github.com/JoaoSipauba/leviticus/issues/109), [#119](https://github.com/JoaoSipauba/leviticus/issues/119)) ([#206](https://github.com/JoaoSipauba/leviticus/issues/206)) ([c6af585](https://github.com/JoaoSipauba/leviticus/commit/c6af58506613e3710b533d4f4e04621a426b4be6))
+
 ## [0.19.1](https://github.com/JoaoSipauba/leviticus/compare/v0.19.0...v0.19.1) (2026-06-03)
 
 ## [0.19.0](https://github.com/JoaoSipauba/leviticus/compare/v0.18.2...v0.19.0) (2026-06-03)
