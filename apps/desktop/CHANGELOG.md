@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.1](https://github.com/JoaoSipauba/leviticus/compare/v0.20.0...v0.20.1) (2026-06-11)
+
+### Correções
+
+* **admin:** migra Web Analytics da landing pro endpoint v2 da Vercel ([#217](https://github.com/JoaoSipauba/leviticus/issues/217)) ([97409a5](https://github.com/JoaoSipauba/leviticus/commit/97409a58e9cf24ef3d4b1d072c0109c7f4b78aa0))
+
 ## [0.20.0](https://github.com/JoaoSipauba/leviticus/compare/v0.19.1...v0.20.0) (2026-06-11)
 
 ### Funcionalidades
