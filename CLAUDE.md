@@ -239,6 +239,14 @@ O plugin faz **bridge entre Rust e JS SDK**: breadcrumbs e tags ficam unificados
   ```
   Sem o export, `option_env!` devolve None e o init é skip (no-op). Frontend Sentry continua funcionando normal.
 
+### Símbolos de debug (symbolicação de crashes nativos)
+
+Crashes nativos chegam como **minidumps**. Pra o Sentry mostrar o frame real do nosso binário (e não `leviticus-desktop.exe ?`), ele precisa dos **debug files**: PDB no Windows, dSYM no macOS.
+
+- `[profile.release]` em [Cargo.toml](apps/desktop/src-tauri/Cargo.toml) tem `debug = true` + `split-debuginfo = "packed"` — gera os símbolos num arquivo **separado** do binário enviado (não infla o bundle).
+- [release.yml](.github/workflows/release.yml) sobe os símbolos pro Sentry via `sentry-cli debug-files upload` após cada build. Requer o secret **`SENTRY_AUTH_TOKEN`** (token com escopo `project:releases`/`project:write`). Sem o secret, o step é skip (no-op) — não quebra a release.
+- Sem isso, crashes como a corrupção de heap recorrente no Windows (#222) ficam impossíveis de root-causar.
+
 ## Testing strategy
 
 Três camadas, em ordem de custo-benefício. Toda nova feature deve ter cobertura na camada mais barata em que faz sentido — não pular pra E2E o que cabe em unit.

@@ -147,6 +147,28 @@ jobs:
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
         run: pnpm tauri build --bundles ${{ matrix.bundles }}
 
+      - name: Upload debug symbols to Sentry
+        # Sobe os símbolos de debug (PDB no Windows, dSYM no macOS) pro Sentry
+        # pra symbolicar minidumps de crashes nativos. Sem isso o frame do nosso
+        # binário aparece sem símbolo e crashes de heap corruption ficam opacos
+        # (#222). Roda nas duas plataformas. Falha de upload NÃO aborta a release
+        # (continue-on-error) — símbolo é observabilidade, não bloqueia o publish.
+        continue-on-error: true
+        shell: bash
+        working-directory: apps/desktop
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: leviticus-p6
+          SENTRY_PROJECT: javascript
+        run: |
+          set -euo pipefail
+          if [ -z "${SENTRY_AUTH_TOKEN:-}" ]; then
+            echo "SENTRY_AUTH_TOKEN não configurado — pulando upload de símbolos."
+            exit 0
+          fi
+          # @sentry/cli detecta PDB/dSYM/breakpad recursivamente no diretório.
+          npx --yes @sentry/cli@2 debug-files upload src-tauri/target/release
+
       - name: Upload assets to Supabase + emit platform manifest
         shell: bash
         env:
