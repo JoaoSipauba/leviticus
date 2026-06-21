@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.20.2](https://github.com/JoaoSipauba/leviticus/compare/v0.20.1...v0.20.2) (2026-06-21)
+
+### Correções
+
+* **observability:** gera e sobe símbolos de debug pro Sentry ([#223](https://github.com/JoaoSipauba/leviticus/issues/223)) ([f42c2dd](https://github.com/JoaoSipauba/leviticus/commit/f42c2dd81d5cc9f3d325280e124521a14cd42f09)), closes [#222](https://github.com/JoaoSipauba/leviticus/issues/222) [#222](https://github.com/JoaoSipauba/leviticus/issues/222)
+
 ## [0.20.1](https://github.com/JoaoSipauba/leviticus/compare/v0.20.0...v0.20.1) (2026-06-11)
 
 ### Correções
