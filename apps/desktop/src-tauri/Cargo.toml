@@ -9,6 +9,16 @@ edition = "2021"
 name = "leviticus_desktop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# Símbolos de debug pra symbolicar crashes nativos (minidumps) no Sentry.
+# Sem isto, o release default (`debug = false`) não gera PDB/dSYM e o frame do
+# nosso binário aparece sem símbolo — heap corruption no Windows fica opaca (#222).
+# `split-debuginfo = "packed"` mantém os símbolos FORA do binário enviado ao
+# usuário (PDB separado no Windows-MSVC, .dSYM no macOS), sem inflar o bundle.
+# Os símbolos são subidos pro Sentry no release.yml (`sentry-cli debug-files`).
+[profile.release]
+debug = true
+split-debuginfo = "packed"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
